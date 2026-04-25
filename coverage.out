@@ -1,7 +1,17 @@
 mode: set
-air-cover/cmd/aircover/main.go:13.51,15.3 1 1
-air-cover/cmd/aircover/main.go:18.13,33.88 7 1
-air-cover/cmd/aircover/main.go:33.88,36.3 2 1
-air-cover/cmd/aircover/main.go:39.60,42.16 3 1
-air-cover/cmd/aircover/main.go:42.16,44.3 1 1
+air-cover/cmd/aircover/main.go:5.13,7.2 1 1
+air-cover/internal/cmd/root.go:22.16,23.42 1 1
+air-cover/internal/cmd/root.go:23.42,26.3 2 1
+air-cover/internal/cmd/root.go:29.13,33.2 2 1
+air-cover/internal/cmd/root.go:35.19,36.19 1 1
+air-cover/internal/cmd/root.go:36.19,38.3 1 1
+air-cover/internal/cmd/root.go:38.8,45.3 5 1
+air-cover/internal/cmd/root.go:47.2,49.45 2 1
+air-cover/internal/cmd/root.go:49.45,51.3 1 1
+air-cover/internal/cmd/server.go:16.51,18.3 1 1
+air-cover/internal/cmd/server.go:25.47,40.89 7 1
+air-cover/internal/cmd/server.go:40.89,43.4 2 1
+air-cover/internal/cmd/server.go:47.13,52.2 3 1
+air-cover/internal/cmd/server.go:54.60,57.16 3 1
+air-cover/internal/cmd/server.go:57.16,59.3 1 1
 air-cover/internal/spinitron/client.go:15.39,21.2 1 1
