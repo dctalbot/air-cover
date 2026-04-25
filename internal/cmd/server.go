@@ -5,10 +5,13 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"air-cover/internal/config"
 )
 
 var (
@@ -28,11 +31,17 @@ var serverCmd = &cobra.Command{
 		mux := http.NewServeMux()
 		mux.HandleFunc("/health", healthHandler)
 
-		port := viper.GetString("port")
-		slog.Info("Listening on port", "port", port)
+		cfg, err := config.Load(cmd)
+		if err != nil {
+			slog.Error("Failed to load configuration", "error", err)
+			osExit(1)
+		}
+
+		portStr := strconv.Itoa(cfg.Port)
+		slog.Info("Listening on port", "port", portStr)
 
 		server := &http.Server{
-			Addr:              ":" + port,
+			Addr:              ":" + portStr,
 			Handler:           mux,
 			ReadHeaderTimeout: 3 * time.Second,
 		}
@@ -47,7 +56,7 @@ var serverCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(serverCmd)
 
-	serverCmd.Flags().StringP("port", "p", "8080", "Port to listen on")
+	serverCmd.Flags().IntP("port", "p", 8080, "Port to listen on")
 	_ = viper.BindPFlag("port", serverCmd.Flags().Lookup("port"))
 }
 

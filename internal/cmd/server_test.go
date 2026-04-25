@@ -34,6 +34,7 @@ func TestHealthHandler(t *testing.T) {
 }
 
 func TestServerCmd_Success(t *testing.T) {
+	t.Setenv("DB_URI", "sqlite://test.db")
 	originalListenAndServe := listenAndServe
 	defer func() { listenAndServe = originalListenAndServe }()
 
@@ -45,6 +46,7 @@ func TestServerCmd_Success(t *testing.T) {
 }
 
 func TestServerCmd_Error(t *testing.T) {
+	t.Setenv("DB_URI", "sqlite://test.db")
 	originalListenAndServe := listenAndServe
 	originalOsExit := osExit
 	defer func() {
@@ -79,5 +81,34 @@ func TestListenAndServe(t *testing.T) {
 	err := listenAndServe(server)
 	if err == nil {
 		t.Error("expected error, got nil")
+	}
+}
+
+func TestServerCmd_ConfigError(t *testing.T) {
+	originalOsExit := osExit
+	defer func() { osExit = originalOsExit }()
+
+	exited := false
+	osExit = func(code int) {
+		exited = true
+		if code != 1 {
+			t.Errorf("expected exit code 1, got %d", code)
+		}
+		panic("osExit")
+	}
+
+	t.Setenv("DB_URI", "")
+
+	func() {
+		defer func() {
+			if r := recover(); r != nil && r != "osExit" {
+				panic(r)
+			}
+		}()
+		serverCmd.Run(serverCmd, nil)
+	}()
+
+	if !exited {
+		t.Errorf("expected osExit to be called")
 	}
 }
