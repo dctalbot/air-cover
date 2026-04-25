@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"air-cover/internal/config"
 	"air-cover/internal/db"
 	"air-cover/internal/email"
+	"air-cover/internal/spinitron"
 )
 
 var (
@@ -62,9 +64,12 @@ var serverCmd = &cobra.Command{
 
 		sender := email.NewSender(cfg.SendGridAPIKey, cfg.ENV)
 		authHandler := api.NewAuthHandler(repo, sender)
+		spinitronClient := spinitron.NewClient("", cfg.SpinitronAPIURL)
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", indexHandler(repo))
+		mux.Handle("/app", authHandler.AuthMiddleware(appHandler()))
+		mux.Handle("/shows", authHandler.AuthMiddleware(showsHandler(spinitronClient)))
 		mux.HandleFunc("/health", healthHandler)
 		mux.HandleFunc("/auth/login", authHandler.HandleLogin)
 		mux.HandleFunc("/auth/verify", authHandler.HandleVerify)
@@ -161,7 +166,61 @@ const authenticatedIndexHTML = `<!DOCTYPE html>
 </head>
 <body>
     <h1>Welcome to Air Cover</h1>
-    <p>Air Cover web server is running.</p>
+    <p>Select a show to continue.</p>
+    <label for="show-select">Shows</label>
+    <select id="show-select" name="show">
+        <option value="">Loading shows...</option>
+    </select>
+    <script>
+        const showSelect = document.getElementById('show-select');
+
+        const fetchAllShows = async () => {
+            const allShows = [];
+            let page = 1;
+
+            while (page) {
+                const response = await fetch('/shows?page=' + page);
+                if (!response.ok) {
+                    throw new Error('Failed to load shows');
+                }
+
+                const payload = await response.json();
+                const items = Array.isArray(payload.items) ? payload.items : [];
+                allShows.push(...items);
+
+                page = payload.next_page || null;
+            }
+
+            return allShows;
+        };
+
+        const renderShows = (shows) => {
+            showSelect.innerHTML = '';
+            if (shows.length === 0) {
+                showSelect.innerHTML = '<option value="">No shows available</option>';
+                return;
+            }
+
+            showSelect.innerHTML = '<option value="">Select a show</option>';
+            for (const show of shows) {
+                const option = document.createElement('option');
+                option.value = show.id;
+                option.textContent = show.title || show.id;
+                showSelect.appendChild(option);
+            }
+        };
+
+        const loadShows = async () => {
+            try {
+                const shows = await fetchAllShows();
+                renderShows(shows);
+            } catch (error) {
+                showSelect.innerHTML = '<option value="">Unable to load shows</option>';
+            }
+        };
+
+        loadShows();
+    </script>
 </body>
 </html>`
 
@@ -174,7 +233,7 @@ func indexHandler(repo *db.Repository) http.HandlerFunc {
 
 		if cookie, err := r.Cookie("session_id"); err == nil && cookie.Value != "" {
 			if _, err := repo.GetSessionByToken(r.Context(), cookie.Value); err == nil {
-				writeHTML(w, authenticatedIndexHTML)
+				http.Redirect(w, r, "/app", http.StatusFound)
 				return
 			}
 
@@ -190,6 +249,54 @@ func indexHandler(repo *db.Repository) http.HandlerFunc {
 		}
 
 		writeHTML(w, unauthenticatedIndexHTML)
+	}
+}
+
+func appHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/app" {
+			http.NotFound(w, r)
+			return
+		}
+
+		writeHTML(w, authenticatedIndexHTML)
+	}
+}
+
+type showsService interface {
+	GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error)
+}
+
+func showsHandler(client showsService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		page := 1
+		pageRaw := r.URL.Query().Get("page")
+		if pageRaw != "" {
+			parsedPage, err := strconv.Atoi(pageRaw)
+			if err != nil || parsedPage < 1 {
+				http.Error(w, "Invalid page parameter", http.StatusBadRequest)
+				return
+			}
+			page = parsedPage
+		}
+
+		showsPage, err := client.GetShowsPage(r.Context(), page)
+		if err != nil {
+			slog.Error("Failed to load shows from spinitron", "error", err)
+			http.Error(w, "Unable to load shows", http.StatusBadGateway)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(showsPage); err != nil {
+			slog.Error("Failed to encode shows response", "error", err)
+		}
 	}
 }
 

@@ -27,6 +27,10 @@ This project is built using Go. The general structure follows standard Go projec
    go run cmd/aircover/main.go
    ```
 
+Set required environment variables before running:
+- `DB_URI`
+- `SPINITRON_API_URL`
+
 ## Spinitron Integration
 
 (WIP) Documentation on how to configure Spinitron API keys and webhooks.

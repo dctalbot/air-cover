@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"air-cover/internal/db"
+	"air-cover/internal/spinitron"
 )
 
 type errorWriter struct{}
@@ -23,6 +25,20 @@ func (w *errorWriter) Write(b []byte) (int, error) {
 }
 
 func (w *errorWriter) WriteHeader(statusCode int) {}
+
+type fakeShowsService struct {
+	page     spinitron.ShowsPage
+	err      error
+	lastPage int
+}
+
+func (f *fakeShowsService) GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error) {
+	f.lastPage = page
+	if f.err != nil {
+		return spinitron.ShowsPage{}, f.err
+	}
+	return f.page, nil
+}
 
 func TestHealthHandler(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -65,6 +81,7 @@ func TestIndexHandler(t *testing.T) {
 		cookie     *http.Cookie
 		wantStatus int
 		wantBody   string
+		wantHeader string
 	}{
 		{
 			name:       "valid path unauthenticated",
@@ -76,8 +93,8 @@ func TestIndexHandler(t *testing.T) {
 			name:       "valid path authenticated",
 			path:       "/",
 			cookie:     &http.Cookie{Name: "session_id", Value: "stoken"},
-			wantStatus: http.StatusOK,
-			wantBody:   "Welcome to Air Cover",
+			wantStatus: http.StatusFound,
+			wantHeader: "/app",
 		},
 		{
 			name:       "invalid path",
@@ -103,6 +120,9 @@ func TestIndexHandler(t *testing.T) {
 			if tt.wantStatus == http.StatusOK && !strings.Contains(rr.Body.String(), tt.wantBody) {
 				t.Errorf("expected body to contain %q", tt.wantBody)
 			}
+			if tt.wantHeader != "" && rr.Header().Get("Location") != tt.wantHeader {
+				t.Errorf("expected Location header %q, got %q", tt.wantHeader, rr.Header().Get("Location"))
+			}
 		})
 	}
 
@@ -112,8 +132,117 @@ func TestIndexHandler(t *testing.T) {
 	handler(ew, req)
 }
 
+func TestAppHandler(t *testing.T) {
+	handler := appHandler()
+
+	tests := []struct {
+		name       string
+		path       string
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "valid path",
+			path:       "/app",
+			wantStatus: http.StatusOK,
+			wantBody:   "show-select",
+		},
+		{
+			name:       "invalid path",
+			path:       "/app/other",
+			wantStatus: http.StatusNotFound,
+			wantBody:   "404 page not found\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			rr := httptest.NewRecorder()
+
+			handler(rr, req)
+
+			if rr.Code != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d", tt.wantStatus, rr.Code)
+			}
+			if !strings.Contains(rr.Body.String(), tt.wantBody) {
+				t.Fatalf("expected body to contain %q", tt.wantBody)
+			}
+		})
+	}
+}
+
+func TestShowsHandler(t *testing.T) {
+	nextPage := 2
+	service := &fakeShowsService{
+		page: spinitron.ShowsPage{
+			Items: []spinitron.Show{
+				{ID: "1", Title: "Morning Show"},
+			},
+			NextPage: &nextPage,
+		},
+	}
+	handler := showsHandler(service)
+
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		wantStatus int
+	}{
+		{name: "success", method: http.MethodGet, path: "/shows?page=3", wantStatus: http.StatusOK},
+		{name: "invalid method", method: http.MethodPost, path: "/shows", wantStatus: http.StatusMethodNotAllowed},
+		{name: "invalid page", method: http.MethodGet, path: "/shows?page=bad", wantStatus: http.StatusBadRequest},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			rr := httptest.NewRecorder()
+
+			handler(rr, req)
+
+			if rr.Code != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d", tt.wantStatus, rr.Code)
+			}
+
+			if tt.wantStatus == http.StatusOK {
+				if service.lastPage != 3 {
+					t.Fatalf("expected page 3 to be requested, got %d", service.lastPage)
+				}
+
+				var payload spinitron.ShowsPage
+				if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+					t.Fatalf("expected valid JSON response, got error %v", err)
+				}
+				if len(payload.Items) != 1 || payload.Items[0].Title != "Morning Show" {
+					t.Fatalf("unexpected payload: %+v", payload)
+				}
+				if payload.NextPage == nil || *payload.NextPage != 2 {
+					t.Fatalf("expected next_page=2, got %+v", payload.NextPage)
+				}
+			}
+		})
+	}
+}
+
+func TestShowsHandler_UpstreamError(t *testing.T) {
+	service := &fakeShowsService{err: errors.New("boom")}
+	handler := showsHandler(service)
+
+	req := httptest.NewRequest(http.MethodGet, "/shows", nil)
+	rr := httptest.NewRecorder()
+
+	handler(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("expected status %d, got %d", http.StatusBadGateway, rr.Code)
+	}
+}
+
 func TestServerCmd_Success(t *testing.T) {
 	t.Setenv("DB_URI", "file::memory:?cache=shared")
+	t.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
 	originalListenAndServe := listenAndServe
 	defer func() { listenAndServe = originalListenAndServe }()
 
@@ -126,6 +255,7 @@ func TestServerCmd_Success(t *testing.T) {
 
 func TestServerCmd_Error(t *testing.T) {
 	t.Setenv("DB_URI", "file::memory:?cache=shared")
+	t.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
 	originalListenAndServe := listenAndServe
 	originalOsExit := osExit
 	defer func() {
@@ -177,6 +307,7 @@ func TestServerCmd_ConfigError(t *testing.T) {
 	}
 
 	t.Setenv("DB_URI", "")
+	t.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
 
 	func() {
 		defer func() {

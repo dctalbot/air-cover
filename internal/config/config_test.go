@@ -13,6 +13,8 @@ func TestLoad_Success(t *testing.T) {
 	viper.Reset()
 	os.Setenv("DB_URI", "postgres://localhost/db")
 	defer os.Unsetenv("DB_URI")
+	os.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
+	defer os.Unsetenv("SPINITRON_API_URL")
 	os.Setenv("PORT", "8080")
 	defer os.Unsetenv("PORT")
 
@@ -27,15 +29,19 @@ func TestLoad_Success(t *testing.T) {
 	if cfg.Port != 8080 {
 		t.Errorf("expected port to be 8080, got %d", cfg.Port)
 	}
+	if cfg.SpinitronAPIURL != "https://proxy.example.test/api" {
+		t.Errorf("expected SPINITRON_API_URL to be loaded, got %s", cfg.SpinitronAPIURL)
+	}
 }
 
 func TestLoad_ValidationError(t *testing.T) {
 	viper.Reset()
 	os.Unsetenv("DB_URI")
+	os.Unsetenv("SPINITRON_API_URL")
 
 	_, err := Load(nil)
 	if err == nil {
-		t.Fatalf("expected validation error for missing DB_URI, got nil")
+		t.Fatalf("expected validation error for missing required env vars, got nil")
 	}
 }
 
@@ -43,6 +49,8 @@ func TestLoad_WithCmd(t *testing.T) {
 	viper.Reset()
 	os.Setenv("DB_URI", "postgres://localhost/db")
 	defer os.Unsetenv("DB_URI")
+	os.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
+	defer os.Unsetenv("SPINITRON_API_URL")
 
 	cmd := &cobra.Command{}
 	cmd.Flags().Int("port", 8080, "")
@@ -68,6 +76,8 @@ func TestLoad_BindFlagsError(t *testing.T) {
 	viper.Reset()
 	os.Setenv("DB_URI", "postgres://localhost/db")
 	defer os.Unsetenv("DB_URI")
+	os.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
+	defer os.Unsetenv("SPINITRON_API_URL")
 
 	cmd := &cobra.Command{}
 	cmd.Flags().Int("port", 8080, "")
