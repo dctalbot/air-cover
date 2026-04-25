@@ -1,0 +1,7 @@
+mode: set
+air-cover/cmd/aircover/main.go:13.51,15.3 1 1
+air-cover/cmd/aircover/main.go:18.13,33.88 7 1
+air-cover/cmd/aircover/main.go:33.88,36.3 2 1
+air-cover/cmd/aircover/main.go:39.60,42.16 3 1
+air-cover/cmd/aircover/main.go:42.16,44.3 1 1
+air-cover/internal/spinitron/client.go:15.39,21.2 1 1

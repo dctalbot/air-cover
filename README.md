@@ -2,6 +2,12 @@
 
 Air Cover is a Spinitron integration that allows DJs (Personas) to request substitutes to cover their shows, and in turn, allows them to pick up other substitution requests.
 
+## Development setup
+
+```
+make setup
+```
+
 ## Architecture
 
 This project is built using Go. The general structure follows standard Go project layouts:
