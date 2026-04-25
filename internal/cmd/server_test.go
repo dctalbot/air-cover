@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"air-cover/internal/db"
 )
 
 type errorWriter struct{}
@@ -35,17 +38,46 @@ func TestHealthHandler(t *testing.T) {
 }
 
 func TestIndexHandler(t *testing.T) {
+	dbConn, err := db.InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("failed to init test db: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = dbConn.Close()
+	})
+
+	repo := db.NewRepository(dbConn)
+	ctx := context.Background()
+	user, err := repo.CreateUser(ctx, "test@example.com")
+	if err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+	err = repo.CreateSession(ctx, "sid", "stoken", user.ID, time.Now().Add(1*time.Hour))
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	handler := indexHandler(repo)
+
 	tests := []struct {
 		name       string
 		path       string
+		cookie     *http.Cookie
 		wantStatus int
 		wantBody   string
 	}{
 		{
-			name:       "valid path",
+			name:       "valid path unauthenticated",
 			path:       "/",
 			wantStatus: http.StatusOK,
-			wantBody:   "<!DOCTYPE html>",
+			wantBody:   "Send magic link",
+		},
+		{
+			name:       "valid path authenticated",
+			path:       "/",
+			cookie:     &http.Cookie{Name: "session_id", Value: "stoken"},
+			wantStatus: http.StatusOK,
+			wantBody:   "Welcome to Air Cover",
 		},
 		{
 			name:       "invalid path",
@@ -58,9 +90,12 @@ func TestIndexHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			if tt.cookie != nil {
+				req.AddCookie(tt.cookie)
+			}
 			rr := httptest.NewRecorder()
 
-			indexHandler(rr, req)
+			handler(rr, req)
 
 			if rr.Code != tt.wantStatus {
 				t.Errorf("expected status %d, got %d", tt.wantStatus, rr.Code)
@@ -74,7 +109,7 @@ func TestIndexHandler(t *testing.T) {
 	// Test write error
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	ew := &errorWriter{}
-	indexHandler(ew, req)
+	handler(ew, req)
 }
 
 func TestServerCmd_Success(t *testing.T) {
