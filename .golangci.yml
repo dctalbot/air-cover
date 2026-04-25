@@ -1,0 +1,51 @@
+version: "2"
+run:
+  tests: true
+linters:
+  default: none
+  enable:
+    - errcheck
+    - gosec
+    - govet
+    - ineffassign
+    - revive
+    - staticcheck
+    - unused
+    - forbidigo
+  settings:
+    gosec:
+      excludes:
+        - G104
+        - G204
+    revive:
+      rules:
+        - name: exported
+          severity: warning
+        - name: imports-blacklist
+          severity: error
+          arguments:
+            - "log"
+    forbidigo:
+      forbid:
+        - pattern: "^fmt\\.Print.*$"
+          msg: "Use log/slog instsead of fmt.Print*"
+        - pattern: '^os\.Getenv$'
+          msg: "Environment variables can only be accessed via the config package."
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

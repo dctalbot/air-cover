@@ -1,0 +1,25 @@
+package models
+
+import (
+	"time"
+)
+
+// Persona represents a DJ on Spinitron.
+type Persona struct {
+	ID    int    `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+// SubRequest represents a request for a substitute DJ for a specific show.
+type SubRequest struct {
+	ID           string    `json:"id"`
+	ShowID       int       `json:"show_id"`
+	RequestorID  int       `json:"requestor_id"`  // Persona ID
+	SubstituteID *int      `json:"substitute_id"` // Persona ID, nil if not picked up yet
+	StartTime    time.Time `json:"start_time"`
+	EndTime      time.Time `json:"end_time"`
+	Status       string    `json:"status"` // "open", "filled", "cancelled"
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
