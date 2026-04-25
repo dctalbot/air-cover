@@ -78,7 +78,7 @@ func TestIndexHandler(t *testing.T) {
 }
 
 func TestServerCmd_Success(t *testing.T) {
-	t.Setenv("DB_URI", "sqlite://test.db")
+	t.Setenv("DB_URI", "file::memory:?cache=shared")
 	originalListenAndServe := listenAndServe
 	defer func() { listenAndServe = originalListenAndServe }()
 
@@ -90,7 +90,7 @@ func TestServerCmd_Success(t *testing.T) {
 }
 
 func TestServerCmd_Error(t *testing.T) {
-	t.Setenv("DB_URI", "sqlite://test.db")
+	t.Setenv("DB_URI", "file::memory:?cache=shared")
 	originalListenAndServe := listenAndServe
 	originalOsExit := osExit
 	defer func() {

@@ -14,9 +14,11 @@ import (
 
 // Config holds the application configuration.
 type Config struct {
-	Port  int    `validate:"required,gte=1,lte=65535"`
-	DBURI string `mapstructure:"db_uri" validate:"required"`
-	ENV   string `validate:"oneof=production development test"`
+	Port           int    `validate:"required,gte=1,lte=65535"`
+	DBURI          string `mapstructure:"db_uri" validate:"required"`
+	ENV            string `validate:"oneof=production development test"`
+	MasterEmail    string `validate:"omitempty,email"`
+	SendGridAPIKey string `validate:"omitempty"`
 }
 
 var viperBindPFlags = viper.BindPFlags
@@ -30,9 +32,11 @@ func Load(cmd *cobra.Command) (*Config, error) {
 	}
 
 	cfg := &Config{}
-	osEnvPort := os.Getenv("PORT")  // nolint:forbidigo
-	cfg.DBURI = os.Getenv("DB_URI") // nolint:forbidigo
-	cfg.ENV = os.Getenv("ENV")      // nolint:forbidigo
+	osEnvPort := os.Getenv("PORT")                     // nolint:forbidigo
+	cfg.DBURI = os.Getenv("DB_URI")                    // nolint:forbidigo
+	cfg.ENV = os.Getenv("ENV")                         // nolint:forbidigo
+	cfg.MasterEmail = os.Getenv("MASTER_EMAIL")        // nolint:forbidigo
+	cfg.SendGridAPIKey = os.Getenv("SENDGRID_API_KEY") // nolint:forbidigo
 
 	if osEnvPort != "" {
 		if p, err := strconv.Atoi(osEnvPort); err == nil {
