@@ -29,6 +29,7 @@ var serverCmd = &cobra.Command{
 		slog.Info("Starting Air Cover server...")
 
 		mux := http.NewServeMux()
+		mux.HandleFunc("/", indexHandler)
 		mux.HandleFunc("/health", healthHandler)
 
 		cfg, err := config.Load(cmd)
@@ -63,6 +64,31 @@ func init() {
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, err := w.Write([]byte("OK"))
+	if err != nil {
+		slog.Error("Failed to write response", "error", err)
+	}
+}
+
+func indexHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, err := w.Write([]byte(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Air Cover</title>
+</head>
+<body>
+    <h1>Welcome to Air Cover</h1>
+    <p>Air Cover web server is running.</p>
+</body>
+</html>`))
 	if err != nil {
 		slog.Error("Failed to write response", "error", err)
 	}

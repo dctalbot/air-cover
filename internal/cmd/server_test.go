@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -31,6 +32,49 @@ func TestHealthHandler(t *testing.T) {
 
 	ew := &errorWriter{}
 	healthHandler(ew, req)
+}
+
+func TestIndexHandler(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "valid path",
+			path:       "/",
+			wantStatus: http.StatusOK,
+			wantBody:   "<!DOCTYPE html>",
+		},
+		{
+			name:       "invalid path",
+			path:       "/unknown",
+			wantStatus: http.StatusNotFound,
+			wantBody:   "404 page not found\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			rr := httptest.NewRecorder()
+
+			indexHandler(rr, req)
+
+			if rr.Code != tt.wantStatus {
+				t.Errorf("expected status %d, got %d", tt.wantStatus, rr.Code)
+			}
+			if tt.wantStatus == http.StatusOK && !strings.Contains(rr.Body.String(), tt.wantBody) {
+				t.Errorf("expected body to contain %q", tt.wantBody)
+			}
+		})
+	}
+
+	// Test write error
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	ew := &errorWriter{}
+	indexHandler(ew, req)
 }
 
 func TestServerCmd_Success(t *testing.T) {

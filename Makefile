@@ -1,10 +1,13 @@
-.PHONY: setup start lint test check
+.PHONY: setup start build lint test check
 
 setup:
 	curl -sSfL https://golangci-lint.run/install.sh | sh -s v2.11.4
 
+build:
+	go build -o bin/aircover cmd/aircover/main.go
+
 start:
-	go run cmd/aircover/main.go
+	go run cmd/aircover/main.go server
 
 lint:
 	@if [ "$$(uname -m)" != "arm64" ]; then \
@@ -24,4 +27,4 @@ test:
 		exit 1; \
 	fi
 
-check: lint test
+check: lint test build
