@@ -11,13 +11,69 @@
     <label for="show-select">Shows</label>
     <select id="show-select" name="show">
       {{if not .}}
-        <option value="">No shows available</option>
+      <option value="">No shows available</option>
       {{else}}
-        <option value="">Select a show</option>
-        {{range .}}
-          <option value="{{.ID}}">{{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}}</option>
-        {{end}}
-      {{end}}
+      <option value="">Select a show</option>
+      {{range .}}
+      <option value="{{.ID}}">
+        {{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}}
+      </option>
+      {{end}} {{end}}
     </select>
+    <br />
+    <label for="start-time">Start Time</label>
+    <input type="datetime-local" id="start-time" name="start_time" />
+    <br />
+    <label for="end-time">End Time</label>
+    <input type="datetime-local" id="end-time" name="end_time" />
+    <p>Total duration: <span id="total-duration">0</span></p>
+
+    <script>
+      const startTimeInput = document.getElementById("start-time");
+      const endTimeInput = document.getElementById("end-time");
+      const totalDurationDisplay = document.getElementById("total-duration");
+
+      // Set min for start-time to 24 hours ago (ignoring seconds)
+      const now = new Date();
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const pad = (num) => String(num).padStart(2, "0");
+      const minStartStr = `${yesterday.getFullYear()}-${pad(
+        yesterday.getMonth() + 1,
+      )}-${pad(yesterday.getDate())}T${pad(yesterday.getHours())}:${pad(
+        yesterday.getMinutes(),
+      )}`;
+      startTimeInput.min = minStartStr;
+
+      function updateTotalDuration() {
+        const start = new Date(startTimeInput.value);
+        const end = new Date(endTimeInput.value);
+
+        if (isNaN(start) || isNaN(end)) {
+          totalDurationDisplay.textContent = "0";
+          return;
+        }
+
+        const diff = end - start;
+        if (diff < 0) {
+          totalDurationDisplay.textContent = "0 (End time before start time)";
+          return;
+        }
+
+        const minutes = Math.floor((diff / (1000 * 60)) % 60);
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+
+        totalDurationDisplay.textContent = `${hours}h ${minutes}m`;
+      }
+
+      startTimeInput.addEventListener("input", () => {
+        endTimeInput.min = startTimeInput.value;
+        updateTotalDuration();
+      });
+      endTimeInput.addEventListener("input", updateTotalDuration);
+    </script>
+
+
+
   </body>
 </html>
+

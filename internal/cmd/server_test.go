@@ -163,6 +163,22 @@ func TestAppHandler(t *testing.T) {
 			if !strings.Contains(rr.Body.String(), tt.wantBody) {
 				t.Fatalf("expected body to contain %q", tt.wantBody)
 			}
+			if !strings.Contains(rr.Body.String(), `id="start-time"`) {
+				t.Fatalf("expected body to contain start-time input")
+			}
+			if !strings.Contains(rr.Body.String(), `id="end-time"`) {
+				t.Fatalf("expected body to contain end-time input")
+			}
+
+			if !strings.Contains(rr.Body.String(), `id="total-duration"`) {
+				t.Fatalf("expected body to contain total-duration display")
+			}
+			if !strings.Contains(rr.Body.String(), "Total duration") {
+				t.Fatalf("expected body to contain 'Total duration' label")
+			}
+
+
+
 
 			if strings.Index(rr.Body.String(), "Apple Show") > strings.Index(rr.Body.String(), "Zebra Show") {
 				t.Fatalf("expected Apple Show to appear before Zebra Show")
