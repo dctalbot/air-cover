@@ -10,58 +10,14 @@
     <p>Select a show to continue.</p>
     <label for="show-select">Shows</label>
     <select id="show-select" name="show">
-      <option value="">Loading shows...</option>
+      {{if not .}}
+        <option value="">No shows available</option>
+      {{else}}
+        <option value="">Select a show</option>
+        {{range .}}
+          <option value="{{.ID}}">{{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}}</option>
+        {{end}}
+      {{end}}
     </select>
-    <script>
-      const showSelect = document.getElementById("show-select");
-
-      const fetchAllShows = async () => {
-        const allShows = [];
-        let page = 1;
-
-        while (page) {
-          const response = await fetch("/shows?page=" + page);
-          if (!response.ok) {
-            throw new Error("Failed to load shows");
-          }
-
-          const payload = await response.json();
-          const items = Array.isArray(payload.items) ? payload.items : [];
-          allShows.push(...items);
-
-          page = payload.next_page || null;
-        }
-
-        return allShows;
-      };
-
-      const renderShows = (shows) => {
-        showSelect.innerHTML = "";
-        if (shows.length === 0) {
-          showSelect.innerHTML = '<option value="">No shows available</option>';
-          return;
-        }
-
-        showSelect.innerHTML = '<option value="">Select a show</option>';
-        for (const show of shows) {
-          const option = document.createElement("option");
-          option.value = show.id;
-          option.textContent = show.title || show.id;
-          showSelect.appendChild(option);
-        }
-      };
-
-      const loadShows = async () => {
-        try {
-          const shows = await fetchAllShows();
-          renderShows(shows);
-        } catch (error) {
-          showSelect.innerHTML =
-            '<option value="">Unable to load shows</option>';
-        }
-      };
-
-      loadShows();
-    </script>
   </body>
 </html>

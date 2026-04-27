@@ -15,7 +15,7 @@ func TestRenderUnauthenticated(t *testing.T) {
 
 func TestRenderAuthenticated(t *testing.T) {
 	rr := httptest.NewRecorder()
-	RenderAuthenticated(rr)
+	RenderAuthenticated(rr, nil)
 	if rr.Code != 200 {
 		t.Errorf("expected 200, got %d", rr.Code)
 	}

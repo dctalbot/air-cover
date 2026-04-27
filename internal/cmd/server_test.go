@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -127,7 +126,15 @@ func TestIndexHandler(t *testing.T) {
 }
 
 func TestAppHandler(t *testing.T) {
-	handler := appHandler()
+	service := &fakeShowsService{
+		page: spinitron.ShowsPage{
+			Items: []spinitron.Show{
+				{ID: "2", Title: "Zebra Show"},
+				{ID: "1", Title: "Apple Show"},
+			},
+		},
+	}
+	handler := appHandler(service)
 
 	tests := []struct {
 		name       string
@@ -139,7 +146,7 @@ func TestAppHandler(t *testing.T) {
 			name:       "valid path",
 			path:       "/app",
 			wantStatus: http.StatusOK,
-			wantBody:   "show-select",
+			wantBody:   "Apple Show",
 		},
 	}
 
@@ -156,68 +163,19 @@ func TestAppHandler(t *testing.T) {
 			if !strings.Contains(rr.Body.String(), tt.wantBody) {
 				t.Fatalf("expected body to contain %q", tt.wantBody)
 			}
-		})
-	}
-}
 
-func TestShowsHandler(t *testing.T) {
-	nextPage := 2
-	service := &fakeShowsService{
-		page: spinitron.ShowsPage{
-			Items: []spinitron.Show{
-				{ID: "1", Title: "Morning Show"},
-			},
-			NextPage: &nextPage,
-		},
-	}
-	handler := showsHandler(service)
-
-	tests := []struct {
-		name       string
-		method     string
-		path       string
-		wantStatus int
-	}{
-		{name: "success", method: http.MethodGet, path: "/shows?page=3", wantStatus: http.StatusOK},
-		{name: "invalid page", method: http.MethodGet, path: "/shows?page=bad", wantStatus: http.StatusBadRequest},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(tt.method, tt.path, nil)
-			rr := httptest.NewRecorder()
-
-			handler(rr, req)
-
-			if rr.Code != tt.wantStatus {
-				t.Fatalf("expected status %d, got %d", tt.wantStatus, rr.Code)
-			}
-
-			if tt.wantStatus == http.StatusOK {
-				if service.lastPage != 3 {
-					t.Fatalf("expected page 3 to be requested, got %d", service.lastPage)
-				}
-
-				var payload spinitron.ShowsPage
-				if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
-					t.Fatalf("expected valid JSON response, got error %v", err)
-				}
-				if len(payload.Items) != 1 || payload.Items[0].Title != "Morning Show" {
-					t.Fatalf("unexpected payload: %+v", payload)
-				}
-				if payload.NextPage == nil || *payload.NextPage != 2 {
-					t.Fatalf("expected next_page=2, got %+v", payload.NextPage)
-				}
+			if strings.Index(rr.Body.String(), "Apple Show") > strings.Index(rr.Body.String(), "Zebra Show") {
+				t.Fatalf("expected Apple Show to appear before Zebra Show")
 			}
 		})
 	}
 }
 
-func TestShowsHandler_UpstreamError(t *testing.T) {
+func TestAppHandler_UpstreamError(t *testing.T) {
 	service := &fakeShowsService{err: errors.New("boom")}
-	handler := showsHandler(service)
+	handler := appHandler(service)
 
-	req := httptest.NewRequest(http.MethodGet, "/shows", nil)
+	req := httptest.NewRequest(http.MethodGet, "/app", nil)
 	rr := httptest.NewRecorder()
 
 	handler(rr, req)

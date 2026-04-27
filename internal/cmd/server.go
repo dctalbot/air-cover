@@ -2,12 +2,13 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -69,8 +70,7 @@ var serverCmd = &cobra.Command{
 
 		mux := http.NewServeMux()
 		mux.HandleFunc("GET /{$}", indexHandler(repo))
-		mux.Handle("GET /app", authHandler.AuthMiddleware(appHandler()))
-		mux.Handle("GET /shows", authHandler.AuthMiddleware(showsHandler(spinitronClient)))
+		mux.Handle("GET /app", authHandler.AuthMiddleware(appHandler(spinitronClient)))
 		mux.HandleFunc("GET /health", healthHandler)
 		mux.HandleFunc("POST /auth/login", authHandler.HandleLogin)
 		mux.HandleFunc("GET /auth/verify", authHandler.HandleVerify)
@@ -129,40 +129,36 @@ func indexHandler(repo *db.Repository) http.HandlerFunc {
 	}
 }
 
-func appHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ui.RenderAuthenticated(w)
-	}
-}
-
 type showsService interface {
 	GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error)
 }
 
-func showsHandler(client showsService) http.HandlerFunc {
+func appHandler(client showsService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var allShows []spinitron.Show
 		page := 1
-		pageRaw := r.URL.Query().Get("page")
-		if pageRaw != "" {
-			parsedPage, err := strconv.Atoi(pageRaw)
-			if err != nil || parsedPage < 1 {
-				http.Error(w, "Invalid page parameter", http.StatusBadRequest)
+
+		for page > 0 {
+			showsPage, err := client.GetShowsPage(r.Context(), page)
+			if err != nil {
+				slog.Error("Failed to load shows from spinitron", "error", err)
+				http.Error(w, "Unable to load shows", http.StatusBadGateway)
 				return
 			}
-			page = parsedPage
+
+			allShows = append(allShows, showsPage.Items...)
+
+			if showsPage.NextPage != nil {
+				page = *showsPage.NextPage
+			} else {
+				break
+			}
 		}
 
-		showsPage, err := client.GetShowsPage(r.Context(), page)
-		if err != nil {
-			slog.Error("Failed to load shows from spinitron", "error", err)
-			http.Error(w, "Unable to load shows", http.StatusBadGateway)
-			return
-		}
+		sort.Slice(allShows, func(i, j int) bool {
+			return strings.ToLower(allShows[i].Title) < strings.ToLower(allShows[j].Title)
+		})
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(w).Encode(showsPage); err != nil {
-			slog.Error("Failed to encode shows response", "error", err)
-		}
+		ui.RenderAuthenticated(w, allShows)
 	}
 }
