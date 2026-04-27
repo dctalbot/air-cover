@@ -34,7 +34,7 @@
           ><span id="preview-date"></span><span id="total-duration"></span>
         </p>
       </blockquote>
-      <label for="notes">Other info (barter, etc)</label>
+      <label for="notes">Other info</label>
       <br />
       <textarea
         id="notes"
@@ -70,9 +70,11 @@
           const start = new Date(startValue);
           if (!isNaN(start)) {
             const options = {
-              weekday: "short",
+              weekday: "long",
               month: "short",
               day: "numeric",
+              hour: "numeric",
+              minute: "numeric",
             };
             previewDate.textContent = ` on ${start.toLocaleString(undefined, options)}`;
           } else {
