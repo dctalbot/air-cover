@@ -1,0 +1,95 @@
+openapi: 3.0.3
+info:
+  title: Air Cover API
+  description: API for Air Cover session management and show tracking.
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+  /auth/login:
+    post:
+      summary: Request a magic link for login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Magic link sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Invalid request
+  /auth/verify:
+    get:
+      summary: Verify magic link and create session
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to home or app
+        '401':
+          description: Invalid or expired token
+  /auth/logout:
+    post:
+      summary: Logout and invalidate sessions
+      responses:
+        '302':
+          description: Redirect to home
+        '401':
+          description: Unauthorized
+  /:
+    get:
+      summary: Home page or login page
+      responses:
+        '200':
+          description: HTML content
+          content:
+            text/html:
+              schema:
+                type: string
+  /app:
+    get:
+      summary: Authenticated application page
+      responses:
+        '200':
+          description: HTML content
+          content:
+            text/html:
+              schema:
+                type: string
+        '401':
+          description: Unauthorized
+
+components:
+  schemas:
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+        - email
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string

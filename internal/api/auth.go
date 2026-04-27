@@ -29,10 +29,6 @@ func NewAuthHandler(repo *db.Repository, sender email.Sender) *AuthHandler {
 	}
 }
 
-type LoginRequest struct {
-	Email string `json:"email"`
-}
-
 func generateRandomToken(n int) (string, error) {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {
@@ -60,7 +56,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	user, err := h.repo.GetUserByEmail(ctx, req.Email)
+	user, err := h.repo.GetUserByEmail(ctx, string(req.Email))
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			slog.Info("Login attempt with unknown email", "email", req.Email)
@@ -166,7 +162,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	if err := h.repo.DeleteSessionsByUserID(ctx, userID); err != nil {
-		slog.Error("Failed to delete sessions", "error", err, "user_id", userID)
+		slog.Error("Failed to delete sessions", "error", err, "user_id", userID) // #nosec G706
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}

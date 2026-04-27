@@ -6,11 +6,13 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/docgen"
+	nethttp_middleware "github.com/oapi-codegen/nethttp-middleware"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -19,7 +21,6 @@ import (
 	"air-cover/internal/db"
 	"air-cover/internal/email"
 	"air-cover/internal/spinitron"
-	"air-cover/internal/ui"
 )
 
 var (
@@ -67,21 +68,43 @@ var serverCmd = &cobra.Command{
 		sender := email.NewSender(cfg.SendGridAPIKey, cfg.ENV)
 		authHandler := api.NewAuthHandler(repo, sender)
 		spinitronClient := spinitron.NewClient("", cfg.SpinitronAPIURL)
+		apiServer := api.NewServer(repo, authHandler, spinitronClient)
 
-		mux := http.NewServeMux()
-		mux.HandleFunc("GET /{$}", indexHandler(repo))
-		mux.Handle("GET /app", authHandler.AuthMiddleware(appHandler(spinitronClient)))
-		mux.HandleFunc("GET /health", healthHandler)
-		mux.HandleFunc("POST /auth/login", authHandler.HandleLogin)
-		mux.HandleFunc("GET /auth/verify", authHandler.HandleVerify)
-		mux.Handle("POST /auth/logout", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.HandleLogout)))
+		swagger, err := api.GetSwagger()
+		if err != nil {
+			slog.Error("Failed to load swagger spec", "error", err)
+			osExit(1)
+		}
+
+		r := chi.NewRouter()
+		r.Use(middleware.Logger)
+		r.Use(middleware.Recoverer)
+		r.Use(nethttp_middleware.OapiRequestValidator(swagger))
+
+		r.Get("/", apiServer.Get)
+		r.Get("/health", apiServer.GetHealth)
+		r.Post("/auth/login", apiServer.PostAuthLogin)
+		r.Get("/auth/verify", func(w http.ResponseWriter, r *http.Request) {
+			token := r.URL.Query().Get("token")
+			apiServer.GetAuthVerify(w, r, api.GetAuthVerifyParams{Token: token})
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(authHandler.AuthMiddleware)
+			r.Get("/app", apiServer.GetApp)
+			r.Post("/auth/logout", apiServer.PostAuthLogout)
+		})
+
+		slog.Info("Routes registered:")
+		doc := docgen.MarkdownRoutesDoc(r, docgen.MarkdownOpts{})
+		slog.Info(doc)
 
 		portStr := strconv.Itoa(cfg.Port)
 		slog.Info("Listening on port", "port", portStr)
 
 		server := &http.Server{
 			Addr:              ":" + portStr,
-			Handler:           mux,
+			Handler:           r,
 			ReadHeaderTimeout: 3 * time.Second,
 		}
 
@@ -98,74 +121,3 @@ func init() {
 	serverCmd.Flags().IntP("port", "p", 8080, "Port to listen on")
 	_ = viper.BindPFlag("port", serverCmd.Flags().Lookup("port"))
 }
-
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	_, err := w.Write([]byte("OK"))
-	if err != nil {
-		slog.Error("Failed to write response", "error", err)
-	}
-}
-
-func indexHandler(repo *db.Repository) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if cookie, err := r.Cookie("session_id"); err == nil && cookie.Value != "" {
-			if _, err := repo.GetSessionByToken(r.Context(), cookie.Value); err == nil {
-				http.Redirect(w, r, "/app", http.StatusFound)
-				return
-			}
-
-			// Clear stale session cookie so users can request a fresh login link.
-			http.SetCookie(w, &http.Cookie{
-				Name:     "session_id",
-				Value:    "",
-				Path:     "/",
-				MaxAge:   -1,
-				HttpOnly: true,
-				SameSite: http.SameSiteLaxMode,
-			})
-		}
-
-		ui.RenderUnauthenticated(w)
-	}
-}
-
-type showsService interface {
-	GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error)
-}
-
-func appHandler(client showsService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var allShows []spinitron.Show
-		page := 1
-
-		for page > 0 {
-			showsPage, err := client.GetShowsPage(r.Context(), page)
-			if err != nil {
-				slog.Error("Failed to load shows from spinitron", "error", err)
-				http.Error(w, "Unable to load shows", http.StatusBadGateway)
-				return
-			}
-
-			allShows = append(allShows, showsPage.Items...)
-
-			if showsPage.NextPage != nil {
-				page = *showsPage.NextPage
-			} else {
-				break
-			}
-		}
-
-		sort.Slice(allShows, func(i, j int) bool {
-			return strings.ToLower(allShows[i].Title) < strings.ToLower(allShows[j].Title)
-		})
-
-		email, _ := r.Context().Value(api.UserEmailKey).(string)
-
-		ui.RenderAuthenticated(w, map[string]any{
-			"Shows": allShows,
-			"Email": email,
-		})
-	}
-}
-

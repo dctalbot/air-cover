@@ -41,16 +41,17 @@ func (f *fakeShowsService) GetShowsPage(ctx context.Context, page int) (spinitro
 }
 
 func TestHealthHandler(t *testing.T) {
+	server := api.NewServer(nil, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 
 	rr := httptest.NewRecorder()
-	healthHandler(rr, req)
+	server.GetHealth(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rr.Code)
 	}
 
 	ew := &errorWriter{}
-	healthHandler(ew, req)
+	server.GetHealth(ew, req)
 }
 
 func TestIndexHandler(t *testing.T) {
@@ -73,7 +74,10 @@ func TestIndexHandler(t *testing.T) {
 		t.Fatalf("failed to create session: %v", err)
 	}
 
-	handler := indexHandler(repo)
+	auth := api.NewAuthHandler(repo, nil)
+	server := api.NewServer(repo, auth, nil)
+
+	handler := server.Get
 
 	tests := []struct {
 		name       string
@@ -135,7 +139,8 @@ func TestAppHandler(t *testing.T) {
 			},
 		},
 	}
-	handler := appHandler(service)
+	server := api.NewServer(nil, nil, service)
+	handler := server.GetApp
 
 	tests := []struct {
 		name       string
@@ -184,11 +189,6 @@ func TestAppHandler(t *testing.T) {
 				t.Fatalf("expected body to contain selected-show span")
 			}
 
-
-
-
-
-
 			if strings.Index(rr.Body.String(), "Apple Show") > strings.Index(rr.Body.String(), "Zebra Show") {
 				t.Fatalf("expected Apple Show to appear before Zebra Show")
 			}
@@ -198,7 +198,8 @@ func TestAppHandler(t *testing.T) {
 
 func TestAppHandler_UpstreamError(t *testing.T) {
 	service := &fakeShowsService{err: errors.New("boom")}
-	handler := appHandler(service)
+	server := api.NewServer(nil, nil, service)
+	handler := server.GetApp
 
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
 	rr := httptest.NewRecorder()
