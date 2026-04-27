@@ -117,3 +117,11 @@ func (r *Repository) DeleteSessionsByUserID(ctx context.Context, userID int) err
 	_, err := r.db.ExecContext(ctx, "DELETE FROM sessions WHERE user_id = ?", userID)
 	return err
 }
+
+func (r *Repository) CreateSubRequest(ctx context.Context, sr *models.SubRequest) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO sub_requests (id, show_id, user_id, start_time, end_time, notes, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, sr.ID, sr.ShowID, sr.UserID, sr.StartTime, sr.EndTime, sr.Notes, sr.Status, sr.CreatedAt, sr.UpdatedAt)
+	return err
+}

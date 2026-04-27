@@ -34,8 +34,19 @@ type GetAuthVerifyParams struct {
 	Token string `form:"token" json:"token"`
 }
 
+// PostSubRequestsFormdataBody defines parameters for PostSubRequests.
+type PostSubRequestsFormdataBody struct {
+	EndTime   string  `form:"end_time" json:"end_time"`
+	Notes     *string `form:"notes,omitempty" json:"notes,omitempty"`
+	Show      int     `form:"show" json:"show"`
+	StartTime string  `form:"start_time" json:"start_time"`
+}
+
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody = LoginRequest
+
+// PostSubRequestsFormdataRequestBody defines body for PostSubRequests for application/x-www-form-urlencoded ContentType.
+type PostSubRequestsFormdataRequestBody PostSubRequestsFormdataBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -57,6 +68,9 @@ type ServerInterface interface {
 	// Health check
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
+	// Create a new sub request
+	// (POST /sub-requests)
+	PostSubRequests(w http.ResponseWriter, r *http.Request)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -96,6 +110,12 @@ func (_ Unimplemented) GetAuthVerify(w http.ResponseWriter, r *http.Request, par
 // Health check
 // (GET /health)
 func (_ Unimplemented) GetHealth(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a new sub request
+// (POST /sub-requests)
+func (_ Unimplemented) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -203,6 +223,20 @@ func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHealth(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PostSubRequests operation middleware
+func (siw *ServerInterfaceWrapper) PostSubRequests(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostSubRequests(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -343,6 +377,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/health", wrapper.GetHealth)
 	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/sub-requests", wrapper.PostSubRequests)
+	})
 
 	return r
 }
@@ -350,17 +387,19 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

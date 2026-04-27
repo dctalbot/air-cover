@@ -5,9 +5,12 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"air-cover/internal/db"
+	"air-cover/internal/models"
 	"air-cover/internal/spinitron"
 	"air-cover/internal/ui"
 )
@@ -104,6 +107,76 @@ func (s *Server) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 // (GET /auth/verify)
 func (s *Server) GetAuthVerify(w http.ResponseWriter, r *http.Request, params GetAuthVerifyParams) {
 	s.auth.HandleVerify(w, r)
+}
+
+// Create a new sub request
+// (POST /sub-requests)
+func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		slog.Error("Failed to parse form", "error", err)
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	showIDStr := r.FormValue("show")
+	showID, err := strconv.Atoi(showIDStr)
+	if err != nil {
+		slog.Error("Invalid show ID", "show", showIDStr, "error", err)
+		http.Error(w, "Invalid show ID", http.StatusBadRequest)
+		return
+	}
+
+	startTimeStr := r.FormValue("start_time")
+	startTime, err := time.Parse("2006-01-02T15:04", startTimeStr)
+	if err != nil {
+		slog.Error("Invalid start time", "start_time", startTimeStr, "error", err)
+		http.Error(w, "Invalid start time", http.StatusBadRequest)
+		return
+	}
+
+	endTimeStr := r.FormValue("end_time")
+	endTime, err := time.Parse("2006-01-02T15:04", endTimeStr)
+	if err != nil {
+		slog.Error("Invalid end time", "end_time", endTimeStr, "error", err)
+		http.Error(w, "Invalid end time", http.StatusBadRequest)
+		return
+	}
+
+	notes := r.FormValue("notes")
+
+	userID, ok := r.Context().Value(UserIDKey).(int)
+	if !ok {
+		slog.Error("User ID not found in context")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	id, err := generateRandomToken(32)
+	if err != nil {
+		slog.Error("Failed to generate sub request ID", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	sr := &models.SubRequest{
+		ID:        id,
+		ShowID:    showID,
+		UserID:    userID,
+		StartTime: startTime,
+		EndTime:   endTime,
+		Notes:     notes,
+		Status:    "open",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if err := s.repo.CreateSubRequest(r.Context(), sr); err != nil {
+		slog.Error("Failed to create sub request", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/app", http.StatusSeeOther)
 }
 
 // Health check

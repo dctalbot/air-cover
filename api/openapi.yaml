@@ -77,6 +77,31 @@ paths:
                 type: string
         '401':
           description: Unauthorized
+  /sub-requests:
+    post:
+      summary: Create a new sub request
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                show:
+                  type: integer
+                start_time:
+                  type: string
+                end_time:
+                  type: string
+                notes:
+                  type: string
+              required:
+                - show
+                - start_time
+                - end_time
+      responses:
+        '303':
+          description: Redirect back to the app
 
 components:
   schemas:

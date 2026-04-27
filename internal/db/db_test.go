@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"air-cover/internal/models"
 )
 
 func TestInitDB(t *testing.T) {
@@ -105,5 +107,32 @@ func TestRepository(t *testing.T) {
 	_, err = repo.GetSessionByToken(ctx, "stoken2")
 	if err == nil {
 		t.Fatal("expected error for expired session")
+	}
+
+	// DeleteSessionsByUserID
+	err = repo.DeleteSessionsByUserID(ctx, u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = repo.GetSessionByToken(ctx, "stoken")
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+
+	// CreateSubRequest
+	sr := &models.SubRequest{
+		ID:        "sr1",
+		ShowID:    123,
+		UserID:    u.ID,
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(1 * time.Hour),
+		Notes:     "test notes",
+		Status:    "open",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	err = repo.CreateSubRequest(ctx, sr)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

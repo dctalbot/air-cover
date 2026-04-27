@@ -54,6 +54,7 @@ func newRouter(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
 		r.Use(authHandler.AuthMiddleware)
 		r.Get("/app", apiServer.GetApp)
 		r.Post("/auth/logout", apiServer.PostAuthLogout)
+		r.Post("/sub-requests", apiServer.PostSubRequests)
 	})
 
 	return r
