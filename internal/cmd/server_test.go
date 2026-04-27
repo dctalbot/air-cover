@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"air-cover/internal/api"
 	"air-cover/internal/db"
 	"air-cover/internal/spinitron"
 )
@@ -153,6 +154,8 @@ func TestAppHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			ctx := context.WithValue(req.Context(), api.UserEmailKey, "test@example.com")
+			req = req.WithContext(ctx)
 			rr := httptest.NewRecorder()
 
 			handler(rr, req)
@@ -173,9 +176,15 @@ func TestAppHandler(t *testing.T) {
 			if !strings.Contains(rr.Body.String(), `id="total-duration"`) {
 				t.Fatalf("expected body to contain total-duration display")
 			}
-			if !strings.Contains(rr.Body.String(), "Total duration") {
-				t.Fatalf("expected body to contain 'Total duration' label")
+			if !strings.Contains(rr.Body.String(), "<b>test@example.com</b> is requesting a sub") {
+				t.Fatalf("expected body to contain new duration label with email")
 			}
+
+			if !strings.Contains(rr.Body.String(), `id="selected-show"`) {
+				t.Fatalf("expected body to contain selected-show span")
+			}
+
+
 
 
 

@@ -159,6 +159,12 @@ func appHandler(client showsService) http.HandlerFunc {
 			return strings.ToLower(allShows[i].Title) < strings.ToLower(allShows[j].Title)
 		})
 
-		ui.RenderAuthenticated(w, allShows)
+		email, _ := r.Context().Value(api.UserEmailKey).(string)
+
+		ui.RenderAuthenticated(w, map[string]any{
+			"Shows": allShows,
+			"Email": email,
+		})
 	}
 }
+

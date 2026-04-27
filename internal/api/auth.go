@@ -159,7 +159,10 @@ func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
 
 type contextKey string
 
-const UserIDKey contextKey = "user_id"
+const (
+	UserIDKey    contextKey = "user_id"
+	UserEmailKey contextKey = "user_email"
+)
 
 func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -176,7 +179,14 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx = context.WithValue(ctx, UserIDKey, session.UserID)
+		user, err := h.repo.GetUserByID(ctx, session.UserID)
+		if err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		ctx = context.WithValue(ctx, UserIDKey, user.ID)
+		ctx = context.WithValue(ctx, UserEmailKey, user.Email)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
