@@ -30,6 +30,35 @@ var (
 	}
 )
 
+func newRouter(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
+	swagger, err := api.GetSwagger()
+	if err != nil {
+		slog.Error("Failed to load swagger spec", "error", err)
+		osExit(1)
+	}
+
+	r := chi.NewRouter()
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(nethttp_middleware.OapiRequestValidator(swagger))
+
+	r.Get("/", apiServer.Get)
+	r.Get("/health", apiServer.GetHealth)
+	r.Post("/auth/login", apiServer.PostAuthLogin)
+	r.Get("/auth/verify", func(w http.ResponseWriter, r *http.Request) {
+		token := r.URL.Query().Get("token")
+		apiServer.GetAuthVerify(w, r, api.GetAuthVerifyParams{Token: token})
+	})
+
+	r.Group(func(r chi.Router) {
+		r.Use(authHandler.AuthMiddleware)
+		r.Get("/app", apiServer.GetApp)
+		r.Post("/auth/logout", apiServer.PostAuthLogout)
+	})
+
+	return r
+}
+
 var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Start the web server",
@@ -70,33 +99,10 @@ var serverCmd = &cobra.Command{
 		spinitronClient := spinitron.NewClient("", cfg.SpinitronAPIURL)
 		apiServer := api.NewServer(repo, authHandler, spinitronClient)
 
-		swagger, err := api.GetSwagger()
-		if err != nil {
-			slog.Error("Failed to load swagger spec", "error", err)
-			osExit(1)
-		}
-
-		r := chi.NewRouter()
-		r.Use(middleware.Logger)
-		r.Use(middleware.Recoverer)
-		r.Use(nethttp_middleware.OapiRequestValidator(swagger))
-
-		r.Get("/", apiServer.Get)
-		r.Get("/health", apiServer.GetHealth)
-		r.Post("/auth/login", apiServer.PostAuthLogin)
-		r.Get("/auth/verify", func(w http.ResponseWriter, r *http.Request) {
-			token := r.URL.Query().Get("token")
-			apiServer.GetAuthVerify(w, r, api.GetAuthVerifyParams{Token: token})
-		})
-
-		r.Group(func(r chi.Router) {
-			r.Use(authHandler.AuthMiddleware)
-			r.Get("/app", apiServer.GetApp)
-			r.Post("/auth/logout", apiServer.PostAuthLogout)
-		})
+		r := newRouter(apiServer, authHandler)
 
 		slog.Info("Routes registered:")
-		doc := docgen.MarkdownRoutesDoc(r, docgen.MarkdownOpts{})
+		doc := docgen.JSONRoutesDoc(r.(*chi.Mux))
 		slog.Info(doc)
 
 		portStr := strconv.Itoa(cfg.Port)

@@ -1,4 +1,4 @@
-.PHONY: setup start build lint test check dev
+.PHONY: setup start build lint test check dev generate
 
 setup:
 	curl -sSfL https://golangci-lint.run/install.sh | sh -s v2.11.4
@@ -11,6 +11,11 @@ start:
 
 dev:
 	go run github.com/air-verse/air@latest -c .air.toml
+
+generate:
+	@mkdir -p docs
+	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 -package api -generate chi-server,types,spec api/openapi.yaml > internal/api/api.gen.go
+	go run cmd/aircover/main.go doc > docs/routes.json
 
 lint:
 	@if [ "$$(uname -m)" != "arm64" ]; then \
