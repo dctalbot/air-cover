@@ -30,9 +30,8 @@
       <label for="blockquote-preview">Preview</label>
       <blockquote id="blockquote-preview">
         <p>
-          <b>{{.Email}}</b> is requesting a sub<span id="selected-show"></span>
-          for a duration of:
-          <span id="total-duration">0</span>
+          <b>{{.Email}}</b> is requesting a sub<span id="selected-show"></span
+          ><span id="preview-date"></span><span id="total-duration"></span>
         </p>
       </blockquote>
       <label for="notes">Other info (barter, etc)</label>
@@ -50,21 +49,62 @@
 
     <script>
       const showSelect = document.getElementById("show-select");
-      const selectedShowSpan = document.getElementById("selected-show");
+      const previewShow = document.getElementById("selected-show");
       const startTimeInput = document.getElementById("start-time");
+      const previewDate = document.getElementById("preview-date");
       const endTimeInput = document.getElementById("end-time");
-      const totalDurationDisplay = document.getElementById("total-duration");
+      const previewDuration = document.getElementById("total-duration");
 
-      showSelect.addEventListener("change", () => {
+      function updatePreview() {
+        // Show
         const selectedOption = showSelect.options[showSelect.selectedIndex];
-        if (selectedOption.value) {
-          selectedShowSpan.innerHTML = ` for <i>${selectedOption.textContent.trim()}</i>`;
+        if (selectedOption && selectedOption.value) {
+          previewShow.innerHTML = ` for <i>${selectedOption.textContent.trim()}</i>`;
         } else {
-          selectedShowSpan.innerHTML = "";
+          previewShow.textContent = "";
         }
-      });
 
-      // Set min for start-time to 24 hours ago (ignoring seconds)
+        // Date
+        const startValue = startTimeInput.value;
+        if (startValue) {
+          const start = new Date(startValue);
+          if (!isNaN(start)) {
+            const options = {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            };
+            previewDate.textContent = ` on ${start.toLocaleString(undefined, options)}`;
+          } else {
+            previewDate.textContent = "";
+          }
+        } else {
+          previewDate.textContent = "";
+        }
+
+        // Duration
+        const endValue = endTimeInput.value;
+        if (startValue && endValue) {
+          const start = new Date(startValue);
+          const end = new Date(endValue);
+          if (!isNaN(start) && !isNaN(end)) {
+            const diff = end - start;
+            if (diff >= 0) {
+              const minutes = Math.floor((diff / (1000 * 60)) % 60);
+              const hours = Math.floor(diff / (1000 * 60 * 60));
+              previewDuration.textContent = ` (${hours}h ${minutes}m)`;
+            } else {
+              previewDuration.textContent = "";
+            }
+          } else {
+            previewDuration.textContent = "";
+          }
+        } else {
+          previewDuration.textContent = "";
+        }
+      }
+
+      // Initial min for start-time
       const now = new Date();
       const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       const pad = (num) => String(num).padStart(2, "0");
@@ -75,32 +115,15 @@
       )}`;
       startTimeInput.min = minStartStr;
 
-      function updateTotalDuration() {
-        const start = new Date(startTimeInput.value);
-        const end = new Date(endTimeInput.value);
-
-        if (isNaN(start) || isNaN(end)) {
-          totalDurationDisplay.textContent = "0";
-          return;
-        }
-
-        const diff = end - start;
-        if (diff < 0) {
-          totalDurationDisplay.textContent = "0 (End time before start time)";
-          return;
-        }
-
-        const minutes = Math.floor((diff / (1000 * 60)) % 60);
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-
-        totalDurationDisplay.textContent = `${hours}h ${minutes}m`;
-      }
-
+      showSelect.addEventListener("change", updatePreview);
       startTimeInput.addEventListener("input", () => {
         endTimeInput.min = startTimeInput.value;
-        updateTotalDuration();
+        updatePreview();
       });
-      endTimeInput.addEventListener("input", updateTotalDuration);
+      endTimeInput.addEventListener("input", updatePreview);
+
+      // Run once on load in case browser remembers values
+      updatePreview();
     </script>
   </body>
 </html>
