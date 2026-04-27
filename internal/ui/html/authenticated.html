@@ -7,33 +7,46 @@
   </head>
   <body>
     <h1>Welcome to Air Cover</h1>
-    <label for="show-select">Shows</label>
-    <select id="show-select" name="show" required>
-      {{if not .Shows}}
-      <option value="">No shows available</option>
-      {{else}}
-      <option value="">Select a show</option>
-      {{range .Shows}}
-      <option value="{{.ID}}">
-        {{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}}
-      </option>
-      {{end}} {{end}}
-    </select>
-    <br />
-    <label for="start-time">Start Time</label>
-    <input type="datetime-local" id="start-time" name="start_time" required />
-    <br />
-    <label for="end-time">End Time</label>
-    <input type="datetime-local" id="end-time" name="end_time" required />
-    <br />
-    <label for="blockquote-preview">Preview</label>
-    <blockquote id="blockquote-preview">
-      <p>
-        <b>{{.Email}}</b> is requesting a sub<span id="selected-show"></span>
-        for a duration of:
-        <span id="total-duration">0</span>
-      </p>
-    </blockquote>
+    <form action="/sub-request" method="POST">
+      <label for="show-select">Shows</label>
+      <select id="show-select" name="show" required>
+        {{if not .Shows}}
+        <option value="">No shows available</option>
+        {{else}}
+        <option value="">Select a show</option>
+        {{range .Shows}}
+        <option value="{{.ID}}">
+          {{if .Title}}{{.Title}}{{else}}{{.ID}}{{end}}
+        </option>
+        {{end}} {{end}}
+      </select>
+      <br />
+      <label for="start-time">Start Time</label>
+      <input type="datetime-local" id="start-time" name="start_time" required />
+      <br />
+      <label for="end-time">End Time</label>
+      <input type="datetime-local" id="end-time" name="end_time" required />
+      <br />
+      <label for="blockquote-preview">Preview</label>
+      <blockquote id="blockquote-preview">
+        <p>
+          <b>{{.Email}}</b> is requesting a sub<span id="selected-show"></span>
+          for a duration of:
+          <span id="total-duration">0</span>
+        </p>
+      </blockquote>
+      <label for="notes">Other info (barter, etc)</label>
+      <br />
+      <textarea
+        id="notes"
+        name="notes"
+        rows="4"
+        cols="80"
+        placeholder="I can offer baked cookies, beer, or some new music recs :)"
+      ></textarea>
+      <br />
+      <button type="submit">Submit Request</button>
+    </form>
 
     <script>
       const showSelect = document.getElementById("show-select");
