@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Client is used to interact with the Spinitron API.
@@ -16,6 +17,7 @@ type Client struct {
 	BaseURL    string
 	APIKey     string
 	HTTPClient *http.Client
+	nowFunc    func() time.Time
 }
 
 const (
@@ -44,6 +46,7 @@ func NewClient(apiKey, baseURL string) *Client {
 		BaseURL:    strings.TrimRight(baseURL, "/"),
 		APIKey:     apiKey,
 		HTTPClient: &http.Client{},
+		nowFunc:    time.Now,
 	}
 }
 
@@ -55,6 +58,11 @@ func (c *Client) GetShowsPage(ctx context.Context, page int) (ShowsPage, error) 
 	query := url.Values{}
 	query.Set("page", strconv.Itoa(page))
 	query.Set("count", strconv.Itoa(defaultShowsPageSize))
+	now := time.Now
+	if c.nowFunc != nil {
+		now = c.nowFunc
+	}
+	query.Set("start", now().UTC().Format(time.RFC3339))
 
 	body, headers, err := c.get(ctx, "/shows", query)
 	if err != nil {

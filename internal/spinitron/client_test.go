@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -40,6 +41,8 @@ func TestNewClient_DefaultBaseURL(t *testing.T) {
 
 func TestGetShowsPage(t *testing.T) {
 	client := NewClient("token-123", "https://proxy.example.test/api")
+	now := time.Date(2026, time.January, 2, 15, 4, 5, 0, time.UTC)
+	client.nowFunc = func() time.Time { return now }
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			if r.URL.Path != "/api/shows" {
@@ -50,6 +53,9 @@ func TestGetShowsPage(t *testing.T) {
 			}
 			if got := r.URL.Query().Get("count"); got != "200" {
 				t.Fatalf("expected count=200, got %s", got)
+			}
+			if got := r.URL.Query().Get("start"); got != "2026-01-02T15:04:05Z" {
+				t.Fatalf("expected start query parameter to match current time, got %s", got)
 			}
 			if got := r.Header.Get("Authorization"); got != "Bearer token-123" {
 				t.Fatalf("expected bearer auth, got %q", got)
