@@ -18,6 +18,7 @@ import (
 	"air-cover/internal/db"
 	"air-cover/internal/email"
 	"air-cover/internal/spinitron"
+	"air-cover/internal/ui"
 )
 
 var (
@@ -105,125 +106,6 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-const unauthenticatedIndexHTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Air Cover Login</title>
-</head>
-<body>
-    <h1>Air Cover</h1>
-    <p>Enter your email to receive a magic login link.</p>
-    <form id="magic-link-form">
-        <label for="email">Email</label>
-        <input type="email" id="email" name="email" required />
-        <button type="submit">Send magic link</button>
-    </form>
-    <p id="message" role="status"></p>
-    <script>
-        const form = document.getElementById('magic-link-form');
-        const message = document.getElementById('message');
-
-        form.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const email = document.getElementById('email').value.trim();
-
-            if (!email) {
-                message.textContent = 'Please provide an email address.';
-                return;
-            }
-
-            message.textContent = 'Sending magic link...';
-
-            try {
-                const response = await fetch('/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email })
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to send link');
-                }
-
-                const payload = await response.json();
-                message.textContent = payload.message || 'Check your inbox for your link.';
-            } catch (error) {
-                message.textContent = 'Unable to send link right now. Please try again.';
-            }
-        });
-    </script>
-</body>
-</html>`
-
-const authenticatedIndexHTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Air Cover</title>
-</head>
-<body>
-    <h1>Welcome to Air Cover</h1>
-    <p>Select a show to continue.</p>
-    <label for="show-select">Shows</label>
-    <select id="show-select" name="show">
-        <option value="">Loading shows...</option>
-    </select>
-    <script>
-        const showSelect = document.getElementById('show-select');
-
-        const fetchAllShows = async () => {
-            const allShows = [];
-            let page = 1;
-
-            while (page) {
-                const response = await fetch('/shows?page=' + page);
-                if (!response.ok) {
-                    throw new Error('Failed to load shows');
-                }
-
-                const payload = await response.json();
-                const items = Array.isArray(payload.items) ? payload.items : [];
-                allShows.push(...items);
-
-                page = payload.next_page || null;
-            }
-
-            return allShows;
-        };
-
-        const renderShows = (shows) => {
-            showSelect.innerHTML = '';
-            if (shows.length === 0) {
-                showSelect.innerHTML = '<option value="">No shows available</option>';
-                return;
-            }
-
-            showSelect.innerHTML = '<option value="">Select a show</option>';
-            for (const show of shows) {
-                const option = document.createElement('option');
-                option.value = show.id;
-                option.textContent = show.title || show.id;
-                showSelect.appendChild(option);
-            }
-        };
-
-        const loadShows = async () => {
-            try {
-                const shows = await fetchAllShows();
-                renderShows(shows);
-            } catch (error) {
-                showSelect.innerHTML = '<option value="">Unable to load shows</option>';
-            }
-        };
-
-        loadShows();
-    </script>
-</body>
-</html>`
-
 func indexHandler(repo *db.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -248,7 +130,7 @@ func indexHandler(repo *db.Repository) http.HandlerFunc {
 			})
 		}
 
-		writeHTML(w, unauthenticatedIndexHTML)
+		ui.RenderUnauthenticated(w)
 	}
 }
 
@@ -259,7 +141,7 @@ func appHandler() http.HandlerFunc {
 			return
 		}
 
-		writeHTML(w, authenticatedIndexHTML)
+		ui.RenderAuthenticated(w)
 	}
 }
 
@@ -297,14 +179,5 @@ func showsHandler(client showsService) http.HandlerFunc {
 		if err := json.NewEncoder(w).Encode(showsPage); err != nil {
 			slog.Error("Failed to encode shows response", "error", err)
 		}
-	}
-}
-
-func writeHTML(w http.ResponseWriter, body string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_, err := w.Write([]byte(body))
-	if err != nil {
-		slog.Error("Failed to write response", "error", err)
 	}
 }
