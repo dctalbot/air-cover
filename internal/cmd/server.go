@@ -68,12 +68,12 @@ var serverCmd = &cobra.Command{
 		spinitronClient := spinitron.NewClient("", cfg.SpinitronAPIURL)
 
 		mux := http.NewServeMux()
-		mux.HandleFunc("/", indexHandler(repo))
-		mux.Handle("/app", authHandler.AuthMiddleware(appHandler()))
-		mux.Handle("/shows", authHandler.AuthMiddleware(showsHandler(spinitronClient)))
-		mux.HandleFunc("/health", healthHandler)
-		mux.HandleFunc("/auth/login", authHandler.HandleLogin)
-		mux.HandleFunc("/auth/verify", authHandler.HandleVerify)
+		mux.HandleFunc("GET /{$}", indexHandler(repo))
+		mux.Handle("GET /app", authHandler.AuthMiddleware(appHandler()))
+		mux.Handle("GET /shows", authHandler.AuthMiddleware(showsHandler(spinitronClient)))
+		mux.HandleFunc("GET /health", healthHandler)
+		mux.HandleFunc("POST /auth/login", authHandler.HandleLogin)
+		mux.HandleFunc("GET /auth/verify", authHandler.HandleVerify)
 
 		portStr := strconv.Itoa(cfg.Port)
 		slog.Info("Listening on port", "port", portStr)
@@ -108,11 +108,6 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 func indexHandler(repo *db.Repository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-
 		if cookie, err := r.Cookie("session_id"); err == nil && cookie.Value != "" {
 			if _, err := repo.GetSessionByToken(r.Context(), cookie.Value); err == nil {
 				http.Redirect(w, r, "/app", http.StatusFound)
@@ -136,11 +131,6 @@ func indexHandler(repo *db.Repository) http.HandlerFunc {
 
 func appHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/app" {
-			http.NotFound(w, r)
-			return
-		}
-
 		ui.RenderAuthenticated(w)
 	}
 }
@@ -151,11 +141,6 @@ type showsService interface {
 
 func showsHandler(client showsService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
 		page := 1
 		pageRaw := r.URL.Query().Get("page")
 		if pageRaw != "" {

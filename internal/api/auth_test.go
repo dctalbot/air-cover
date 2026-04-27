@@ -37,7 +37,6 @@ func TestAuthHandler_Login(t *testing.T) {
 		body       string
 		wantStatus int
 	}{
-		{"invalid method", http.MethodGet, "", http.StatusMethodNotAllowed},
 		{"invalid body", http.MethodPost, "invalid", http.StatusBadRequest},
 		{"empty email", http.MethodPost, `{"email":""}`, http.StatusBadRequest},
 		{"unknown email", http.MethodPost, `{"email":"unknown@example.com"}`, http.StatusOK},
@@ -71,7 +70,6 @@ func TestAuthHandler_Verify(t *testing.T) {
 		token      string
 		wantStatus int
 	}{
-		{"invalid method", http.MethodPost, "", http.StatusMethodNotAllowed},
 		{"empty token", http.MethodGet, "", http.StatusBadRequest},
 		{"invalid token", http.MethodGet, "invalid", http.StatusUnauthorized},
 		{"valid token", http.MethodGet, rawToken, http.StatusFound},

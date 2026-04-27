@@ -96,12 +96,6 @@ func TestIndexHandler(t *testing.T) {
 			wantStatus: http.StatusFound,
 			wantHeader: "/app",
 		},
-		{
-			name:       "invalid path",
-			path:       "/unknown",
-			wantStatus: http.StatusNotFound,
-			wantBody:   "404 page not found\n",
-		},
 	}
 
 	for _, tt := range tests {
@@ -147,12 +141,6 @@ func TestAppHandler(t *testing.T) {
 			wantStatus: http.StatusOK,
 			wantBody:   "show-select",
 		},
-		{
-			name:       "invalid path",
-			path:       "/app/other",
-			wantStatus: http.StatusNotFound,
-			wantBody:   "404 page not found\n",
-		},
 	}
 
 	for _, tt := range tests {
@@ -191,7 +179,6 @@ func TestShowsHandler(t *testing.T) {
 		wantStatus int
 	}{
 		{name: "success", method: http.MethodGet, path: "/shows?page=3", wantStatus: http.StatusOK},
-		{name: "invalid method", method: http.MethodPost, path: "/shows", wantStatus: http.StatusMethodNotAllowed},
 		{name: "invalid page", method: http.MethodGet, path: "/shows?page=bad", wantStatus: http.StatusBadRequest},
 	}
 
