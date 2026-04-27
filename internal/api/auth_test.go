@@ -18,11 +18,12 @@ func (m *MockSender) SendMagicLink(toEmail, magicLink string) error {
 }
 
 func setupTestDB(t *testing.T) *db.Repository {
-	dbConn, err := db.InitDB("file::memory:?cache=shared")
+	// Using a unique name for each test to avoid conflicts when tests run in parallel or share a process.
+	// Actually, just using ":memory:" without shared cache is enough for a single *sql.DB.
+	dbConn, err := db.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Let the caller handle closing, or we just rely on memory cleanup.
 	return db.NewRepository(dbConn)
 }
 
@@ -119,5 +120,48 @@ func TestAuthMiddleware(t *testing.T) {
 	mw.ServeHTTP(rr3, req3)
 	if rr3.Code != http.StatusOK {
 		t.Errorf("expected OK with valid cookie")
+	}
+}
+
+func TestAuthHandler_Logout(t *testing.T) {
+	repo := setupTestDB(t)
+	handler := NewAuthHandler(repo, &MockSender{})
+	u, err := repo.CreateUser(context.Background(), "test-logout@example.com")
+	if err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+	err = repo.CreateSession(context.Background(), "sid", "stoken", u.ID, time.Now().Add(1*time.Hour))
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
+	ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	handler.HandleLogout(rr, req)
+
+	if rr.Code != http.StatusFound {
+		t.Errorf("expected status %v, got %v", http.StatusFound, rr.Code)
+	}
+
+	// Verify session is deleted
+	session, err := repo.GetSessionByToken(context.Background(), "stoken")
+	if err == nil {
+		t.Errorf("expected session to be deleted, but found session for user %d", session.UserID)
+	}
+
+	// Verify cookie is cleared
+	cookies := rr.Result().Cookies()
+	var found bool
+	for _, c := range cookies {
+		if c.Name == "session_id" && c.MaxAge < 0 {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected session_id cookie to be cleared")
 	}
 }

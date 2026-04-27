@@ -74,6 +74,7 @@ var serverCmd = &cobra.Command{
 		mux.HandleFunc("GET /health", healthHandler)
 		mux.HandleFunc("POST /auth/login", authHandler.HandleLogin)
 		mux.HandleFunc("GET /auth/verify", authHandler.HandleVerify)
+		mux.Handle("POST /auth/logout", authHandler.AuthMiddleware(http.HandlerFunc(authHandler.HandleLogout)))
 
 		portStr := strconv.Itoa(cfg.Port)
 		slog.Info("Listening on port", "port", portStr)

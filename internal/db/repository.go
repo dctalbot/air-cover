@@ -112,3 +112,8 @@ func (r *Repository) GetSessionByToken(ctx context.Context, sessionToken string)
 	}
 	return &s, nil
 }
+
+func (r *Repository) DeleteSessionsByUserID(ctx context.Context, userID int) error {
+	_, err := r.db.ExecContext(ctx, "DELETE FROM sessions WHERE user_id = ?", userID)
+	return err
+}
