@@ -52,6 +52,82 @@
       <button type="submit">Submit Request</button>
     </form>
 
+    <hr />
+
+    <h2>Sub Requests</h2>
+    <div id="sub-requests-list">
+      {{if not .SubRequests}}
+      <p>No sub requests yet.</p>
+      {{else}} {{range .SubRequests}}
+      <div class="sub-request-card">
+        <h3>{{.ShowTitle}}</h3>
+        <div class="meta">
+          <p>
+            <strong>Requested by:</strong> {{.RequesterEmail}}<br />
+            <strong>When:</strong> {{.StartTime}} to {{.EndTime}}<br />
+            <strong>Status:</strong>
+            <span class="status-{{.Status}}">{{.Status}}</span>
+          </p>
+        </div>
+        {{if .Notes}}
+        <div class="notes">
+          <strong>Notes:</strong>
+          <p>{{.Notes}}</p>
+        </div>
+        {{end}}
+      </div>
+      {{end}} {{end}}
+    </div>
+
+    <style>
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        line-height: 1.5;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+      }
+      .sub-request-card {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: #f9f9f9;
+      }
+      .sub-request-card h3 {
+        margin: 0 0 0.5rem 0;
+      }
+      .meta p {
+        margin: 0.25rem 0;
+      }
+      .notes {
+        margin-top: 1rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid #eee;
+      }
+      .notes p {
+        margin: 0.5rem 0 0 0;
+      }
+      .status-open {
+        color: #2e7d32;
+        text-transform: capitalize;
+      }
+      .status-filled {
+        color: #1565c0;
+        text-transform: capitalize;
+      }
+      .status-cancelled {
+        color: #c62828;
+        text-transform: capitalize;
+      }
+      blockquote {
+        margin: 1rem 0;
+        padding: 0.5rem 1rem;
+        border-left: 4px solid #eee;
+        background: #fcfcfc;
+      }
+    </style>
+
     <script>
       const showSelect = document.getElementById("show-select");
       const previewShow = document.getElementById("selected-show");

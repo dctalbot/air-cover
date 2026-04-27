@@ -125,3 +125,32 @@ func (r *Repository) CreateSubRequest(ctx context.Context, sr *models.SubRequest
 	`, sr.ID, sr.ShowID, sr.UserID, sr.StartTime, sr.EndTime, sr.Notes, sr.Status, sr.CreatedAt, sr.UpdatedAt)
 	return err
 }
+func (r *Repository) ListSubRequests(ctx context.Context) ([]*models.SubRequest, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT sr.id, sr.show_id, sr.user_id, u.email, sr.start_time, sr.end_time, sr.notes, sr.status, sr.created_at, sr.updated_at
+		FROM sub_requests sr
+		JOIN users u ON sr.user_id = u.id
+		ORDER BY sr.created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subRequests []*models.SubRequest
+	for rows.Next() {
+		var sr models.SubRequest
+		err := rows.Scan(
+			&sr.ID, &sr.ShowID, &sr.UserID, &sr.RequesterEmail,
+			&sr.StartTime, &sr.EndTime, &sr.Notes, &sr.Status, &sr.CreatedAt, &sr.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		subRequests = append(subRequests, &sr)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return subRequests, nil
+}

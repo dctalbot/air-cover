@@ -85,9 +85,54 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 
 	email, _ := r.Context().Value(UserEmailKey).(string)
 
+	subRequests, err := s.repo.ListSubRequests(r.Context())
+	if err != nil {
+		slog.Error("Failed to load sub requests", "error", err)
+		http.Error(w, "Unable to load sub requests", http.StatusInternalServerError)
+		return
+	}
+
+	showMap := make(map[int]string)
+	for _, show := range allShows {
+		id, err := strconv.Atoi(show.ID)
+		if err != nil {
+			slog.Warn("Failed to parse show ID", "id", show.ID, "error", err)
+			continue
+		}
+		showMap[id] = show.Title
+	}
+
+	type subRequestView struct {
+		ID             string
+		ShowTitle      string
+		RequesterEmail string
+		StartTime      string
+		EndTime        string
+		Notes          string
+		Status         string
+	}
+
+	var views []subRequestView
+	for _, sr := range subRequests {
+		title := showMap[sr.ShowID]
+		if title == "" {
+			title = "Unknown Show"
+		}
+		views = append(views, subRequestView{
+			ID:             sr.ID,
+			ShowTitle:      title,
+			RequesterEmail: sr.RequesterEmail,
+			StartTime:      sr.StartTime.Format("Mon, Jan 02 at 3:04 PM"),
+			EndTime:        sr.EndTime.Format("Mon, Jan 02 at 3:04 PM"),
+			Notes:          sr.Notes,
+			Status:         sr.Status,
+		})
+	}
+
 	ui.RenderAuthenticated(w, map[string]any{
-		"Shows": allShows,
-		"Email": email,
+		"Shows":       allShows,
+		"Email":       email,
+		"SubRequests": views,
 	})
 }
 
