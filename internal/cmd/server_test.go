@@ -139,7 +139,9 @@ func TestAppHandler(t *testing.T) {
 			},
 		},
 	}
-	server := api.NewServer(nil, nil, service)
+	dbConn, _ := db.InitDB("file::memory:?cache=shared")
+	repo := db.NewRepository(dbConn)
+	server := api.NewServer(repo, nil, service)
 	handler := server.GetApp
 
 	tests := []struct {
@@ -160,6 +162,7 @@ func TestAppHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			ctx := context.WithValue(req.Context(), api.UserEmailKey, "test@example.com")
+			ctx = context.WithValue(ctx, api.UserIDKey, 1)
 			req = req.WithContext(ctx)
 			rr := httptest.NewRecorder()
 
@@ -198,7 +201,9 @@ func TestAppHandler(t *testing.T) {
 
 func TestAppHandler_UpstreamError(t *testing.T) {
 	service := &fakeShowsService{err: errors.New("boom")}
-	server := api.NewServer(nil, nil, service)
+	dbConn, _ := db.InitDB("file::memory:?cache=shared")
+	repo := db.NewRepository(dbConn)
+	server := api.NewServer(repo, nil, service)
 	handler := server.GetApp
 
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)

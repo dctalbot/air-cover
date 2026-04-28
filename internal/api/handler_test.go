@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"air-cover/internal/models"
 	"air-cover/internal/spinitron"
 )
 
@@ -212,5 +213,75 @@ func TestServer_GetHealth(t *testing.T) {
 	}
 	if rr.Body.String() != "OK" {
 		t.Errorf("expected OK body, got %v", rr.Body.String())
+	}
+}
+
+func TestServer_DeleteSubRequestsId(t *testing.T) {
+	repo := setupTestDB(t)
+	u1, _ := repo.CreateUser(context.Background(), "user1@example.com")
+	u2, _ := repo.CreateUser(context.Background(), "user2@example.com")
+	s := NewServer(repo, nil, nil)
+
+	sr := &models.SubRequest{
+		ID:        "sr1",
+		ShowID:    1,
+		UserID:    u1.ID,
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(1 * time.Hour),
+		Status:    "open",
+	}
+	_ = repo.CreateSubRequest(context.Background(), sr)
+
+	tests := []struct {
+		name       string
+		id         string
+		userID     any
+		wantStatus int
+	}{
+		{
+			name:       "delete own request",
+			id:         "sr1",
+			userID:     u1.ID,
+			wantStatus: http.StatusNoContent,
+		},
+		{
+			name:       "delete other request",
+			id:         "sr1", // need to recreate it because first test deletes it
+			userID:     u2.ID,
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "delete non-existent",
+			id:         "nonexistent",
+			userID:     u1.ID,
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "unauthorized",
+			id:         "sr1",
+			userID:     nil,
+			wantStatus: http.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Recreate if deleted
+			if tt.name != "delete own request" {
+				_ = repo.CreateSubRequest(context.Background(), sr)
+			}
+
+			req := httptest.NewRequest(http.MethodDelete, "/sub-requests/"+tt.id, nil)
+			if tt.userID != nil {
+				ctx := context.WithValue(req.Context(), UserIDKey, tt.userID)
+				req = req.WithContext(ctx)
+			}
+			rr := httptest.NewRecorder()
+			s.DeleteSubRequestsId(rr, req, tt.id)
+
+			if rr.Code != tt.wantStatus {
+				t.Errorf("expected status %v, got %v", tt.wantStatus, rr.Code)
+			}
+		})
 	}
 }

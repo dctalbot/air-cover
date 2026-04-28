@@ -154,3 +154,36 @@ func (r *Repository) ListSubRequests(ctx context.Context) ([]*models.SubRequest,
 	}
 	return subRequests, nil
 }
+
+func (r *Repository) GetSubRequestByID(ctx context.Context, id string) (*models.SubRequest, error) {
+	var sr models.SubRequest
+	err := r.db.QueryRowContext(ctx, `
+		SELECT id, show_id, user_id, start_time, end_time, notes, status, created_at, updated_at
+		FROM sub_requests
+		WHERE id = ?
+	`, id).Scan(
+		&sr.ID, &sr.ShowID, &sr.UserID, &sr.StartTime, &sr.EndTime, &sr.Notes, &sr.Status, &sr.CreatedAt, &sr.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &sr, nil
+}
+
+func (r *Repository) DeleteSubRequest(ctx context.Context, id string) error {
+	res, err := r.db.ExecContext(ctx, "DELETE FROM sub_requests WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

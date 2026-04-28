@@ -44,6 +44,9 @@ func hashToken(token string) string {
 }
 
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
+	// Limit request body size to 1MB to prevent memory exhaustion (G120)
+	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
+
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)

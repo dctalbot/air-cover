@@ -55,6 +55,10 @@ func newRouter(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
 		r.Get("/app", apiServer.GetApp)
 		r.Post("/auth/logout", apiServer.PostAuthLogout)
 		r.Post("/sub-requests", apiServer.PostSubRequests)
+		r.Delete("/sub-requests/{id}", func(w http.ResponseWriter, r *http.Request) {
+			id := chi.URLParam(r, "id")
+			apiServer.DeleteSubRequestsId(w, r, id)
+		})
 	})
 
 	return r

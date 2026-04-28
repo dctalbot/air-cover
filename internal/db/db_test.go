@@ -135,4 +135,33 @@ func TestRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// GetSubRequestByID
+	sr2, err := repo.GetSubRequestByID(ctx, sr.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sr2.ID != sr.ID {
+		t.Fatalf("expected id %v, got %v", sr.ID, sr2.ID)
+	}
+
+	_, err = repo.GetSubRequestByID(ctx, "notfound")
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+
+	// DeleteSubRequest
+	err = repo.DeleteSubRequest(ctx, sr.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = repo.GetSubRequestByID(ctx, sr.ID)
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound after deletion, got %v", err)
+	}
+
+	err = repo.DeleteSubRequest(ctx, "notfound")
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
 }

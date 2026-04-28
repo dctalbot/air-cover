@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -110,6 +111,7 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 		EndTime        string
 		Notes          string
 		Status         string
+		CanDelete      bool
 	}
 
 	var views []subRequestView
@@ -126,6 +128,7 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 			EndTime:        sr.EndTime.Format("Mon, Jan 02 at 3:04 PM"),
 			Notes:          sr.Notes,
 			Status:         sr.Status,
+			CanDelete:      sr.UserID == r.Context().Value(UserIDKey).(int),
 		})
 	}
 
@@ -157,6 +160,9 @@ func (s *Server) GetAuthVerify(w http.ResponseWriter, r *http.Request, params Ge
 // Create a new sub request
 // (POST /sub-requests)
 func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
+	// Limit request body size to 1MB to prevent memory exhaustion (G120)
+	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
+
 	if err := r.ParseForm(); err != nil {
 		slog.Error("Failed to parse form", "error", err)
 		http.Error(w, "Invalid form data", http.StatusBadRequest)
@@ -166,7 +172,7 @@ func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 	showIDStr := r.FormValue("show")
 	showID, err := strconv.Atoi(showIDStr)
 	if err != nil {
-		slog.Error("Invalid show ID", "show", showIDStr, "error", err)
+		slog.Error("Invalid show ID", "show", strconv.Quote(showIDStr), "error", err)
 		http.Error(w, "Invalid show ID", http.StatusBadRequest)
 		return
 	}
@@ -174,7 +180,7 @@ func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 	startTimeStr := r.FormValue("start_time")
 	startTime, err := time.Parse("2006-01-02T15:04", startTimeStr)
 	if err != nil {
-		slog.Error("Invalid start time", "start_time", startTimeStr, "error", err)
+		slog.Error("Invalid start time", "start_time", strconv.Quote(startTimeStr), "error", err)
 		http.Error(w, "Invalid start time", http.StatusBadRequest)
 		return
 	}
@@ -182,7 +188,7 @@ func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 	endTimeStr := r.FormValue("end_time")
 	endTime, err := time.Parse("2006-01-02T15:04", endTimeStr)
 	if err != nil {
-		slog.Error("Invalid end time", "end_time", endTimeStr, "error", err)
+		slog.Error("Invalid end time", "end_time", strconv.Quote(endTimeStr), "error", err)
 		http.Error(w, "Invalid end time", http.StatusBadRequest)
 		return
 	}
@@ -222,6 +228,40 @@ func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/app", http.StatusSeeOther)
+}
+
+// Delete a sub request
+// (DELETE /sub-requests/{id})
+func (s *Server) DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id string) {
+	sr, err := s.repo.GetSubRequestByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "Sub request not found", http.StatusNotFound)
+			return
+		}
+		slog.Error("Failed to get sub request", "id", id, "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	userID, ok := r.Context().Value(UserIDKey).(int)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if sr.UserID != userID {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	if err := s.repo.DeleteSubRequest(r.Context(), id); err != nil {
+		slog.Error("Failed to delete sub request", "id", id, "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Health check
