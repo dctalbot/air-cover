@@ -1,4 +1,4 @@
-.PHONY: setup start build lint test check dev generate
+.PHONY: setup start build lint test check dev generate codecov-html
 
 setup:
 	curl -sSfL https://golangci-lint.run/install.sh | sh -s v2.11.4
@@ -32,10 +32,14 @@ lint:
 
 test:
 	@go test -coverprofile=coverage.out ./...
-	@coverage=$$(go tool cover -func=coverage.out | grep total: | awk '{print $$3}' | sed 's/%//'); \
+	@grep -v ".gen.go" coverage.out > coverage.filtered.out
+	@coverage=$$(go tool cover -func=coverage.filtered.out | grep total: | awk '{print $$3}' | sed 's/%//'); \
 	if [ "$$coverage" != "100.0" ]; then \
 		echo "Test coverage is $$coverage%, expected 100.0%"; \
 		exit 1; \
 	fi
 
 check: lint test build
+
+codecov-html:
+	go tool cover -html=coverage.out

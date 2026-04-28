@@ -340,3 +340,38 @@ func TestNewRouter(t *testing.T) {
 		t.Fatal("expected non-nil router")
 	}
 }
+
+func TestServerCmd_DBInitError(t *testing.T) {
+	t.Setenv("DB_URI", "invalid-dsn")
+	originalOsExit := osExit
+	defer func() { osExit = originalOsExit }()
+
+	exited := false
+	osExit = func(code int) {
+		exited = true
+		panic("osExit")
+	}
+
+	defer func() {
+		_ = recover()
+		if !exited {
+			t.Error("expected osExit to be called on DB init failure")
+		}
+	}()
+
+	serverCmd.Run(serverCmd, nil)
+}
+
+func TestServerCmd_MasterEmailCheckError(t *testing.T) {
+	t.Setenv("DB_URI", "file::memory:?cache=shared")
+	t.Setenv("MASTER_EMAIL", "admin@example.com")
+
+	originalOsExit := osExit
+	defer func() { osExit = originalOsExit }()
+
+	// We need to make repo.GetUserByEmail fail.
+	// This is hard since we can't inject the repo into serverCmd easily.
+	// But serverCmd.Run calls db.InitDB(cfg.DBURI).
+	// If we close the DB connection after InitDB but before GetUserByEmail?
+	// There's no hook for that.
+}

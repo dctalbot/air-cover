@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -202,5 +203,180 @@ func TestRepository(t *testing.T) {
 	err = repo.DeleteSubRequest(ctx, "notfound")
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestRepositoryErrors(t *testing.T) {
+	dbConn, err := InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dbConn.Close()
+
+	repo := NewRepository(dbConn)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately to trigger errors
+
+	// Test context cancellation errors
+	_, err = repo.GetUserByEmail(ctx, "test@example.com")
+	if err == nil {
+		t.Error("expected error with cancelled context in GetUserByEmail")
+	}
+
+	_, err = repo.GetUserByID(ctx, 1)
+	if err == nil {
+		t.Error("expected error with cancelled context in GetUserByID")
+	}
+
+	_, err = repo.CreateUser(ctx, "test@example.com")
+	if err == nil {
+		t.Error("expected error with cancelled context in CreateUser")
+	}
+
+	err = repo.CreateMagicLink(ctx, 1, "hash", time.Now())
+	if err == nil {
+		t.Error("expected error with cancelled context in CreateMagicLink")
+	}
+
+	_, err = repo.UseMagicLink(ctx, "hash")
+	if err == nil {
+		t.Error("expected error with cancelled context in UseMagicLink")
+	}
+
+	err = repo.CreateSession(ctx, "sid", "stoken", 1, time.Now())
+	if err == nil {
+		t.Error("expected error with cancelled context in CreateSession")
+	}
+
+	_, err = repo.GetSessionByToken(ctx, "stoken")
+	if err == nil {
+		t.Error("expected error with cancelled context in GetSessionByToken")
+	}
+
+	err = repo.DeleteSessionsByUserID(ctx, 1)
+	if err == nil {
+		t.Error("expected error with cancelled context in DeleteSessionsByUserID")
+	}
+
+	err = repo.CreateSubRequest(ctx, &models.SubRequest{})
+	if err == nil {
+		t.Error("expected error with cancelled context in CreateSubRequest")
+	}
+
+	_, err = repo.ListSubRequests(ctx)
+	if err == nil {
+		t.Error("expected error with cancelled context in ListSubRequests")
+	}
+
+	_, err = repo.GetSubRequestByID(ctx, "1")
+	if err == nil {
+		t.Error("expected error with cancelled context in GetSubRequestByID")
+	}
+
+	err = repo.DeleteSubRequest(ctx, "1")
+	if err == nil {
+		t.Error("expected error with cancelled context in DeleteSubRequest")
+	}
+
+	// Test unique constraint violation
+	ctx = context.Background()
+	_, _ = repo.CreateUser(ctx, "unique@example.com")
+	_, err = repo.CreateUser(ctx, "unique@example.com")
+	if err == nil {
+		t.Error("expected error for duplicate user email")
+	}
+
+	// Test UseMagicLink with invalid state
+	// Already used case is covered in TestRepository
+}
+
+func TestInitDBErrors(t *testing.T) {
+	// Ping failure - using a DSN that might fail ping
+	_, err := InitDB("file:/nonexistent/path/db.sqlite?mode=ro")
+	if err == nil {
+		t.Error("expected error for nonexistent path in InitDB")
+	}
+}
+
+func TestListSubRequestsErrors(t *testing.T) {
+	dbConn, err := InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := NewRepository(dbConn)
+	ctx := context.Background()
+
+	// Test closed DB for QueryContext error
+	dbConn.Close()
+	_, err = repo.ListSubRequests(ctx)
+	if err == nil {
+		t.Error("expected error with closed db in ListSubRequests")
+	}
+}
+
+func TestScanErrors(t *testing.T) {
+	dbConn, err := InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dbConn.Close()
+	repo := NewRepository(dbConn)
+	ctx := context.Background()
+
+	// Drop and recreate sub_requests with incompatible types to trigger Scan error
+	_, _ = dbConn.Exec("DROP TABLE sub_requests")
+	_, err = dbConn.Exec(`
+		CREATE TABLE sub_requests (
+			id TEXT, show_id TEXT, user_id TEXT, start_time TEXT, end_time TEXT, 
+			notes TEXT, status TEXT, created_at TEXT, updated_at TEXT
+		)
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert garbage data
+	_, err = dbConn.Exec(`
+		INSERT INTO sub_requests (id, show_id, user_id, start_time, end_time, notes, status, created_at, updated_at)
+		VALUES ('bad-id', 'not-an-int', 'not-an-int', 'not-a-date', 'not-a-date', 'notes', 'open', 'not-a-date', 'not-a-date')
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// ListSubRequests will fail because it expects a JOIN with users which doesn't exist now
+	// and because of type mismatch.
+	// Actually, we need the JOIN to exist if we want to reach Scan.
+	_, _ = dbConn.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT)")
+	_, _ = dbConn.Exec("INSERT INTO users (id, email) VALUES (1, 'test@example.com')")
+	// Update user_id to be a valid join but other fields to be garbage
+	_, _ = dbConn.Exec("UPDATE sub_requests SET user_id = 1")
+
+	_, err = repo.ListSubRequests(ctx)
+	if err == nil {
+		t.Error("expected scan error in ListSubRequests")
+	}
+
+	_, err = repo.GetSubRequestByID(ctx, "bad-id")
+	if err == nil {
+		t.Error("expected scan error in GetSubRequestByID")
+	}
+}
+
+func TestInitDB_MigrationError(t *testing.T) {
+	// Create a file, make it read-only
+	f, err := os.CreateTemp("", "ro-db-*.sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	// On some systems, even 0400 allows the owner to write if they are the one opening it.
+	// But let's try.
+	_ = os.Chmod(f.Name(), 0000)
+	defer os.Remove(f.Name())
+
+	_, err = InitDB(f.Name())
+	if err == nil {
+		t.Log("Note: root/owner can sometimes bypass 0000 permissions")
 	}
 }

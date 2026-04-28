@@ -108,3 +108,23 @@ func (t *proxyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	return base.RoundTrip(newReq)
 }
+
+func TestSendGridSender_NetworkError(t *testing.T) {
+	s := &SendGridSender{APIKey: "test-key"}
+
+	origClient := http.DefaultClient
+	http.DefaultClient = &http.Client{
+		Transport: &errorTransport{},
+	}
+	defer func() { http.DefaultClient = origClient }()
+
+	if err := s.SendMagicLink("test@example.com", "http://example.com/verify?token=abc"); err == nil {
+		t.Error("expected error for network failure")
+	}
+}
+
+type errorTransport struct{}
+
+func (t *errorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return nil, http.ErrHandlerTimeout
+}

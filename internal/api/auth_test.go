@@ -381,3 +381,31 @@ func TestAuthMiddleware_UserNotFound(t *testing.T) {
 		t.Errorf("expected 401 for closed DB auth middleware, got %d", rr.Code)
 	}
 }
+
+func TestAuthMiddleware_GetUserByIDError(t *testing.T) {
+	dbConn, err := db.InitDB("file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := db.NewRepository(dbConn)
+	u, _ := repo.CreateUser(context.Background(), "miderr@example.com")
+	_ = repo.CreateSession(context.Background(), "sid-mid", "stoken-mid", u.ID, time.Now().Add(1*time.Hour))
+
+	handler := NewAuthHandler(repo, nil)
+	mw := handler.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken-mid"})
+
+	// Delete the user so GetUserByID fails with ErrNotFound
+	_, _ = dbConn.Exec("DELETE FROM users WHERE id = ?", u.ID)
+
+	rr := httptest.NewRecorder()
+	mw.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 when user is deleted, got %d", rr.Code)
+	}
+}
+

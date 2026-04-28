@@ -843,3 +843,163 @@ func TestDecodeSpec_Errors(t *testing.T) {
 		t.Error("expected error for invalid gzip content")
 	}
 }
+
+func TestServer_PostSubRequests_ParseFormError(t *testing.T) {
+	s := NewServer(nil, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/sub-requests", strings.NewReader("!!invalid!!"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	s.PostSubRequests(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for bad form data, got %d", rr.Code)
+	}
+}
+
+func TestServer_DeleteSubRequestsId_DeleteError(t *testing.T) {
+	dbConn, err := db.InitDB("file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := db.NewRepository(dbConn)
+	u, _ := repo.CreateUser(context.Background(), "deleterr@example.com")
+	sr := &models.SubRequest{
+		ID:        "sr-del-err",
+		ShowID:    1,
+		UserID:    u.ID,
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+		Status:    "open",
+	}
+	_ = repo.CreateSubRequest(context.Background(), sr)
+
+	s := NewServer(repo, nil, nil)
+	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/sr-del-err", nil)
+	ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
+	req = req.WithContext(ctx)
+
+	dbConn.Close() // Force DeleteSubRequest to fail
+
+	rr := httptest.NewRecorder()
+	s.DeleteSubRequestsId(rr, req, "sr-del-err")
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for DB error during delete, got %d", rr.Code)
+	}
+}
+
+func TestServer_GetApp_SpinitronError(t *testing.T) {
+	repo := setupTestDB(t)
+	s := NewServer(repo, nil, &faultyShowsService{})
+
+	req := httptest.NewRequest(http.MethodGet, "/app", nil)
+	ctx := context.WithValue(req.Context(), UserEmailKey, "test@example.com")
+	ctx = context.WithValue(ctx, UserIDKey, 1)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	s.GetApp(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Errorf("expected 502 for Spinitron error, got %d", rr.Code)
+	}
+}
+
+type faultyShowsService struct{}
+
+func (f *faultyShowsService) GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error) {
+	return spinitron.ShowsPage{}, errors.New("spinitron down")
+}
+
+func TestServer_PostSubRequests_LargeBody(t *testing.T) {
+	s := NewServer(nil, nil, nil)
+	largeBody := "show=1&start_time=2026-05-01T10:00&end_time=2026-05-01T12:00&notes=" + strings.Repeat("a", 1024*1024+100)
+	req := httptest.NewRequest(http.MethodPost, "/sub-requests", strings.NewReader(largeBody))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	s.PostSubRequests(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for large body, got %d", rr.Code)
+	}
+}
+
+func TestServer_DeleteSubRequestsId_Unauthorized(t *testing.T) {
+	dbConn, err := db.InitDB("file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := db.NewRepository(dbConn)
+	u1, _ := repo.CreateUser(context.Background(), "u1@example.com")
+	u2, _ := repo.CreateUser(context.Background(), "u2@example.com")
+	
+	sr := &models.SubRequest{
+		ID:        "sr-unauth",
+		ShowID:    1,
+		UserID:    u1.ID,
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+		Status:    "open",
+	}
+	_ = repo.CreateSubRequest(context.Background(), sr)
+	
+	s := NewServer(repo, nil, nil)
+	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/sr-unauth", nil)
+	ctx := context.WithValue(req.Context(), UserIDKey, u2.ID) // Logged in as u2, but owner is u1
+	req = req.WithContext(ctx)
+	
+	rr := httptest.NewRecorder()
+	s.DeleteSubRequestsId(rr, req, "sr-unauth")
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for unauthorized delete, got %d", rr.Code)
+	}
+}
+
+func TestServer_DeleteSubRequestsId_NotFound(t *testing.T) {
+	dbConn, err := db.InitDB("file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := db.NewRepository(dbConn)
+	u1, _ := repo.CreateUser(context.Background(), "u1@example.com")
+	
+	s := NewServer(repo, nil, nil)
+	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/sr-notfound", nil)
+	ctx := context.WithValue(req.Context(), UserIDKey, u1.ID)
+	req = req.WithContext(ctx)
+	
+	rr := httptest.NewRecorder()
+	s.DeleteSubRequestsId(rr, req, "sr-notfound")
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for non-existent sub request, got %d", rr.Code)
+	}
+}
+
+func TestServer_DeleteSubRequestsId_NoUserInContext(t *testing.T) {
+	dbConn, err := db.InitDB("file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := db.NewRepository(dbConn)
+	u1, _ := repo.CreateUser(context.Background(), "u1@example.com")
+	sr := &models.SubRequest{
+		ID:        "sr-noctx",
+		ShowID:    1,
+		UserID:    u1.ID,
+		StartTime: time.Now(),
+		EndTime:   time.Now().Add(time.Hour),
+		Status:    "open",
+	}
+	_ = repo.CreateSubRequest(context.Background(), sr)
+	
+	s := NewServer(repo, nil, nil)
+	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/sr-noctx", nil)
+	// No UserIDKey in context
+	
+	rr := httptest.NewRecorder()
+	s.DeleteSubRequestsId(rr, req, "sr-noctx")
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for no user in context, got %d", rr.Code)
+	}
+}
+

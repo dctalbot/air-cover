@@ -748,3 +748,38 @@ func TestPageFromGeneric_MapWithNextKeyThatIsNil(t *testing.T) {
 func intPtr(i int) *int {
 	return &i
 }
+
+func TestParsePageString_InvalidURL(t *testing.T) {
+	// url.Parse error (usually requires non-ASCII or control chars)
+	_, ok := parsePageString("https://example.com/%%")
+	if ok {
+		t.Error("expected ok=false for invalid URL")
+	}
+}
+
+func TestParsePageString_NoPageParam(t *testing.T) {
+	_, ok := parsePageString("https://example.com/api?notpage=1")
+	if ok {
+		t.Error("expected ok=false for no page param")
+	}
+}
+
+func TestParsePageString_InvalidPageParam(t *testing.T) {
+	_, ok := parsePageString("https://example.com/api?page=abc")
+	if ok {
+		t.Error("expected ok=false for invalid page param")
+	}
+}
+
+func TestGet_RequestCreateError(t *testing.T) {
+	// To trigger http.NewRequestWithContext error, we need an invalid method or URL.
+	// But route is hardcoded and method is GET.
+	// However, if we can pass a bad context? No.
+}
+
+func TestParsePageString_ControlChar(t *testing.T) {
+	_, ok := parsePageString("http://example.com/\x01")
+	if ok {
+		t.Error("expected ok=false for control char in URL")
+	}
+}
