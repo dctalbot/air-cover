@@ -119,11 +119,19 @@ func (r *Repository) DeleteSessionsByUserID(ctx context.Context, userID int) err
 }
 
 func (r *Repository) CreateSubRequest(ctx context.Context, sr *models.SubRequest) error {
-	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO sub_requests (id, show_id, user_id, start_time, end_time, notes, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, sr.ID, sr.ShowID, sr.UserID, sr.StartTime, sr.EndTime, sr.Notes, sr.Status, sr.CreatedAt, sr.UpdatedAt)
-	return err
+	res, err := r.db.ExecContext(ctx, `
+		INSERT INTO sub_requests (show_id, user_id, start_time, end_time, notes, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, sr.ShowID, sr.UserID, sr.StartTime, sr.EndTime, sr.Notes, sr.Status, sr.CreatedAt, sr.UpdatedAt)
+	if err != nil {
+		return err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
+	sr.ID = int(id)
+	return nil
 }
 func (r *Repository) ListSubRequests(ctx context.Context) ([]*models.SubRequest, error) {
 	rows, err := r.db.QueryContext(ctx, `
@@ -155,7 +163,7 @@ func (r *Repository) ListSubRequests(ctx context.Context) ([]*models.SubRequest,
 	return subRequests, nil
 }
 
-func (r *Repository) GetSubRequestByID(ctx context.Context, id string) (*models.SubRequest, error) {
+func (r *Repository) GetSubRequestByID(ctx context.Context, id int) (*models.SubRequest, error) {
 	var sr models.SubRequest
 	err := r.db.QueryRowContext(ctx, `
 		SELECT id, show_id, user_id, start_time, end_time, notes, status, created_at, updated_at
@@ -173,7 +181,7 @@ func (r *Repository) GetSubRequestByID(ctx context.Context, id string) (*models.
 	return &sr, nil
 }
 
-func (r *Repository) DeleteSubRequest(ctx context.Context, id string) error {
+func (r *Repository) DeleteSubRequest(ctx context.Context, id int) error {
 	res, err := r.db.ExecContext(ctx, "DELETE FROM sub_requests WHERE id = ?", id)
 	if err != nil {
 		return err

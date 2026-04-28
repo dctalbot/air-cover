@@ -408,4 +408,3 @@ func TestAuthMiddleware_GetUserByIDError(t *testing.T) {
 		t.Errorf("expected 401 when user is deleted, got %d", rr.Code)
 	}
 }
-

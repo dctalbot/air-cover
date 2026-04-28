@@ -73,7 +73,7 @@ type ServerInterface interface {
 	PostSubRequests(w http.ResponseWriter, r *http.Request)
 	// Delete a sub request
 	// (DELETE /sub-requests/{id})
-	DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id string)
+	DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id int)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -124,7 +124,7 @@ func (_ Unimplemented) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 
 // Delete a sub request
 // (DELETE /sub-requests/{id})
-func (_ Unimplemented) DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id string) {
+func (_ Unimplemented) DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id int) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -261,9 +261,9 @@ func (siw *ServerInterfaceWrapper) DeleteSubRequestsId(w http.ResponseWriter, r 
 	var err error
 
 	// ------------- Path parameter "id" -------------
-	var id string
+	var id int
 
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
 		return
@@ -425,19 +425,20 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 var swaggerSpec = []string{
 
 	"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",
-	"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",
+	"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",
+	"CgAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

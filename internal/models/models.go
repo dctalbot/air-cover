@@ -13,7 +13,7 @@ type Persona struct {
 
 // SubRequest represents a request for a substitute DJ for a specific show.
 type SubRequest struct {
-	ID             string    `json:"id"`
+	ID             int       `json:"id"`
 	ShowID         int       `json:"show_id"`
 	UserID         int       `json:"user_id"`
 	RequesterEmail string    `json:"requester_email,omitempty"`

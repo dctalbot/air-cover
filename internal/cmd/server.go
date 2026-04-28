@@ -56,7 +56,12 @@ func newRouter(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
 		r.Post("/auth/logout", apiServer.PostAuthLogout)
 		r.Post("/sub-requests", apiServer.PostSubRequests)
 		r.Delete("/sub-requests/{id}", func(w http.ResponseWriter, r *http.Request) {
-			id := chi.URLParam(r, "id")
+			idStr := chi.URLParam(r, "id")
+			id, err := strconv.Atoi(idStr)
+			if err != nil {
+				http.Error(w, "Invalid ID", http.StatusBadRequest)
+				return
+			}
 			apiServer.DeleteSubRequestsId(w, r, id)
 		})
 	})

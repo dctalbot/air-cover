@@ -339,6 +339,14 @@ func TestNewRouter(t *testing.T) {
 	if r == nil {
 		t.Fatal("expected non-nil router")
 	}
+
+	// Test invalid ID in Delete route
+	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/abc", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for invalid ID, got %d", rr.Code)
+	}
 }
 
 func TestServerCmd_DBInitError(t *testing.T) {

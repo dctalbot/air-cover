@@ -146,7 +146,6 @@ func TestRepository(t *testing.T) {
 
 	// CreateSubRequest
 	sr := &models.SubRequest{
-		ID:        "sr1",
 		ShowID:    123,
 		UserID:    u.ID,
 		StartTime: time.Now(),
@@ -169,6 +168,10 @@ func TestRepository(t *testing.T) {
 	if len(list) == 0 {
 		t.Fatal("expected at least one sub request")
 	}
+	if list[0].ID == 0 {
+		t.Fatal("expected non-zero id for created sub request")
+	}
+	sr.ID = list[0].ID
 	if list[0].ID != sr.ID {
 		t.Fatalf("expected id %v, got %v", sr.ID, list[0].ID)
 	}
@@ -185,7 +188,7 @@ func TestRepository(t *testing.T) {
 		t.Fatalf("expected id %v, got %v", sr.ID, sr2.ID)
 	}
 
-	_, err = repo.GetSubRequestByID(ctx, "notfound")
+	_, err = repo.GetSubRequestByID(ctx, 999)
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
@@ -200,7 +203,7 @@ func TestRepository(t *testing.T) {
 		t.Fatalf("expected ErrNotFound after deletion, got %v", err)
 	}
 
-	err = repo.DeleteSubRequest(ctx, "notfound")
+	err = repo.DeleteSubRequest(ctx, 999)
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
@@ -268,12 +271,12 @@ func TestRepositoryErrors(t *testing.T) {
 		t.Error("expected error with cancelled context in ListSubRequests")
 	}
 
-	_, err = repo.GetSubRequestByID(ctx, "1")
+	_, err = repo.GetSubRequestByID(ctx, 1)
 	if err == nil {
 		t.Error("expected error with cancelled context in GetSubRequestByID")
 	}
 
-	err = repo.DeleteSubRequest(ctx, "1")
+	err = repo.DeleteSubRequest(ctx, 1)
 	if err == nil {
 		t.Error("expected error with cancelled context in DeleteSubRequest")
 	}
@@ -357,7 +360,7 @@ func TestScanErrors(t *testing.T) {
 		t.Error("expected scan error in ListSubRequests")
 	}
 
-	_, err = repo.GetSubRequestByID(ctx, "bad-id")
+	_, err = repo.GetSubRequestByID(ctx, 123)
 	if err == nil {
 		t.Error("expected scan error in GetSubRequestByID")
 	}

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -252,7 +253,6 @@ func TestServer_DeleteSubRequestsId(t *testing.T) {
 	s := NewServer(repo, nil, nil)
 
 	sr := &models.SubRequest{
-		ID:        "sr1",
 		ShowID:    1,
 		UserID:    u1.ID,
 		StartTime: time.Now(),
@@ -263,31 +263,31 @@ func TestServer_DeleteSubRequestsId(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		id         string
+		id         int
 		userID     any
 		wantStatus int
 	}{
 		{
 			name:       "delete own request",
-			id:         "sr1",
+			id:         sr.ID,
 			userID:     u1.ID,
 			wantStatus: http.StatusNoContent,
 		},
 		{
 			name:       "delete other request",
-			id:         "sr1",
+			id:         sr.ID,
 			userID:     u2.ID,
 			wantStatus: http.StatusForbidden,
 		},
 		{
 			name:       "delete non-existent",
-			id:         "nonexistent",
+			id:         99999,
 			userID:     u1.ID,
 			wantStatus: http.StatusNotFound,
 		},
 		{
 			name:       "unauthorized",
-			id:         "sr1",
+			id:         sr.ID,
 			userID:     nil,
 			wantStatus: http.StatusUnauthorized,
 		},
@@ -296,17 +296,21 @@ func TestServer_DeleteSubRequestsId(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Recreate if deleted
-			if tt.name != "delete own request" {
+			if tt.name != "delete own request" && tt.name != "delete non-existent" {
 				_ = repo.CreateSubRequest(context.Background(), sr)
 			}
 
-			req := httptest.NewRequest(http.MethodDelete, "/sub-requests/"+tt.id, nil)
+			req := httptest.NewRequest(http.MethodDelete, "/sub-requests/"+strconv.Itoa(sr.ID), nil)
 			if tt.userID != nil {
 				ctx := context.WithValue(req.Context(), UserIDKey, tt.userID)
 				req = req.WithContext(ctx)
 			}
 			rr := httptest.NewRecorder()
-			s.DeleteSubRequestsId(rr, req, tt.id)
+			targetID := tt.id
+			if tt.name != "delete non-existent" {
+				targetID = sr.ID
+			}
+			s.DeleteSubRequestsId(rr, req, targetID)
 
 			if rr.Code != tt.wantStatus {
 				t.Errorf("expected status %v, got %v", tt.wantStatus, rr.Code)
@@ -355,7 +359,7 @@ func TestUnimplemented(t *testing.T) {
 	check("PostSubRequests", rr.Code)
 
 	rr = httptest.NewRecorder()
-	u.DeleteSubRequestsId(rr, req, "test-id")
+	u.DeleteSubRequestsId(rr, req, 123)
 	check("DeleteSubRequestsId", rr.Code)
 }
 
@@ -482,7 +486,7 @@ func TestHandlerViaHTTP(t *testing.T) {
 	}
 
 	// DELETE /sub-requests/{id} → exercises ServerInterfaceWrapper.DeleteSubRequestsId
-	req, _ = http.NewRequest(http.MethodDelete, ts.URL+"/sub-requests/some-id", nil)
+	req, _ = http.NewRequest(http.MethodDelete, ts.URL+"/sub-requests/123", nil)
 	resp, err = client.Do(req)
 	if err != nil {
 		t.Fatalf("DELETE /sub-requests/some-id: %v", err)
@@ -633,7 +637,7 @@ func TestHandlerWithMiddleware(t *testing.T) {
 		{http.MethodPost, "/auth/logout", "", ""},
 		{http.MethodGet, "/auth/verify", "", ""}, // Missing token → 400 but middleware still runs
 		{http.MethodPost, "/sub-requests", "show=1&start_time=2026-01-01T10%3A00&end_time=2026-01-01T12%3A00", "application/x-www-form-urlencoded"},
-		{http.MethodDelete, "/sub-requests/some-id", "", ""},
+		{http.MethodDelete, "/sub-requests/123", "", ""},
 	}
 
 	for _, route := range routes {
@@ -758,7 +762,6 @@ func TestServer_DeleteSubRequestsId_DBError(t *testing.T) {
 	repo := db.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "dberr@example.com")
 	sr := &models.SubRequest{
-		ID:        "sr-db-err",
 		ShowID:    1,
 		UserID:    u.ID,
 		StartTime: time.Now(),
@@ -769,11 +772,11 @@ func TestServer_DeleteSubRequestsId_DBError(t *testing.T) {
 	dbConn.Close() // Force GetSubRequestByID to fail
 
 	s := NewServer(repo, nil, nil)
-	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/sr-db-err", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/1", nil)
 	ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
-	s.DeleteSubRequestsId(rr, req, "sr-db-err")
+	s.DeleteSubRequestsId(rr, req, sr.ID)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500 for DB error, got %d", rr.Code)
@@ -863,7 +866,6 @@ func TestServer_DeleteSubRequestsId_DeleteError(t *testing.T) {
 	repo := db.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "deleterr@example.com")
 	sr := &models.SubRequest{
-		ID:        "sr-del-err",
 		ShowID:    1,
 		UserID:    u.ID,
 		StartTime: time.Now(),
@@ -871,16 +873,14 @@ func TestServer_DeleteSubRequestsId_DeleteError(t *testing.T) {
 		Status:    "open",
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
+	dbConn.Close() // Force GetSubRequestByID to fail
 
 	s := NewServer(repo, nil, nil)
-	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/sr-del-err", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/1", nil)
 	ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
 	req = req.WithContext(ctx)
-
-	dbConn.Close() // Force DeleteSubRequest to fail
-
 	rr := httptest.NewRecorder()
-	s.DeleteSubRequestsId(rr, req, "sr-del-err")
+	s.DeleteSubRequestsId(rr, req, sr.ID)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500 for DB error during delete, got %d", rr.Code)
@@ -929,9 +929,8 @@ func TestServer_DeleteSubRequestsId_Unauthorized(t *testing.T) {
 	repo := db.NewRepository(dbConn)
 	u1, _ := repo.CreateUser(context.Background(), "u1@example.com")
 	u2, _ := repo.CreateUser(context.Background(), "u2@example.com")
-	
+
 	sr := &models.SubRequest{
-		ID:        "sr-unauth",
 		ShowID:    1,
 		UserID:    u1.ID,
 		StartTime: time.Now(),
@@ -939,14 +938,13 @@ func TestServer_DeleteSubRequestsId_Unauthorized(t *testing.T) {
 		Status:    "open",
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
-	
+
 	s := NewServer(repo, nil, nil)
-	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/sr-unauth", nil)
-	ctx := context.WithValue(req.Context(), UserIDKey, u2.ID) // Logged in as u2, but owner is u1
+	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/1", nil)
+	ctx := context.WithValue(req.Context(), UserIDKey, u2.ID)
 	req = req.WithContext(ctx)
-	
 	rr := httptest.NewRecorder()
-	s.DeleteSubRequestsId(rr, req, "sr-unauth")
+	s.DeleteSubRequestsId(rr, req, sr.ID)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403 for unauthorized delete, got %d", rr.Code)
@@ -960,14 +958,13 @@ func TestServer_DeleteSubRequestsId_NotFound(t *testing.T) {
 	}
 	repo := db.NewRepository(dbConn)
 	u1, _ := repo.CreateUser(context.Background(), "u1@example.com")
-	
+
 	s := NewServer(repo, nil, nil)
-	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/sr-notfound", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/999", nil)
 	ctx := context.WithValue(req.Context(), UserIDKey, u1.ID)
 	req = req.WithContext(ctx)
-	
 	rr := httptest.NewRecorder()
-	s.DeleteSubRequestsId(rr, req, "sr-notfound")
+	s.DeleteSubRequestsId(rr, req, 999)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected 404 for non-existent sub request, got %d", rr.Code)
@@ -982,7 +979,6 @@ func TestServer_DeleteSubRequestsId_NoUserInContext(t *testing.T) {
 	repo := db.NewRepository(dbConn)
 	u1, _ := repo.CreateUser(context.Background(), "u1@example.com")
 	sr := &models.SubRequest{
-		ID:        "sr-noctx",
 		ShowID:    1,
 		UserID:    u1.ID,
 		StartTime: time.Now(),
@@ -990,16 +986,13 @@ func TestServer_DeleteSubRequestsId_NoUserInContext(t *testing.T) {
 		Status:    "open",
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
-	
+
 	s := NewServer(repo, nil, nil)
-	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/sr-noctx", nil)
-	// No UserIDKey in context
-	
+	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/1", nil)
 	rr := httptest.NewRecorder()
-	s.DeleteSubRequestsId(rr, req, "sr-noctx")
+	s.DeleteSubRequestsId(rr, req, sr.ID)
 
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401 for no user in context, got %d", rr.Code)
 	}
 }
-

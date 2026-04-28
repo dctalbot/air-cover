@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"database/sql"
-	"fmt"
 	"log/slog"
 
 	"github.com/spf13/cobra"
@@ -68,7 +67,7 @@ func runMigrate(cmd *cobra.Command, action string) {
 		osExit(1)
 	}
 
-	fmt.Printf("Migration '%s' completed successfully\n", action)
+	slog.Info("Migration completed successfully", "action", action)
 }
 
 func init() {

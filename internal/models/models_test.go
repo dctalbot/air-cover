@@ -22,7 +22,7 @@ func TestModels(t *testing.T) {
 	}
 
 	sr := SubRequest{
-		ID:        "sr1",
+		ID:        1,
 		ShowID:    42,
 		UserID:    1,
 		StartTime: time.Now(),

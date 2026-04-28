@@ -104,7 +104,7 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type subRequestView struct {
-		ID             string
+		ID             int
 		ShowTitle      string
 		RequesterEmail string
 		StartTime      string
@@ -202,15 +202,7 @@ func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := generateRandomToken(32)
-	if err != nil {
-		slog.Error("Failed to generate sub request ID", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
 	sr := &models.SubRequest{
-		ID:        id,
 		ShowID:    showID,
 		UserID:    userID,
 		StartTime: startTime,
@@ -232,7 +224,7 @@ func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 
 // Delete a sub request
 // (DELETE /sub-requests/{id})
-func (s *Server) DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id string) {
+func (s *Server) DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id int) {
 	sr, err := s.repo.GetSubRequestByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
