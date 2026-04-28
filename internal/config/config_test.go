@@ -17,6 +17,8 @@ func TestLoad_Success(t *testing.T) {
 	defer os.Unsetenv("SPINITRON_API_URL")
 	os.Setenv("PORT", "8080")
 	defer os.Unsetenv("PORT")
+	os.Setenv("FROM_EMAIL", "noreply@example.com")
+	defer os.Unsetenv("FROM_EMAIL")
 
 	cfg, err := Load(nil)
 	if err != nil {
@@ -51,6 +53,8 @@ func TestLoad_WithCmd(t *testing.T) {
 	defer os.Unsetenv("DB_URI")
 	os.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
 	defer os.Unsetenv("SPINITRON_API_URL")
+	os.Setenv("FROM_EMAIL", "noreply@example.com")
+	defer os.Unsetenv("FROM_EMAIL")
 
 	cmd := &cobra.Command{}
 	cmd.Flags().Int("port", 8080, "")
@@ -78,6 +82,8 @@ func TestLoad_BindFlagsError(t *testing.T) {
 	defer os.Unsetenv("DB_URI")
 	os.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
 	defer os.Unsetenv("SPINITRON_API_URL")
+	os.Setenv("FROM_EMAIL", "noreply@example.com")
+	defer os.Unsetenv("FROM_EMAIL")
 
 	cmd := &cobra.Command{}
 	cmd.Flags().Int("port", 8080, "")

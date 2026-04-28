@@ -110,7 +110,7 @@ var serverCmd = &cobra.Command{
 			}
 		}
 
-		sender := email.NewSender(cfg.SendGridAPIKey, cfg.ENV)
+		sender := email.NewSender(cfg.SendGridAPIKey, cfg.FromEmail, cfg.ENV)
 		authHandler := api.NewAuthHandler(repo, sender)
 		spinitronClient := spinitron.NewClient("", cfg.SpinitronAPIURL)
 		apiServer := api.NewServer(repo, authHandler, spinitronClient)

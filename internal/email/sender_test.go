@@ -30,14 +30,13 @@ func TestSendGridSender_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := &SendGridSender{APIKey: "test-key"}
-
-	// Use a custom http.Client that redirects to the test server
-	origClient := http.DefaultClient
-	http.DefaultClient = &http.Client{
-		Transport: &proxyTransport{target: srv.URL},
+	s := &SendGridSender{
+		APIKey:    "test-key",
+		FromEmail: "noreply@example.com",
+		HTTPClient: &http.Client{
+			Transport: &proxyTransport{target: srv.URL},
+		},
 	}
-	defer func() { http.DefaultClient = origClient }()
 
 	if err := s.SendMagicLink("test@example.com", "http://example.com/verify?token=abc"); err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -50,13 +49,12 @@ func TestSendGridSender_HTTPError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	s := &SendGridSender{APIKey: "test-key"}
-
-	origClient := http.DefaultClient
-	http.DefaultClient = &http.Client{
-		Transport: &proxyTransport{target: srv.URL},
+	s := &SendGridSender{
+		APIKey: "test-key",
+		HTTPClient: &http.Client{
+			Transport: &proxyTransport{target: srv.URL},
+		},
 	}
-	defer func() { http.DefaultClient = origClient }()
 
 	if err := s.SendMagicLink("test@example.com", "http://example.com/verify?token=abc"); err == nil {
 		t.Error("expected error for HTTP error status")
@@ -65,7 +63,7 @@ func TestSendGridSender_HTTPError(t *testing.T) {
 
 func TestNewSender(t *testing.T) {
 	// production + non-empty key → SendGridSender
-	s := NewSender("fake-key", "production")
+	s := NewSender("fake-key", "noreply@example.com", "production")
 	sg, ok := s.(*SendGridSender)
 	if !ok {
 		t.Fatal("expected SendGridSender")
@@ -73,15 +71,21 @@ func TestNewSender(t *testing.T) {
 	if sg.APIKey != "fake-key" {
 		t.Fatalf("expected fake-key, got %s", sg.APIKey)
 	}
+	if sg.FromEmail != "noreply@example.com" {
+		t.Fatalf("expected noreply@example.com, got %s", sg.FromEmail)
+	}
+	if sg.HTTPClient == nil {
+		t.Fatal("expected HTTPClient to be initialized")
+	}
 
 	// production + empty key → ConsoleSender (not SendGridSender because key is empty)
-	s2 := NewSender("", "production")
+	s2 := NewSender("", "noreply@example.com", "production")
 	if _, ok := s2.(*ConsoleSender); !ok {
 		t.Fatal("expected ConsoleSender for empty key in production")
 	}
 
 	// non-production → ConsoleSender
-	s3 := NewSender("any-key", "development")
+	s3 := NewSender("any-key", "noreply@example.com", "development")
 	if _, ok := s3.(*ConsoleSender); !ok {
 		t.Fatal("expected ConsoleSender for non-production env")
 	}
@@ -110,13 +114,12 @@ func (t *proxyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestSendGridSender_NetworkError(t *testing.T) {
-	s := &SendGridSender{APIKey: "test-key"}
-
-	origClient := http.DefaultClient
-	http.DefaultClient = &http.Client{
-		Transport: &errorTransport{},
+	s := &SendGridSender{
+		APIKey: "test-key",
+		HTTPClient: &http.Client{
+			Transport: &errorTransport{},
+		},
 	}
-	defer func() { http.DefaultClient = origClient }()
 
 	if err := s.SendMagicLink("test@example.com", "http://example.com/verify?token=abc"); err == nil {
 		t.Error("expected error for network failure")

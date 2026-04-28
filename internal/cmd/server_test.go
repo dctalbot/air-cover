@@ -225,6 +225,7 @@ func TestAppHandler_UpstreamError(t *testing.T) {
 func TestServerCmd_Success(t *testing.T) {
 	t.Setenv("DB_URI", "file::memory:?cache=shared")
 	t.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
+	t.Setenv("FROM_EMAIL", "noreply@example.com")
 	originalListenAndServe := listenAndServe
 	defer func() { listenAndServe = originalListenAndServe }()
 
@@ -238,6 +239,7 @@ func TestServerCmd_Success(t *testing.T) {
 func TestServerCmd_Error(t *testing.T) {
 	t.Setenv("DB_URI", "file::memory:?cache=shared")
 	t.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
+	t.Setenv("FROM_EMAIL", "noreply@example.com")
 	originalListenAndServe := listenAndServe
 	originalOsExit := osExit
 	defer func() {
@@ -290,6 +292,7 @@ func TestServerCmd_ConfigError(t *testing.T) {
 
 	t.Setenv("DB_URI", "")
 	t.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
+	t.Setenv("FROM_EMAIL", "noreply@example.com")
 
 	func() {
 		defer func() {
@@ -310,6 +313,7 @@ func TestServerCmd_MasterEmail(t *testing.T) {
 	t.Setenv("DB_URI", "file::memory:?cache=shared")
 	t.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
 	t.Setenv("MASTER_EMAIL", "admin@example.com")
+	t.Setenv("FROM_EMAIL", "noreply@example.com")
 	defer t.Setenv("MASTER_EMAIL", "")
 
 	originalListenAndServe := listenAndServe
@@ -390,6 +394,8 @@ func TestAuthRateLimiting(t *testing.T) {
 
 func TestServerCmd_DBInitError(t *testing.T) {
 	t.Setenv("DB_URI", "invalid-dsn")
+	t.Setenv("FROM_EMAIL", "noreply@example.com")
+	t.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
 	originalOsExit := osExit
 	defer func() { osExit = originalOsExit }()
 

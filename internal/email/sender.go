@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 )
 
 type Sender interface {
@@ -20,7 +21,9 @@ func (c *ConsoleSender) SendMagicLink(toEmail, magicLink string) error {
 }
 
 type SendGridSender struct {
-	APIKey string
+	APIKey     string
+	FromEmail  string
+	HTTPClient *http.Client
 }
 
 func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
@@ -39,7 +42,7 @@ func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
 			},
 		},
 		"from": map[string]string{
-			"email": "noreply@aircover.com", // This should probably be configurable too
+			"email": s.FromEmail,
 			"name":  "Air Cover",
 		},
 		"subject": "Your Air Cover Login Link",
@@ -63,7 +66,7 @@ func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
 	req.Header.Set("Authorization", "Bearer "+s.APIKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := s.HTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send email via sendgrid: %w", err)
 	}
@@ -77,9 +80,15 @@ func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
 	return nil
 }
 
-func NewSender(apiKey, env string) Sender {
+func NewSender(apiKey, fromEmail, env string) Sender {
 	if env == "production" && apiKey != "" {
-		return &SendGridSender{APIKey: apiKey}
+		return &SendGridSender{
+			APIKey:    apiKey,
+			FromEmail: fromEmail,
+			HTTPClient: &http.Client{
+				Timeout: 10 * time.Second,
+			},
+		}
 	}
 	return &ConsoleSender{}
 }

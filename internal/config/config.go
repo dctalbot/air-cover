@@ -19,6 +19,7 @@ type Config struct {
 	ENV             string `validate:"oneof=production development test"`
 	MasterEmail     string `validate:"omitempty,email"`
 	SendGridAPIKey  string `validate:"omitempty"`
+	FromEmail       string `mapstructure:"from_email" validate:"required,email"`
 	SpinitronAPIURL string `mapstructure:"spinitron_api_url" validate:"required,url"`
 }
 
@@ -38,6 +39,7 @@ func Load(cmd *cobra.Command) (*Config, error) {
 	cfg.ENV = os.Getenv("ENV")                           // nolint:forbidigo
 	cfg.MasterEmail = os.Getenv("MASTER_EMAIL")          // nolint:forbidigo
 	cfg.SendGridAPIKey = os.Getenv("SENDGRID_API_KEY")   // nolint:forbidigo
+	cfg.FromEmail = os.Getenv("FROM_EMAIL")              // nolint:forbidigo
 	cfg.SpinitronAPIURL = os.Getenv("SPINITRON_API_URL") // nolint:forbidigo
 
 	if osEnvPort != "" {
