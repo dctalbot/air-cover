@@ -40,6 +40,12 @@ func (f *fakeShowsService) GetShowsPage(ctx context.Context, page int) (spinitro
 	return f.page, nil
 }
 
+type mockSender struct{}
+
+func (m *mockSender) SendMagicLink(toEmail, magicLink string) error {
+	return nil
+}
+
 func TestHealthHandler(t *testing.T) {
 	server := api.NewServer(nil, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -346,6 +352,39 @@ func TestNewRouter(t *testing.T) {
 	r.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400 for invalid ID, got %d", rr.Code)
+	}
+}
+
+func TestAuthRateLimiting(t *testing.T) {
+	dbConn, _ := db.InitDB("file::memory:?cache=shared")
+	defer dbConn.Close()
+
+	repo := db.NewRepository(dbConn)
+	_, _ = repo.CreateUser(context.Background(), "test@example.com")
+	auth := api.NewAuthHandler(repo, &mockSender{})
+	server := api.NewServer(repo, auth, nil)
+
+	r := newRouter(server, auth)
+
+	// Make 5 successful-ish requests
+	for i := 0; i < 5; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"test@example.com"}`))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+		// We expect 200 because the handler will succeed (mocked repo/sender might be used)
+		if rr.Code != http.StatusOK {
+			t.Errorf("request %d: expected status 200, got %d", i+1, rr.Code)
+		}
+	}
+
+	// 6th request should be rate limited
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"test@example.com"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusTooManyRequests {
+		t.Errorf("expected status 429, got %d", rr.Code)
 	}
 }
 

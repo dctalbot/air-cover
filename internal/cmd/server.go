@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/docgen"
+	"github.com/go-chi/httprate"
 	nethttp_middleware "github.com/oapi-codegen/nethttp-middleware"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -44,10 +45,15 @@ func newRouter(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
 
 	r.Get("/", apiServer.Get)
 	r.Get("/health", apiServer.GetHealth)
-	r.Post("/auth/login", apiServer.PostAuthLogin)
-	r.Get("/auth/verify", func(w http.ResponseWriter, r *http.Request) {
-		token := r.URL.Query().Get("token")
-		apiServer.GetAuthVerify(w, r, api.GetAuthVerifyParams{Token: token})
+
+	// Auth endpoints with rate limiting
+	r.Group(func(r chi.Router) {
+		r.Use(httprate.LimitByIP(5, time.Minute))
+		r.Post("/auth/login", apiServer.PostAuthLogin)
+		r.Get("/auth/verify", func(w http.ResponseWriter, r *http.Request) {
+			token := r.URL.Query().Get("token")
+			apiServer.GetAuthVerify(w, r, api.GetAuthVerifyParams{Token: token})
+		})
 	})
 
 	r.Group(func(r chi.Router) {
