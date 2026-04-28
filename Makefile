@@ -1,4 +1,4 @@
-.PHONY: setup start build lint test check dev generate codecov-html db-reset db-down db-status
+.PHONY: setup start build lint test check generate codecov-html db-reset db-down db-status
 
 setup:
 	curl -sSfL https://golangci-lint.run/install.sh | sh -s v2.11.4
@@ -7,10 +7,7 @@ build:
 	go build -o bin/aircover cmd/aircover/main.go
 
 start:
-	go run cmd/aircover/main.go server
-
-dev:
-	kill -9 $$(lsof -t -i :8080) || true
+	@lsof -ti :8080 | xargs -r kill -TERM 2>/dev/null || true
 	go run github.com/air-verse/air@latest -c .air.toml
 
 generate:

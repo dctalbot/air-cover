@@ -114,6 +114,7 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 		CanDelete      bool
 	}
 
+	userID, _ := r.Context().Value(UserIDKey).(int)
 	var views []subRequestView
 	for _, sr := range subRequests {
 		title := showMap[sr.ShowID]
@@ -128,7 +129,7 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 			EndTime:        sr.EndTime.Format("Mon, Jan 02 at 3:04 PM"),
 			Notes:          sr.Notes,
 			Status:         sr.Status,
-			CanDelete:      sr.UserID == r.Context().Value(UserIDKey).(int),
+			CanDelete:      sr.UserID == userID,
 		})
 	}
 
