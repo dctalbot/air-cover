@@ -23,6 +23,7 @@ lint:
 		echo "Installing golangci-lint"; \
 		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ./bin latest; \
 	fi
+	@./bin/golangci-lint config verify
 	@go mod tidy
 	@go vet ./...
 	@go fmt ./...

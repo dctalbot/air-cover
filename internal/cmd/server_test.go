@@ -298,3 +298,45 @@ func TestServerCmd_ConfigError(t *testing.T) {
 		t.Errorf("expected osExit to be called")
 	}
 }
+
+func TestServerCmd_MasterEmail(t *testing.T) {
+	// Tests the master email bootstrapping path
+	t.Setenv("DB_URI", "file::memory:?cache=shared")
+	t.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
+	t.Setenv("MASTER_EMAIL", "admin@example.com")
+	defer t.Setenv("MASTER_EMAIL", "")
+
+	originalListenAndServe := listenAndServe
+	defer func() { listenAndServe = originalListenAndServe }()
+
+	listenAndServe = func(server *http.Server) error {
+		return nil
+	}
+
+	serverCmd.Run(serverCmd, nil)
+
+	// Run again so the master email already exists (covers the "already exists" branch)
+	serverCmd.Run(serverCmd, nil)
+}
+
+func TestDocCmd(t *testing.T) {
+	// Run the doc command to exercise doc.go
+	docCmd.Run(docCmd, nil)
+}
+
+func TestNewRouter(t *testing.T) {
+	dbConn, err := db.InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("failed to init db: %v", err)
+	}
+	defer dbConn.Close()
+
+	repo := db.NewRepository(dbConn)
+	auth := api.NewAuthHandler(repo, nil)
+	server := api.NewServer(repo, auth, nil)
+
+	r := newRouter(server, auth)
+	if r == nil {
+		t.Fatal("expected non-nil router")
+	}
+}

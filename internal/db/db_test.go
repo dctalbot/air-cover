@@ -55,6 +55,20 @@ func TestRepository(t *testing.T) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 
+	// GetUserByID
+	u3, err := repo.GetUserByID(ctx, u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u3.ID != u.ID {
+		t.Fatalf("expected id %v, got %v", u.ID, u3.ID)
+	}
+
+	_, err = repo.GetUserByID(ctx, 99999)
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound for missing ID, got %v", err)
+	}
+
 	// MagicLink
 	err = repo.CreateMagicLink(ctx, u.ID, "hash123", time.Now().Add(1*time.Hour))
 	if err != nil {
@@ -78,6 +92,16 @@ func TestRepository(t *testing.T) {
 	_, err = repo.UseMagicLink(ctx, "notfound")
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+
+	// Expired magic link
+	err = repo.CreateMagicLink(ctx, u.ID, "expired-hash", time.Now().Add(-1*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = repo.UseMagicLink(ctx, "expired-hash")
+	if err == nil {
+		t.Fatal("expected error for expired magic link")
 	}
 
 	// Session
@@ -134,6 +158,21 @@ func TestRepository(t *testing.T) {
 	err = repo.CreateSubRequest(ctx, sr)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// ListSubRequests
+	list, err := repo.ListSubRequests(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) == 0 {
+		t.Fatal("expected at least one sub request")
+	}
+	if list[0].ID != sr.ID {
+		t.Fatalf("expected id %v, got %v", sr.ID, list[0].ID)
+	}
+	if list[0].RequesterEmail != u.Email {
+		t.Fatalf("expected email %v, got %v", u.Email, list[0].RequesterEmail)
 	}
 
 	// GetSubRequestByID

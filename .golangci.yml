@@ -21,7 +21,7 @@ linters:
       rules:
         - name: exported
           severity: warning
-        - name: imports-blacklist
+        - name: imports-blocklist
           severity: error
           arguments:
             - "log"

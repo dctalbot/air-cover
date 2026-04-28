@@ -3,6 +3,7 @@ package ui
 import (
 	"embed"
 	"html/template"
+	"io/fs"
 	"log/slog"
 	"net/http"
 )
@@ -16,14 +17,18 @@ var (
 )
 
 func init() {
+	mustInitTemplates(htmlFiles)
+}
+
+func mustInitTemplates(fsys fs.FS) {
 	var err error
-	unauthenticatedTmpl, err = template.ParseFS(htmlFiles, "html/unauthenticated.html")
+	unauthenticatedTmpl, err = template.ParseFS(fsys, "html/unauthenticated.html")
 	if err != nil {
 		slog.Error("Failed to parse unauthenticated template", "error", err)
 		panic(err)
 	}
 
-	authenticatedTmpl, err = template.ParseFS(htmlFiles, "html/authenticated.html")
+	authenticatedTmpl, err = template.ParseFS(fsys, "html/authenticated.html")
 	if err != nil {
 		slog.Error("Failed to parse authenticated template", "error", err)
 		panic(err)
