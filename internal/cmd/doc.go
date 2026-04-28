@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/docgen"
 	"github.com/spf13/cobra"
@@ -19,7 +21,7 @@ var docCmd = &cobra.Command{
 		apiServer := api.NewServer(nil, authHandler, nil)
 
 		r := newRouter(apiServer, authHandler)
-		cmd.Println(docgen.JSONRoutesDoc(r.(*chi.Mux)))
+		fmt.Println(docgen.JSONRoutesDoc(r.(*chi.Mux))) // nolint:forbidigo
 	},
 }
 

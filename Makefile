@@ -15,8 +15,8 @@ dev:
 
 generate:
 	@mkdir -p docs
-	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 -package api -generate chi-server,types,spec api/openapi.yaml > internal/api/api.gen.go
-	go run cmd/aircover/main.go doc > docs/routes.json
+	@go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 -package api -generate chi-server,types,spec api/openapi.yaml > internal/api/api.gen.go
+	@go run cmd/aircover/main.go doc > docs/routes.json
 
 db-reset:
 	go run cmd/aircover/main.go migrate reset
