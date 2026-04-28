@@ -23,13 +23,36 @@ func InitDB(uri string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to connect to db: %w", err)
 	}
 
-	goose.SetBaseFS(embedMigrations)
-	if err := goose.SetDialect("sqlite3"); err != nil {
-		return nil, fmt.Errorf("failed to set goose dialect: %w", err)
-	}
-	if err := goose.Up(db, "migrations"); err != nil {
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
+	if err := RunMigration(db, "up"); err != nil {
+		return nil, err
 	}
 
 	return db, nil
+}
+
+func RunMigration(db *sql.DB, command string) error {
+	goose.SetBaseFS(embedMigrations)
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		return fmt.Errorf("failed to set goose dialect: %w", err)
+	}
+
+	var err error
+	switch command {
+	case "up":
+		err = goose.Up(db, "migrations")
+	case "down":
+		err = goose.Down(db, "migrations")
+	case "reset":
+		err = goose.Reset(db, "migrations")
+	case "status":
+		err = goose.Status(db, "migrations")
+	default:
+		return fmt.Errorf("unknown migration command: %s", command)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to run migration %s: %w", command, err)
+	}
+
+	return nil
 }

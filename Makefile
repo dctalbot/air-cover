@@ -1,4 +1,4 @@
-.PHONY: setup start build lint test check dev generate codecov-html
+.PHONY: setup start build lint test check dev generate codecov-html db-reset db-down db-status
 
 setup:
 	curl -sSfL https://golangci-lint.run/install.sh | sh -s v2.11.4
@@ -17,6 +17,15 @@ generate:
 	@mkdir -p docs
 	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 -package api -generate chi-server,types,spec api/openapi.yaml > internal/api/api.gen.go
 	go run cmd/aircover/main.go doc > docs/routes.json
+
+db-reset:
+	go run cmd/aircover/main.go migrate reset
+
+db-down:
+	go run cmd/aircover/main.go migrate down
+
+db-status:
+	go run cmd/aircover/main.go migrate status
 
 lint:
 	@if [ "$$(uname -m)" != "arm64" ]; then \
