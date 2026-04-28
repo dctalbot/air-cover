@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/docgen"
 	"github.com/go-chi/httprate"
 	nethttp_middleware "github.com/oapi-codegen/nethttp-middleware"
 	"github.com/spf13/cobra"
@@ -21,6 +20,7 @@ import (
 	"air-cover/internal/config"
 	"air-cover/internal/db"
 	"air-cover/internal/email"
+	"air-cover/internal/logger"
 	"air-cover/internal/spinitron"
 )
 
@@ -80,13 +80,13 @@ var serverCmd = &cobra.Command{
 	Short: "Start the web server",
 	Long:  `Start the Air Cover web server.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		slog.Info("Starting Air Cover server...")
-
 		cfg, err := config.Load(cmd)
 		if err != nil {
 			slog.Error("Failed to load configuration", "error", err)
 			osExit(1)
 		}
+
+		slog.SetDefault(logger.NewLogger(cfg))
 
 		database, err := db.InitDB(cfg.DBURI)
 		if err != nil {
@@ -116,11 +116,6 @@ var serverCmd = &cobra.Command{
 		apiServer := api.NewServer(repo, authHandler, spinitronClient)
 
 		r := newRouter(apiServer, authHandler)
-
-		slog.Info("Routes registered:")
-		doc := docgen.JSONRoutesDoc(r.(*chi.Mux))
-		slog.Info(doc)
-
 		portStr := strconv.Itoa(cfg.Port)
 		slog.Info("Listening on port", "port", portStr)
 

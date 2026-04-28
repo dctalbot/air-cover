@@ -10,7 +10,7 @@ start:
 	go run cmd/aircover/main.go server
 
 dev:
-	kill -9 $$(lsof -t -i :8080)
+	kill -9 $$(lsof -t -i :8080) || true
 	go run github.com/air-verse/air@latest -c .air.toml
 
 generate:

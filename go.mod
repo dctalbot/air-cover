@@ -17,6 +17,8 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.21.0
 	github.com/tursodatabase/libsql-client-go v0.0.0-20251219100830-236aa1ff8acc
+	go.uber.org/zap v1.28.0
+	go.uber.org/zap/exp v0.3.0
 )
 
 require (

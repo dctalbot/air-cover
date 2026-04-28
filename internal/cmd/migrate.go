@@ -8,6 +8,7 @@ import (
 
 	"air-cover/internal/config"
 	"air-cover/internal/db"
+	"air-cover/internal/logger"
 )
 
 var migrateCmd = &cobra.Command{
@@ -54,6 +55,8 @@ func runMigrate(cmd *cobra.Command, action string) {
 		slog.Error("Failed to load configuration", "error", err)
 		osExit(1)
 	}
+
+	slog.SetDefault(logger.NewLogger(cfg))
 
 	database, err := sql.Open("libsql", cfg.DBURI)
 	if err != nil {
