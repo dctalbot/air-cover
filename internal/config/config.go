@@ -57,27 +57,24 @@ func Load(cmd *cobra.Command) (*Config, error) {
 		cfg.Port = 8080
 	}
 
+	if cmd != nil {
+		// Bind flags to viper
+		if err := viperBindPFlags(cmd.Flags()); err != nil {
+			return nil, fmt.Errorf("error binding flags: %w", err)
+		}
+
+		// Flags override config if needed
+		if cmd.Flags().Changed("port") {
+			cfg.Port = viper.GetInt("port")
+		}
+		if cmd.Flags().Changed("db-uri") {
+			cfg.DBURI = viper.GetString("db-uri")
+		}
+	}
+
 	validate := validator.New()
 	if err := validate.Struct(cfg); err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
-	}
-
-	if cmd == nil {
-		// Not running in CLI
-		return cfg, nil
-	}
-
-	// Bind flags to viper
-	if err := viperBindPFlags(cmd.Flags()); err != nil {
-		return nil, fmt.Errorf("error binding flags: %w", err)
-	}
-
-	// Flags override config if needed
-	if cmd.Flags().Changed("port") {
-		cfg.Port = viper.GetInt("port")
-	}
-	if cmd.Flags().Changed("db-uri") {
-		cfg.DBURI = viper.GetString("db-uri")
 	}
 
 	return cfg, nil
