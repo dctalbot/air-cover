@@ -80,6 +80,20 @@ paths:
                 type: string
         '401':
           description: Unauthorized
+  /admin:
+    get:
+      summary: Admin dashboard
+      responses:
+        '200':
+          description: HTML content
+          content:
+            text/html:
+              schema:
+                type: string
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
   /sub-requests:
     post:
       summary: Create a new sub request

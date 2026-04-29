@@ -215,6 +215,7 @@ type contextKey string
 const (
 	UserIDKey    contextKey = "user_id"
 	UserEmailKey contextKey = "user_email"
+	UserRoleKey  contextKey = "user_role"
 )
 
 func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
@@ -240,6 +241,18 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 
 		ctx = context.WithValue(ctx, UserIDKey, user.ID)
 		ctx = context.WithValue(ctx, UserEmailKey, user.Email)
+		ctx = context.WithValue(ctx, UserRoleKey, user.Role)
 		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (h *AuthHandler) RequireAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		role, ok := r.Context().Value(UserRoleKey).(string)
+		if !ok || role != "admin" {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }

@@ -140,6 +140,14 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Admin dashboard
+// (GET /admin)
+func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("<h1>Admin Dashboard</h1><p>Welcome, admin!</p><a href='/app'>Back to App</a>"))
+}
+
 // Request a magic link for login
 // (POST /auth/login)
 func (s *Server) PostAuthLogin(w http.ResponseWriter, r *http.Request) {

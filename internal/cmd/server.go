@@ -72,6 +72,12 @@ func newRouter(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
 		})
 	})
 
+	r.Group(func(r chi.Router) {
+		r.Use(authHandler.AuthMiddleware)
+		r.Use(authHandler.RequireAdmin)
+		r.Get("/admin", apiServer.GetAdmin)
+	})
+
 	return r
 }
 
