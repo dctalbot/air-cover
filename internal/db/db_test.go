@@ -33,6 +33,10 @@ func TestRepository(t *testing.T) {
 	repo := NewRepository(dbConn)
 	ctx := context.Background()
 
+	if repo.DB() != dbConn {
+		t.Error("expected repo.DB() to return the db connection")
+	}
+
 	// CreateUser
 	u, err := repo.CreateUser(ctx, "test@example.com", "member")
 	if err != nil {
@@ -207,6 +211,30 @@ func TestRepository(t *testing.T) {
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
+
+	// ListUsers
+	users, err := repo.ListUsers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(users) == 0 {
+		t.Fatal("expected at least one user")
+	}
+
+	// DeleteUser
+	err = repo.DeleteUser(ctx, u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = repo.GetUserByID(ctx, u.ID)
+	if err != ErrNotFound {
+		t.Fatalf("expected user to be deleted, got %v", err)
+	}
+
+	err = repo.DeleteUser(ctx, 9999)
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound for missing user, got %v", err)
+	}
 }
 
 func TestRepositoryErrors(t *testing.T) {
@@ -281,6 +309,16 @@ func TestRepositoryErrors(t *testing.T) {
 		t.Error("expected error with cancelled context in DeleteSubRequest")
 	}
 
+	err = repo.DeleteUser(ctx, 1)
+	if err == nil {
+		t.Error("expected error with cancelled context in DeleteUser")
+	}
+
+	_, err = repo.ListUsers(ctx)
+	if err == nil {
+		t.Error("expected error with cancelled context in ListUsers")
+	}
+
 	// Test unique constraint violation
 	ctx = context.Background()
 	_, _ = repo.CreateUser(ctx, "unique@example.com", "member")
@@ -314,6 +352,27 @@ func TestListSubRequestsErrors(t *testing.T) {
 	_, err = repo.ListSubRequests(ctx)
 	if err == nil {
 		t.Error("expected error with closed db in ListSubRequests")
+	}
+
+	_, err = repo.ListUsers(ctx)
+	if err == nil {
+		t.Error("expected error with closed db in ListUsers")
+	}
+}
+
+func TestDeleteUserErrors(t *testing.T) {
+	dbConn, err := InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := NewRepository(dbConn)
+	ctx := context.Background()
+
+	// BeginTx failure
+	dbConn.Close()
+	err = repo.DeleteUser(ctx, 1)
+	if err == nil {
+		t.Error("expected error with closed db in DeleteUser")
 	}
 }
 
@@ -363,6 +422,15 @@ func TestScanErrors(t *testing.T) {
 	_, err = repo.GetSubRequestByID(ctx, 123)
 	if err == nil {
 		t.Error("expected scan error in GetSubRequestByID")
+	}
+
+	// ListUsers scan error
+	_, _ = dbConn.Exec("DROP TABLE users")
+	_, _ = dbConn.Exec("CREATE TABLE users (id TEXT, email TEXT, role TEXT, created_at TEXT)")
+	_, _ = dbConn.Exec("INSERT INTO users (id, email, role, created_at) VALUES ('bad', 'bad', 'bad', 'bad')")
+	_, err = repo.ListUsers(ctx)
+	if err == nil {
+		t.Error("expected scan error in ListUsers")
 	}
 }
 

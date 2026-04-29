@@ -158,7 +158,10 @@ func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
 		Email     string
 		Role      string
 		CreatedAt string
+		CanDelete bool
 	}
+
+	currentUserID, _ := r.Context().Value(UserIDKey).(int)
 
 	var views []userView
 	for _, u := range users {
@@ -167,6 +170,7 @@ func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
 			Email:     u.Email,
 			Role:      u.Role,
 			CreatedAt: u.CreatedAt.Format("Jan 02, 2006 at 3:04 PM"),
+			CanDelete: u.ID != currentUserID,
 		})
 	}
 
@@ -285,6 +289,33 @@ func (s *Server) DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id 
 
 	if err := s.repo.DeleteSubRequest(r.Context(), id); err != nil {
 		slog.Error("Failed to delete sub request", "id", id, "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Delete a user
+// (DELETE /users/{id})
+func (s *Server) DeleteUsersId(w http.ResponseWriter, r *http.Request, id int) {
+	currentUserID, ok := r.Context().Value(UserIDKey).(int)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if currentUserID == id {
+		http.Error(w, "Cannot delete your own account", http.StatusForbidden)
+		return
+	}
+
+	if err := s.repo.DeleteUser(r.Context(), id); err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+		slog.Error("Failed to delete user", "id", id, "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}

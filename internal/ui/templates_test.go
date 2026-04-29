@@ -22,6 +22,14 @@ func TestRenderAuthenticated(t *testing.T) {
 	}
 }
 
+func TestRenderAdmin(t *testing.T) {
+	rr := &mockResponseWriter{}
+	RenderAdmin(rr, map[string]any{"Users": nil})
+	if rr.status != 200 {
+		t.Errorf("expected 200, got %d", rr.status)
+	}
+}
+
 func TestRenderUnauthenticated_WriteError(t *testing.T) {
 	rr := &errorResponseWriter{}
 	RenderUnauthenticated(rr, nil)
@@ -30,6 +38,11 @@ func TestRenderUnauthenticated_WriteError(t *testing.T) {
 func TestRenderAuthenticated_WriteError(t *testing.T) {
 	rr := &errorResponseWriter{}
 	RenderAuthenticated(rr, nil)
+}
+
+func TestRenderAdmin_WriteError(t *testing.T) {
+	rr := &errorResponseWriter{}
+	RenderAdmin(rr, nil)
 }
 
 func TestMustInitTemplates_BadUnauthenticatedTemplate(t *testing.T) {
@@ -58,6 +71,23 @@ func TestMustInitTemplates_BadAuthenticatedTemplate(t *testing.T) {
 	// Provide a filesystem with only unauthenticated template (missing authenticated)
 	badFS := fstest.MapFS{
 		"html/unauthenticated.html": &fstest.MapFile{Data: []byte(`Hello`)},
+	}
+	mustInitTemplates(badFS)
+}
+
+func TestMustInitTemplates_BadAdminTemplate(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic for bad admin template")
+		}
+		// Restore valid templates
+		mustInitTemplates(htmlFiles)
+	}()
+
+	// Provide a filesystem missing admin template
+	badFS := fstest.MapFS{
+		"html/unauthenticated.html": &fstest.MapFile{Data: []byte(`Hello`)},
+		"html/authenticated.html":   &fstest.MapFile{Data: []byte(`World`)},
 	}
 	mustInitTemplates(badFS)
 }

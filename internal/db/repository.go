@@ -19,6 +19,10 @@ func NewRepository(db *sql.DB) *Repository {
 	return &Repository{db: db}
 }
 
+func (r *Repository) DB() *sql.DB {
+	return r.db
+}
+
 func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
 	err := r.db.QueryRowContext(ctx, "SELECT id, email, role, created_at FROM users WHERE email = ?", email).
@@ -215,4 +219,39 @@ func (r *Repository) ListUsers(ctx context.Context) ([]*models.User, error) {
 		return nil, err
 	}
 	return users, nil
+}
+
+func (r *Repository) DeleteUser(ctx context.Context, id int) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Delete associated records
+	if _, err := tx.ExecContext(ctx, "DELETE FROM sessions WHERE user_id = ?", id); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM magic_links WHERE user_id = ?", id); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM sub_requests WHERE user_id = ?", id); err != nil {
+		return err
+	}
+
+	// Delete the user
+	res, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+
+	return tx.Commit()
 }

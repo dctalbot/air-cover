@@ -76,6 +76,15 @@ func newRouter(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
 		r.Use(authHandler.AuthMiddleware)
 		r.Use(authHandler.RequireAdmin)
 		r.Get("/admin", apiServer.GetAdmin)
+		r.Delete("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
+			idStr := chi.URLParam(r, "id")
+			id, err := strconv.Atoi(idStr)
+			if err != nil {
+				http.Error(w, "Invalid ID", http.StatusBadRequest)
+				return
+			}
+			apiServer.DeleteUsersId(w, r, id)
+		})
 	})
 
 	return r
