@@ -195,3 +195,24 @@ func (r *Repository) DeleteSubRequest(ctx context.Context, id int) error {
 	}
 	return nil
 }
+
+func (r *Repository) ListUsers(ctx context.Context) ([]*models.User, error) {
+	rows, err := r.db.QueryContext(ctx, "SELECT id, email, role, created_at FROM users ORDER BY created_at DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*models.User
+	for rows.Next() {
+		var user models.User
+		if err := rows.Scan(&user.ID, &user.Email, &user.Role, &user.CreatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, &user)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return users, nil
+}

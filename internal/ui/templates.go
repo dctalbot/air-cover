@@ -14,6 +14,7 @@ var htmlFiles embed.FS
 var (
 	unauthenticatedTmpl *template.Template
 	authenticatedTmpl   *template.Template
+	adminTmpl           *template.Template
 )
 
 func init() {
@@ -33,6 +34,12 @@ func mustInitTemplates(fsys fs.FS) {
 		slog.Error("Failed to parse authenticated template", "error", err)
 		panic(err)
 	}
+
+	adminTmpl, err = template.ParseFS(fsys, "html/admin.html")
+	if err != nil {
+		slog.Error("Failed to parse admin template", "error", err)
+		panic(err)
+	}
 }
 
 func RenderUnauthenticated(w http.ResponseWriter, data any) {
@@ -47,6 +54,13 @@ func RenderAuthenticated(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	if err := authenticatedTmpl.Execute(w, data); err != nil {
+		slog.Error("Failed to write response", "error", err)
+	}
+}
+func RenderAdmin(w http.ResponseWriter, data any) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	if err := adminTmpl.Execute(w, data); err != nil {
 		slog.Error("Failed to write response", "error", err)
 	}
 }

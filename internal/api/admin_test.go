@@ -50,6 +50,9 @@ func TestServer_GetAdmin(t *testing.T) {
 	repo := setupTestDB(t)
 	s := NewServer(repo, nil, nil)
 
+	_, _ = repo.CreateUser(context.Background(), "admin@example.com", "admin")
+	_, _ = repo.CreateUser(context.Background(), "member@example.com", "member")
+
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 	rr := httptest.NewRecorder()
 	s.GetAdmin(rr, req)
@@ -59,6 +62,16 @@ func TestServer_GetAdmin(t *testing.T) {
 	}
 	if rr.Header().Get("Content-Type") != "text/html; charset=utf-8" {
 		t.Errorf("expected HTML content type, got %v", rr.Header().Get("Content-Type"))
+	}
+
+	if !bytes.Contains(rr.Body.Bytes(), []byte("admin@example.com")) {
+		t.Error("expected body to contain admin@example.com")
+	}
+	if !bytes.Contains(rr.Body.Bytes(), []byte("member@example.com")) {
+		t.Error("expected body to contain member@example.com")
+	}
+	if !bytes.Contains(rr.Body.Bytes(), []byte("role-admin")) {
+		t.Error("expected body to contain role-admin badge")
 	}
 }
 

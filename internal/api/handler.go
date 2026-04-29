@@ -146,9 +146,33 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 // Admin dashboard
 // (GET /admin)
 func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("<h1>Admin Dashboard</h1><p>Welcome, admin!</p><a href='/app'>Back to App</a>"))
+	users, err := s.repo.ListUsers(r.Context())
+	if err != nil {
+		slog.Error("Failed to load users", "error", err)
+		http.Error(w, "Unable to load users", http.StatusInternalServerError)
+		return
+	}
+
+	type userView struct {
+		ID        int
+		Email     string
+		Role      string
+		CreatedAt string
+	}
+
+	var views []userView
+	for _, u := range users {
+		views = append(views, userView{
+			ID:        u.ID,
+			Email:     u.Email,
+			Role:      u.Role,
+			CreatedAt: u.CreatedAt.Format("Jan 02, 2006 at 3:04 PM"),
+		})
+	}
+
+	ui.RenderAdmin(w, map[string]any{
+		"Users": views,
+	})
 }
 
 // Request a magic link for login
