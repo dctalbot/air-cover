@@ -54,7 +54,7 @@ func (s *Server) Get(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	ui.RenderUnauthenticated(w)
+	ui.RenderUnauthenticated(w, nil)
 }
 
 // Authenticated application page

@@ -8,7 +8,7 @@ import (
 
 func TestRenderUnauthenticated(t *testing.T) {
 	rr := &mockResponseWriter{}
-	RenderUnauthenticated(rr)
+	RenderUnauthenticated(rr, nil)
 	if rr.status != 200 {
 		t.Errorf("expected 200, got %d", rr.status)
 	}
@@ -24,7 +24,7 @@ func TestRenderAuthenticated(t *testing.T) {
 
 func TestRenderUnauthenticated_WriteError(t *testing.T) {
 	rr := &errorResponseWriter{}
-	RenderUnauthenticated(rr)
+	RenderUnauthenticated(rr, nil)
 }
 
 func TestRenderAuthenticated_WriteError(t *testing.T) {

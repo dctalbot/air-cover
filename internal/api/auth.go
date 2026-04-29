@@ -11,10 +11,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"air-cover/internal/db"
 	"air-cover/internal/email"
+	"air-cover/internal/ui"
 )
 
 type AuthHandler struct {
@@ -47,24 +49,35 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	// Limit request body size to 1MB to prevent memory exhaustion (G120)
 	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
 
-	var req LoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
+	var emailVal string
+	contentType := r.Header.Get("Content-Type")
+
+	if strings.HasPrefix(contentType, "application/json") {
+		var req LoginRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		emailVal = string(req.Email)
+	} else {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
+			return
+		}
+		emailVal = r.FormValue("email")
 	}
 
-	if req.Email == "" {
+	if emailVal == "" {
 		http.Error(w, "Email is required", http.StatusBadRequest)
 		return
 	}
 
 	ctx := r.Context()
-	user, err := h.repo.GetUserByEmail(ctx, string(req.Email))
+	user, err := h.repo.GetUserByEmail(ctx, emailVal)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			slog.Info("Login attempt with unknown email", "email", req.Email)
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"message": "If an account exists, an email has been sent."}`))
+			slog.Info("Login attempt with unknown email", "email", emailVal)
+			h.sendLoginResponse(w, r, "If an account exists, an email has been sent.")
 			return
 		}
 		slog.Error("Database error during login", "error", err)
@@ -101,8 +114,21 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"message": "If an account exists, an email has been sent."}`))
+	h.sendLoginResponse(w, r, "If an account exists, an email has been sent.")
+}
+
+func (h *AuthHandler) sendLoginResponse(w http.ResponseWriter, r *http.Request, message string) {
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "application/json") {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]string{"message": message})
+		return
+	}
+
+	ui.RenderUnauthenticated(w, map[string]any{
+		"Message": message,
+	})
 }
 
 func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {

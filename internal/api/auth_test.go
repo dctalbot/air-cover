@@ -48,6 +48,7 @@ func TestAuthHandler_Login(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(tt.method, "/auth/login", bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()
 			handler.HandleLogin(rr, req)
 			if rr.Code != tt.wantStatus {
@@ -64,6 +65,7 @@ func TestAuthHandler_Login_HTTPSScheme(t *testing.T) {
 	handler := NewAuthHandler(repo, &MockSender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"https@example.com"}`))
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Forwarded-Proto", "https")
 	rr := httptest.NewRecorder()
 	handler.HandleLogin(rr, req)
@@ -282,6 +284,7 @@ func TestAuthHandler_Login_DBError(t *testing.T) {
 
 	handler := NewAuthHandler(repo, &MockSender{})
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"dberror@example.com"}`))
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	handler.HandleLogin(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -297,6 +300,7 @@ func TestAuthHandler_Login_SendError(t *testing.T) {
 	}
 	handler := NewAuthHandler(repo, &failSender{})
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"senderror@example.com"}`))
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	handler.HandleLogin(rr, req)
 	if rr.Code != http.StatusInternalServerError {
@@ -406,5 +410,53 @@ func TestAuthMiddleware_GetUserByIDError(t *testing.T) {
 	mw.ServeHTTP(rr, req)
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401 when user is deleted, got %d", rr.Code)
+	}
+}
+
+func TestAuthHandler_Login_Form(t *testing.T) {
+	repo := setupTestDB(t)
+	handler := NewAuthHandler(repo, &MockSender{})
+	_, _ = repo.CreateUser(context.Background(), "form@example.com")
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString("email=form@example.com"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	handler.HandleLogin(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %v", rr.Code)
+	}
+	// Check for the success message in the rendered HTML
+	if !bytes.Contains(rr.Body.Bytes(), []byte("If an account exists, an email has been sent.")) {
+		t.Errorf("expected HTML success message, got %s", rr.Body.String())
+	}
+}
+
+func TestAuthHandler_Login_Form_Invalid(t *testing.T) {
+	repo := setupTestDB(t)
+	handler := NewAuthHandler(repo, &MockSender{})
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString("email="))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	handler.HandleLogin(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for empty email, got %v", rr.Code)
+	}
+}
+
+func TestAuthHandler_Login_Form_ParseError(t *testing.T) {
+	repo := setupTestDB(t)
+	handler := NewAuthHandler(repo, &MockSender{})
+
+	// Sending a body that will cause ParseForm to fail (invalid percent encoding)
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString("email=%ZZ"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	handler.HandleLogin(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid form data, got %v", rr.Code)
 	}
 }

@@ -35,10 +35,10 @@ func mustInitTemplates(fsys fs.FS) {
 	}
 }
 
-func RenderUnauthenticated(w http.ResponseWriter) {
+func RenderUnauthenticated(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	if err := unauthenticatedTmpl.Execute(w, nil); err != nil {
+	if err := unauthenticatedTmpl.Execute(w, data); err != nil {
 		slog.Error("Failed to write response", "error", err)
 	}
 }
