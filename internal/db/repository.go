@@ -87,7 +87,7 @@ func (r *Repository) UseMagicLink(ctx context.Context, tokenHash string) (*model
 		return &ml, errors.New("magic link expired or already used")
 	}
 
-	_, err = r.db.ExecContext(ctx, "UPDATE magic_links SET used_at = ? WHERE id = ?", time.Now(), ml.ID)
+	_, err = r.db.ExecContext(ctx, "DELETE FROM magic_links WHERE id = ?", ml.ID)
 	if err != nil {
 		return nil, err
 	}

@@ -88,10 +88,20 @@ func TestRepository(t *testing.T) {
 		t.Fatalf("expected userid %v, got %v", u.ID, ml.UserID)
 	}
 
-	// Using it again should fail
+	// Verify it's actually deleted from the DB
+	var count int
+	err = repo.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM magic_links WHERE token_hash = ?", "hash123").Scan(&count)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("expected magic link to be deleted, but found %d records", count)
+	}
+
+	// Using it again should fail with ErrNotFound
 	_, err = repo.UseMagicLink(ctx, "hash123")
-	if err == nil {
-		t.Fatal("expected error using link twice")
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound using link twice, got %v", err)
 	}
 
 	_, err = repo.UseMagicLink(ctx, "notfound")
