@@ -1,7 +1,8 @@
 # Air Cover — Engineering Audit Report
 
 > **Scope:** Full codebase review across security, testing, maintainability, tooling, consistency, and extensibility.
-> **Date:** 2026-04-27
+> **Original Date:** 2026-04-27
+> **Last Updated:** 2026-04-29
 
 ---
 
@@ -9,50 +10,59 @@
 
 | Category | Rating | Notes |
 |---|---|---|
-| Security | 🟡 Good | Strong foundations; a few gaps |
-| Testing | 🔴 Needs Work | Coverage gate failing; gaps in critical paths |
-| Maintainability | 🟢 Excellent | Clean structure, good patterns |
-| Tooling | 🟡 Good | CI is minimal; lint is well-configured |
-| Consistency | 🟡 Good | Minor style inconsistencies |
+| Security | 🟢 Excellent | Rate limiting added; type assertions fixed; email client hardened |
+| Testing | 🟡 Good | Coverage up from 59% → 91.5%; 100% gate still failing |
+| Maintainability | 🟢 Excellent | Clean structure, good patterns, structured logging |
+| Tooling | 🟡 Good | CI has version mismatch; lint action not yet adopted |
+| Consistency | 🟡 Good | Minor style inconsistencies remain |
 | Extensibility | 🟡 Good | Architecture is solid; a few tight couplings |
+
+---
+
+## Progress Since Last Audit
+
+7 of 20 original issues have been resolved. The remaining 13 are documented below with updated context.
+
+### ✅ Resolved Issues
+
+| # | Issue | Resolution |
+|---|---|---|
+| 2 | Unsafe type assertion in `GetApp` | Now uses safe `userID, _ := r.Context().Value(UserIDKey).(int)` form |
+| 4 | No rate limiting on auth endpoints | `httprate.LimitByIP(5, time.Minute)` applied to `/auth/login` and `/auth/verify` |
+| 6 | `http.DefaultClient` used in email sender | `HTTPClient` with 10s timeout injected via `SendGridSender` struct field |
+| 7 | Sub-request IDs are base64 tokens | Migrated to autoincrementing integers; code paths cleanly separated |
+| 9 | `dev` make target kills port 8080 unconditionally | Now uses `xargs -r kill -TERM` with `|| true` for safe fallback |
+| 15 | `noreply@aircover.com` hardcoded | `FromEmail` is now a configurable field in `Config`, passed to `NewSender` |
+| 19 | `aircover.db` / `coverage.out` not in `.gitignore` | `.gitignore` now covers `*.out`, `*.db`, `bin`, `tmp`, `coverage.html` |
 
 ---
 
 ## P0 — Critical (Fix Now)
 
-### 1. Test Coverage Gate Is Currently Failing
+### 1. Test Coverage Gate Is Still Failing
 
 **File:** All packages
 **Category:** Testing
 
-The `make check` command exits with code 2. Overall coverage is **59.3%** against a **100% requirement**. The `internal/api` package is at 47.3%, `internal/email` is at 20%, and `internal/models` has no test files at all.
+Coverage has improved dramatically from **59.3% → 91.5%**, but the 100% gate still fails. Current per-package coverage:
 
-> [!CAUTION]
-> The CI gate (`make check` → `make test`) will block every PR until this is resolved. The 100% coverage requirement is a strong project standard worth keeping, but it's currently unenforceable because the baseline is broken.
+| Package | Coverage |
+|---|---|
+| `cmd/aircover` | 100.0% |
+| `internal/config` | 100.0% |
+| `internal/spinitron` | 99.3% |
+| `internal/ui` | 100.0% |
+| `internal/logger` | 93.3% |
+| `internal/email` | 92.0% |
+| `internal/api` | 89.8% |
+| `internal/db` | 86.9% |
+| `internal/cmd` | 77.8% |
+| `internal/models` | [no statements] |
 
-**Recommendation:** Bring all packages to 100% coverage. Priority packages:
-- `internal/api`: Add tests for the `GetApp` error path when `UserIDKey` is missing from context (the `.(int)` assertion panics silently), and the `showMap` construction with non-integer show IDs that fail `strconv.Atoi`.
-- `internal/email`: `SendGridSender.SendMagicLink` has nearly no test coverage. Add a mock `http.Client` to test the happy path, non-2xx responses, and the marshal/request-creation error paths.
-- `internal/models`: Add at minimum a compile-time struct sanity test or remove the package from the coverage calculation (via build tags) if it's intentionally model-only.
-
----
-
-### 2. Unsafe Type Assertion in Hot Path
-
-**File:** `internal/api/handler.go`, line 131
-**Category:** Security / Reliability
-
-```go
-CanDelete: sr.UserID == r.Context().Value(UserIDKey).(int),
-```
-
-This is an **unguarded type assertion**. If `UserIDKey` is absent or has a different type in context (e.g., during testing or middleware changes), this panics and brings down the server. The `DeleteSubRequestsId` handler correctly uses the two-return form `(int, ok)` on line 247, but `GetApp` does not.
-
-**Recommendation:** Use the safe form:
-```go
-userID, _ := r.Context().Value(UserIDKey).(int)
-CanDelete: sr.UserID == userID,
-```
+**Recommendation:** Focus on the three lowest-coverage packages:
+- `internal/cmd` (77.8%): Test the server startup paths — especially the master email provisioning branches and the `newRouter` construction.
+- `internal/db` (86.9%): Add tests for remaining error branches in `DeleteUser` (transaction rollback paths), `UseMagicLink` edge cases, and `CreateUser` `LastInsertId` failures.
+- `internal/api` (89.8%): Cover remaining error branches in `GetApp` (show pagination edge cases), `PostUsers` validation paths, and `DeleteUsersId`.
 
 ---
 
@@ -83,24 +93,7 @@ server.Shutdown(ctx)
 
 ---
 
-### 4. No Rate Limiting on Auth Endpoints
-
-**File:** `internal/cmd/server.go`, `internal/api/auth.go`
-**Category:** Security
-
-The `/auth/login` endpoint accepts unlimited requests per IP. A bad actor can enumerate valid emails (even though the response is identical, timing differences can leak information) and flood the `magic_links` table and SendGrid quota.
-
-**Recommendation:** Apply per-IP rate limiting using `go-chi/httprate` or a simple token-bucket middleware. At minimum, protect `POST /auth/login` and `GET /auth/verify`. This is a 1-import, ~10-line change with `chi`.
-
-```go
-import "github.com/go-chi/httprate"
-
-r.With(httprate.LimitByIP(5, time.Minute)).Post("/auth/login", ...)
-```
-
----
-
-### 5. Magic Link Tokens Stored as Plain-Text Hash, But No Index
+### 5. Magic Link Tokens: No Index, No Cleanup
 
 **File:** `internal/db/migrations/2026042600000_initial_schema.sql`
 **Category:** Security / Performance
@@ -113,46 +106,11 @@ r.With(httprate.LimitByIP(5, time.Minute)).Post("/auth/login", ...)
 
 ---
 
-### 6. `http.DefaultClient` Used in Email Sender
-
-**File:** `internal/email/sender.go`, line 66
-**Category:** Security / Reliability
-
-```go
-resp, err := http.DefaultClient.Do(req)
-```
-
-`http.DefaultClient` has no timeout, meaning an unresponsive SendGrid API will hang a goroutine indefinitely (and block the login response to the user).
-
-**Recommendation:** Use a client with a timeout:
-```go
-httpClient: &http.Client{Timeout: 10 * time.Second}
-```
-Inject it via the struct field rather than using the global default. This also improves testability.
-
----
-
-### 7. Sub-Request IDs Are Not UUIDs — They're Base64 Tokens
-
-**File:** `internal/api/handler.go`, line 205; `internal/api/auth.go`, line 32
-**Category:** Consistency / Security
-
-Sub-request IDs are generated with `generateRandomToken(32)` which produces base64-URL-encoded random bytes. While cryptographically strong, these are longer than needed for a primary key and share a code path with auth tokens — conceptually different concerns.
-
-**Recommendation:** Use `github.com/google/uuid` (already a transitive dependency) for entity IDs:
-```go
-import "github.com/google/uuid"
-id := uuid.New().String()
-```
-This is shorter, more recognizable, and clearly distinguishes "identity" from "secret token."
-
----
-
 ## P2 — Medium Priority
 
 ### 8. Template Rendering Errors Are Silent After Header Is Written
 
-**File:** `internal/ui/templates.go`, lines 36–46
+**File:** `internal/ui/templates.go`, lines 45–66
 **Category:** Reliability / User Experience
 
 ```go
@@ -162,7 +120,7 @@ if err := authenticatedTmpl.Execute(w, data); err != nil {
 }
 ```
 
-`WriteHeader` is called before `Execute`. If the template fails mid-render (e.g., a nil pointer in template data), the user receives a 200 with a partially-rendered page and a truncated HTML body. The error is only logged.
+`WriteHeader` is called before `Execute` in all three render functions (`RenderUnauthenticated`, `RenderAuthenticated`, `RenderAdmin`). If the template fails mid-render (e.g., a nil pointer in template data), the user receives a 200 with a partially-rendered page and a truncated HTML body. The error is only logged.
 
 **Recommendation:** Render templates into a `bytes.Buffer` first, then write:
 ```go
@@ -173,27 +131,6 @@ if err := authenticatedTmpl.Execute(&buf, data); err != nil {
 }
 w.Header().Set("Content-Type", "text/html; charset=utf-8")
 _, _ = buf.WriteTo(w)
-```
-
----
-
-### 9. `dev` Make Target Kills Port 8080 Unconditionally
-
-**File:** `Makefile`, line 13
-**Category:** Developer Experience / Safety
-
-```makefile
-dev:
-    kill -9 $$(lsof -t -i :8080)
-```
-
-`kill -9` on an empty result causes `make` to print a kill error. More dangerously, if another developer's unrelated process happens to be on port 8080 (e.g., another project's dev server), it is killed without warning. `kill -9` also bypasses graceful shutdown.
-
-**Recommendation:**
-```makefile
-dev:
-    @lsof -ti :8080 | xargs -r kill -TERM 2>/dev/null || true
-    go run github.com/air-verse/air@latest -c .air.toml
 ```
 
 ---
@@ -213,12 +150,12 @@ Or use `go-version-file: go.mod` to automatically track it.
 
 ---
 
-### 11. CI Does Not Run Linter
+### 11. CI Does Not Run Linter Reliably
 
 **File:** `.github/workflows/ci.yml`
 **Category:** Tooling
 
-`make check` runs `lint test build`, and `ci.yml` runs `make check`. However, the lint step in the Makefile conditionally installs `golangci-lint` differently on non-ARM architectures (line 22–24), which may fail on the `ubuntu-latest` CI runner if the install step doesn't work.
+`make check` runs `lint test build`, and `ci.yml` runs `make check`. However, the lint step in the Makefile conditionally installs `golangci-lint` differently on non-ARM architectures (line 28–31), which may fail on the `ubuntu-latest` CI runner if the install step doesn't work.
 
 **Recommendation:** Use the official `golangci-lint-action` in CI for reliable linting, independent of the local install script:
 ```yaml
@@ -270,7 +207,7 @@ This field exists in the model but is absent from the `sub_requests` DB schema a
 **File:** `internal/models/models.go`, `internal/api/handler.go`
 **Category:** Consistency / Maintainability
 
-The sub-request status is set as the raw string `"open"` in the handler and checked with string CSS class names (`status-open`, `status-filled`, `status-cancelled`) in the template. There's no central definition of valid statuses.
+The sub-request status is set as the raw string `"open"` in the handler (line 290) and checked with string CSS class names (`status-open`, `status-filled`, `status-cancelled`) in the template. There's no central definition of valid statuses.
 
 **Recommendation:** Define a typed constant set in `models`:
 ```go
@@ -286,26 +223,11 @@ This enables compile-time safety, makes valid values self-documenting, and integ
 
 ---
 
-### 15. `noreply@aircover.com` is Hardcoded in Email Sender
-
-**File:** `internal/email/sender.go`, line 42
-**Category:** Maintainability / Configurability
-
-```go
-"email": "noreply@aircover.com", // This should probably be configurable too
-```
-
-The comment itself acknowledges this is a problem. A hardcoded from-address breaks deployments that use a different domain.
-
-**Recommendation:** Add `FromEmail string` to the `Config` struct and pass it into `NewSender`.
-
----
-
 ## P3 — Low Priority / Enhancements
 
 ### 16. No `ReadTimeout` or `WriteTimeout` on the HTTP Server
 
-**File:** `internal/cmd/server.go`, lines 116–120
+**File:** `internal/cmd/server.go`, lines 128–132
 **Category:** Security / Reliability
 
 Only `ReadHeaderTimeout` is set. A slow client can keep a connection alive indefinitely by sending body data slowly (slowloris-style on write, or slow reads).
@@ -324,24 +246,24 @@ server := &http.Server{
 
 ---
 
-### 17. `make dev` Fetches `air` From the Internet Every Run
+### 17. `make start` Fetches `air` From the Internet Every Run
 
-**File:** `Makefile`, line 14
+**File:** `Makefile`, line 11
 **Category:** Developer Experience / Reproducibility
 
 `go run github.com/air-verse/air@latest` fetches the latest version of `air` on every invocation. This is slow and non-deterministic — `@latest` can introduce breaking changes silently.
 
-**Recommendation:** Pin the version (e.g., `@v1.61.7`) and consider vendoring or caching it via `go install` in the `setup` target.
+**Recommendation:** Pin the version (e.g., `@v1.65.1`) and consider vendoring or caching it via `go install` in the `setup` target.
 
 ---
 
 ### 18. `make generate` Runs the Server Binary (`doc` subcommand) to Build Docs
 
-**File:** `Makefile`, line 19
+**File:** `Makefile`, line 16
 **Category:** Tooling / Fragility
 
 ```makefile
-go run cmd/aircover/main.go doc > docs/routes.json
+@go run cmd/aircover/main.go doc > docs/routes.json
 ```
 
 Building route documentation requires the application to be runnable, which requires a valid `.env` / environment. This couples doc generation to runtime configuration, which will break in clean CI environments.
@@ -350,31 +272,19 @@ Building route documentation requires the application to be runnable, which requ
 
 ---
 
-### 19. `aircover.db` and `coverage.out` Are Tracked by Git (Potentially)
-
-**File:** `.gitignore`
-**Category:** Developer Experience
-
-`aircover.db` (the local SQLite file) and `coverage.out` (test artifact) should be in `.gitignore`. If they're being committed, it leaks local test data and creates noisy diffs.
-
-**Recommendation:** Verify `.gitignore` includes:
-```
-aircover.db
-coverage.out
-bin/
-tmp/
-```
-
----
-
 ### 20. README Is Stale
 
 **File:** `README.md`
 **Category:** Documentation
 
-The README references `go run cmd/aircover/main.go` without a subcommand (the app now requires `server`), mentions Go 1.24 when `go.mod` says 1.26, and has an empty "Spinitron Integration" section marked `(WIP)`.
+The README references `go run cmd/aircover/main.go` without a subcommand (the app now requires `server`), mentions Go 1.24 when `go.mod` says 1.26, and has an empty "Spinitron Integration" section marked `(WIP)`. It also doesn't mention the admin dashboard, user management features, or the magic link authentication system.
 
-**Recommendation:** Update the README with the correct run command (`make start` or `go run cmd/aircover/main.go server`), the correct Go version, and expand the Spinitron section with the proxy configuration details.
+**Recommendation:** Update the README with:
+- Correct run command (`make start` or `go run cmd/aircover/main.go server`)
+- Correct Go version (1.26)
+- Expanded Spinitron section with proxy configuration details
+- Summary of authentication system (magic links, session cookies)
+- Summary of admin functionality (user management, role-based access)
 
 ---
 
@@ -389,8 +299,13 @@ These patterns are exemplary and should be preserved:
 - **Token hashing** — magic link tokens are hashed (SHA-256) before storage. The raw token is never persisted, following secure token storage best practices.
 - **`HttpOnly` + `SameSite` cookies** — session cookies are correctly hardened.
 - **Request body size limit** — `http.MaxBytesReader` is applied on form-parsing handlers.
-- **Structured logging** with `log/slog` throughout — no `fmt.Println` leakage in production code.
+- **Structured logging** with `log/slog` backed by `uber-go/zap` — environment-aware configuration (dev vs prod), no `fmt.Println` leakage.
 - **`ReadHeaderTimeout`** on the HTTP server — prevents header-based slowloris attacks.
 - **CI enforces `git diff --exit-code`** — ensures codegen artifacts stay committed and up to date.
 - **`make check` combines lint + test + build** — a single gate for CI and local verification.
 - **Ownership authorization on DELETE** — the handler checks `sr.UserID == userID` before deleting, preventing cross-user data deletion.
+- **Per-IP rate limiting on auth** — `httprate.LimitByIP` on login and verify endpoints prevents brute-force and quota exhaustion.
+- **Configurable email sender** — `FromEmail` and `SendGridAPIKey` from config; `HTTPClient` injected with timeout; console fallback in non-production.
+- **Role-based access control** — `RequireAdmin` middleware protects admin endpoints; self-deletion prevented on user management.
+- **Transactional user deletion** — `DeleteUser` cascades cleanup of sessions, magic links, and sub-requests within a transaction.
+- **Safe type assertions** — all context value extractions use the comma-ok idiom consistently across handlers.
