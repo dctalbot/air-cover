@@ -96,9 +96,9 @@ func TestAuthHandler_Verify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(tt.method, "/auth/verify?token="+tt.token, nil)
+			req := httptest.NewRequest(tt.method, "/auth/verify", nil)
 			rr := httptest.NewRecorder()
-			handler.HandleVerify(rr, req)
+			handler.HandleVerify(rr, req, tt.token)
 			if rr.Code != tt.wantStatus {
 				t.Errorf("expected status %v, got %v", tt.wantStatus, rr.Code)
 			}
@@ -108,7 +108,7 @@ func TestAuthHandler_Verify(t *testing.T) {
 	t.Run("missing token param", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/auth/verify", nil)
 		rr := httptest.NewRecorder()
-		handler.HandleVerify(rr, req)
+		handler.HandleVerify(rr, req, "")
 		if rr.Code != http.StatusBadRequest {
 			t.Errorf("expected 400, got %d", rr.Code)
 		}
@@ -125,10 +125,10 @@ func TestAuthHandler_Verify_HTTPSCookie(t *testing.T) {
 	hashedToken := hashToken(rawToken)
 	_ = repo.CreateMagicLink(context.Background(), u.ID, hashedToken, time.Now().Add(1*time.Hour))
 
-	req := httptest.NewRequest(http.MethodGet, "/auth/verify?token="+rawToken, nil)
+	req := httptest.NewRequest(http.MethodGet, "/auth/verify", nil)
 	req.Header.Set("X-Forwarded-Proto", "https")
 	rr := httptest.NewRecorder()
-	handler.HandleVerify(rr, req)
+	handler.HandleVerify(rr, req, rawToken)
 	if rr.Code != http.StatusFound {
 		t.Errorf("expected redirect, got %v", rr.Code)
 	}
@@ -338,9 +338,9 @@ func TestAuthHandler_Verify_CreateSessionError(t *testing.T) {
 	dbConn.Close()
 
 	handler := NewAuthHandler(repo, &MockSender{})
-	req := httptest.NewRequest(http.MethodGet, "/auth/verify?token="+rawToken, nil)
+	req := httptest.NewRequest(http.MethodGet, "/auth/verify", nil)
 	rr := httptest.NewRecorder()
-	handler.HandleVerify(rr, req)
+	handler.HandleVerify(rr, req, rawToken)
 	// After closing DB, UseMagicLink will fail too (reading from closed DB)
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401 for closed DB verify, got %d", rr.Code)

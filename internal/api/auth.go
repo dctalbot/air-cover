@@ -132,8 +132,7 @@ func (h *AuthHandler) sendLoginResponse(w http.ResponseWriter, r *http.Request, 
 	})
 }
 
-func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request) {
-	rawToken := r.URL.Query().Get("token")
+func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request, rawToken string) {
 	if rawToken == "" {
 		http.Error(w, "Token is required", http.StatusBadRequest)
 		return

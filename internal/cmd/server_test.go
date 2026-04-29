@@ -365,18 +365,7 @@ func TestNewRouter(t *testing.T) {
 		t.Fatal("expected non-nil router")
 	}
 
-	// Test invalid ID in sub-requests Delete route
-	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/abc", nil)
-	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400 for invalid ID, got %d", rr.Code)
-	}
-
-	// Test invalid ID in users Delete route
-	req = httptest.NewRequest(http.MethodDelete, "/users/abc", nil)
-
-	// Create user/session in DB
+	// Create admin user/session for authenticated tests
 	admin, err := repo.CreateUser(context.Background(), "admin_cmd_test@example.com", "admin")
 	if err != nil {
 		t.Fatalf("failed to create admin user: %v", err)
@@ -385,8 +374,19 @@ func TestNewRouter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
 	}
-	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
 
+	// Test invalid ID in sub-requests Delete route (now handled by generated wrapper)
+	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/abc", nil)
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for invalid ID, got %d", rr.Code)
+	}
+
+	// Test invalid ID in users Delete route (now handled by generated wrapper)
+	req = httptest.NewRequest(http.MethodDelete, "/users/abc", nil)
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
 	rr = httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {

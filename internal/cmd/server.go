@@ -38,54 +38,44 @@ func newRouter(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
 		osExit(1)
 	}
 
+	// Disable server name validation so the validator doesn't
+	// reject requests based on the Host header.
+	swagger.Servers = nil
+
+	wrapper := api.NewWrapper(apiServer)
+
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(nethttp_middleware.OapiRequestValidator(swagger))
 
-	r.Get("/", apiServer.Get)
-	r.Get("/health", apiServer.GetHealth)
+	// Public endpoints
+	r.Get("/", wrapper.Get)
+	r.Get("/health", wrapper.GetHealth)
 
 	// Auth endpoints with rate limiting
 	r.Group(func(r chi.Router) {
 		r.Use(httprate.LimitByIP(5, time.Minute))
-		r.Post("/auth/login", apiServer.PostAuthLogin)
-		r.Get("/auth/verify", func(w http.ResponseWriter, r *http.Request) {
-			token := r.URL.Query().Get("token")
-			apiServer.GetAuthVerify(w, r, api.GetAuthVerifyParams{Token: token})
-		})
+		r.Post("/auth/login", wrapper.PostAuthLogin)
+		r.Get("/auth/verify", wrapper.GetAuthVerify)
 	})
 
+	// Authenticated endpoints
 	r.Group(func(r chi.Router) {
 		r.Use(authHandler.AuthMiddleware)
-		r.Get("/app", apiServer.GetApp)
-		r.Post("/auth/logout", apiServer.PostAuthLogout)
-		r.Post("/sub-requests", apiServer.PostSubRequests)
-		r.Delete("/sub-requests/{id}", func(w http.ResponseWriter, r *http.Request) {
-			idStr := chi.URLParam(r, "id")
-			id, err := strconv.Atoi(idStr)
-			if err != nil {
-				http.Error(w, "Invalid ID", http.StatusBadRequest)
-				return
-			}
-			apiServer.DeleteSubRequestsId(w, r, id)
-		})
+		r.Get("/app", wrapper.GetApp)
+		r.Post("/auth/logout", wrapper.PostAuthLogout)
+		r.Post("/sub-requests", wrapper.PostSubRequests)
+		r.Delete("/sub-requests/{id}", wrapper.DeleteSubRequestsId)
 	})
 
+	// Admin endpoints
 	r.Group(func(r chi.Router) {
 		r.Use(authHandler.AuthMiddleware)
 		r.Use(authHandler.RequireAdmin)
-		r.Get("/admin", apiServer.GetAdmin)
-		r.Post("/users", apiServer.PostUsers)
-		r.Delete("/users/{id}", func(w http.ResponseWriter, r *http.Request) {
-			idStr := chi.URLParam(r, "id")
-			id, err := strconv.Atoi(idStr)
-			if err != nil {
-				http.Error(w, "Invalid ID", http.StatusBadRequest)
-				return
-			}
-			apiServer.DeleteUsersId(w, r, id)
-		})
+		r.Get("/admin", wrapper.GetAdmin)
+		r.Post("/users", wrapper.PostUsers)
+		r.Delete("/users/{id}", wrapper.DeleteUsersId)
 	})
 
 	return r

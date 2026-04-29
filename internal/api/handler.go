@@ -233,7 +233,7 @@ func (s *Server) PostAuthLogout(w http.ResponseWriter, r *http.Request) {
 // Verify magic link and create session
 // (GET /auth/verify)
 func (s *Server) GetAuthVerify(w http.ResponseWriter, r *http.Request, params GetAuthVerifyParams) {
-	s.auth.HandleVerify(w, r)
+	s.auth.HandleVerify(w, r, params.Token)
 }
 
 // Create a new sub request
