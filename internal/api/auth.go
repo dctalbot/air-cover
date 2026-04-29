@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -76,7 +77,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	user, err := h.repo.GetUserByEmail(ctx, emailVal)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			slog.Info("Login attempt with unknown email", "email", emailVal)
+			slog.Info("Login attempt with unknown email", "email", strconv.Quote(emailVal))
 			h.sendLoginResponse(w, r, "If an account exists, an email has been sent.")
 			return
 		}
