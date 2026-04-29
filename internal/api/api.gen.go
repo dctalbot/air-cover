@@ -19,6 +19,24 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for PostUsersFormdataBodyRole.
+const (
+	Admin  PostUsersFormdataBodyRole = "admin"
+	Member PostUsersFormdataBodyRole = "member"
+)
+
+// Valid indicates whether the value is a known member of the PostUsersFormdataBodyRole enum.
+func (e PostUsersFormdataBodyRole) Valid() bool {
+	switch e {
+	case Admin:
+		return true
+	case Member:
+		return true
+	default:
+		return false
+	}
+}
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Email openapi_types.Email `json:"email"`
@@ -42,6 +60,15 @@ type PostSubRequestsFormdataBody struct {
 	StartTime string  `form:"start_time" json:"start_time"`
 }
 
+// PostUsersFormdataBody defines parameters for PostUsers.
+type PostUsersFormdataBody struct {
+	Email openapi_types.Email       `form:"email" json:"email"`
+	Role  PostUsersFormdataBodyRole `form:"role" json:"role"`
+}
+
+// PostUsersFormdataBodyRole defines parameters for PostUsers.
+type PostUsersFormdataBodyRole string
+
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody = LoginRequest
 
@@ -50,6 +77,9 @@ type PostAuthLoginFormdataRequestBody = LoginRequest
 
 // PostSubRequestsFormdataRequestBody defines body for PostSubRequests for application/x-www-form-urlencoded ContentType.
 type PostSubRequestsFormdataRequestBody PostSubRequestsFormdataBody
+
+// PostUsersFormdataRequestBody defines body for PostUsers for application/x-www-form-urlencoded ContentType.
+type PostUsersFormdataRequestBody PostUsersFormdataBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -80,6 +110,9 @@ type ServerInterface interface {
 	// Delete a sub request
 	// (DELETE /sub-requests/{id})
 	DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id int)
+	// Create a new user
+	// (POST /users)
+	PostUsers(w http.ResponseWriter, r *http.Request)
 	// Delete a user
 	// (DELETE /users/{id})
 	DeleteUsersId(w http.ResponseWriter, r *http.Request, id int)
@@ -140,6 +173,12 @@ func (_ Unimplemented) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 // Delete a sub request
 // (DELETE /sub-requests/{id})
 func (_ Unimplemented) DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id int) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a new user
+// (POST /users)
+func (_ Unimplemented) PostUsers(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -315,6 +354,20 @@ func (siw *ServerInterfaceWrapper) DeleteSubRequestsId(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// PostUsers operation middleware
+func (siw *ServerInterfaceWrapper) PostUsers(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostUsers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteUsersId operation middleware
 func (siw *ServerInterfaceWrapper) DeleteUsersId(w http.ResponseWriter, r *http.Request) {
 
@@ -481,6 +534,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Delete(options.BaseURL+"/sub-requests/{id}", wrapper.DeleteSubRequestsId)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/users", wrapper.PostUsers)
+	})
+	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/users/{id}", wrapper.DeleteUsersId)
 	})
 
@@ -490,22 +546,23 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/8xWTXPbNhD9Kxi0h3aGlhg7J97cdNpoEjcep+kl4+lAxIpETHwYWFp2PfrvnQUk80tW",
-	"Ne5XLjZFLBb73tt9xCMvrXbWgMHAi0ceyhq0iI/vbaXMFdy2EJB+O28deFQQV0EL1dDDynotkBfbNxnH",
-	"Bwe84AG9MhXfbDLu4bZVHiQvPm+jrp/C7PILlMg3Gb+AEEQFVxCcNQGmR+oUQI/TM0bp6JUyK0vBEkLp",
-	"lUNlDS/4+eWCraxn58qzN/YOPAsQgrKGaWFEBRoMMmEkC7VdM/SivFGmmhEwhQ2d0e08v1zwjN+BDyn3",
-	"q1k+ywmLdWCEU7zgZ7N8dsYz7gTWEcWc/lQQKSV0gupaSF7wnwE5kZXwx+DTPKd/pTUIJm5BuMd5jbrp",
-	"1NpHyCYbwX7768V7tstDy6HVWvgHWrIamBMVMOtZQ6rHXzFqLqRW5lDJ5zHgP6o746/zV1NNPxnRYm29",
-	"+gNkCjqbBv1k/VJJCWYEPwJgUoR6aYWXW9jOHQTt3FcFeQioxRoMqlIgSCaca+iROrwna4v1PGod58yG",
-	"PTgvbUDKFY2ApzGGgD9Y+TBC2jtj/iVYMwT8rYcVL/g3885q5lufmQ9Mhirrp7o/Wa/XJ2QwJ61vwJRW",
-	"kom8MPfAiNC3sPlLBV+Oa2xme2S+EJUqWaPMDQtPSudTpRfmTjRKMt9jqRN7i48Jprt8q90gD8W2LR6l",
-	"NsWNuDnLT6eVXYFUHkpkaFltNbykWdNx0XBVAioQdpYcevXfgVerh4ND2WL9W4oiv/VCA4IPvPj8yKnP",
-	"+W0LntaM0DSBaG9g19ddV2QHRvX6JayQq5KdPEfOTl/rGdw7KoSlyoZEJWR9lYmz0kOPr0RXDaLB+hBT",
-	"b1PEcQ7mGqFGnQ/3Qrv4Lfzwbs8Xf9LqH96NPzmxAFbWUN6kokO7PNl2eDjcpB/b5dUu8FhTOsJJRtcb",
-	"I39HpfddNjJuLKaoyQrdGXoLyiBU4OMKCo/PpRzdkWKWwZasK+h6713nkLOZtmn65L9JPSOYgTUL7XLg",
-	"LAMh5o9KblLHNoAw1ePH+L6nyEI+M3t0/+lGT8lj5u6Jvsngneavp4P0sYPCUsHyH7oxsO+MRYY1pHmz",
-	"/vu0Z08Rv1hkK9uasc8lppiYEt4G8Mcy/Yli/0+OqYB/hVxhWLxqkg3G/MpULECz+htUE7M0Hps/AwAA",
-	"//93scj75gwAAA==",
+	"H4sIAAAAAAAC/8xWTXPbNhD9Kxi0h3aGlhQ7J93cdNpoEjcep+kl4+lAxIpERHwYWFp2PfrvnQUoix+y",
+	"wrp124tNEcvlvn37HveB51Y7a8Bg4PMHHvIStIiX722hzBXc1BCQfjtvHXhUEE9BC1XRxcp6LZDPmzsZ",
+	"x3sHfM4DemUKvt1m3MNNrTxIPv/cRF0/htnlF8iRbzN+ASGIAq4gOGsCDF+pUwBdDt/RS0e3lFlZCpYQ",
+	"cq8cKmv4nJ9fLtjKenauPHtjb8GzACEoa5gWRhSgwSATRrJQ2g1DL/K1MsWEgCms6B37J88vFzzjt+BD",
+	"yv1qMpvMCIt1YIRTfM7PJrPJGc+4E1hGFFP6U0BsKaETVNdC8jn/GZBTsxL+GHw6m9G/3BoEEx9BuMNp",
+	"ibras3WoIdusB/vtrxfv2S4PHYdaa+Hv6chqYE4UwKxnFbEef8WoqZBamWMln8eAf6nujL+evRpy+smI",
+	"Gkvr1R8gU9DZMOgn65dKSjA9+BEAkyKUSyu8bGA7dxS0c/8ryF1ANZZgUOUCQTLhXEWXNOEtWmssp5Hr",
+	"qDMbDuC8tAEpVzQCnmQMAX+w8r6HtPWO6ZdgTRfwtx5WfM6/me6tZtr4zLRjMlRZO9XdyWazOSGDOal9",
+	"BSa3kkzkmbk7RoS+hu1XGXw+rr6ZHaD5QhQqZ5UyaxYemZ4NmV6YW1EpyXyrS3uyG3xMML3Pt9oJuUu2",
+	"rXEU2xTX683Z7HRY2RVI5SFHhpaVVsNzhjW9LhquSkAFws6SQ6v+W/BqdX9UlDWWv6Uo8lsvNCD4wOef",
+	"HzjNOb+pwdOZEZoUiHYNu7neT0V2RKrXz+kKuSrZyVPN2fFrPYM7R4WwVFm3UQlZm2XqWe6h1a/UrhJE",
+	"heWxTr1NEeMczFVC9SYf7oR28Vv44d2BL/5g1D+8639yYgEsLyFfp6JDvTxpJjwcH9KP9fJqFzjWlEY4",
+	"SW+9MfJ3VPrQspFxYzFFDU5oZ2gdKINQgI8nKDw+lbK3I8UsnUeyfUHXB3edY85m6qpqN/9NmhnBDGxY",
+	"qJcdZ+kQMX1QcpsmtgKEIR8/xvstRhbyCe3R/rOXnpJjdPfYvoHwTmevh0L6uIfCUsHyH9oY2HfGIsMS",
+	"kt6s/z49c6CIXyyyla1N3+dSp5gYNrwOsVHHRv5TDHm5YR+7y2fc2wqSPmpNo6pBL8HzjKc98Xrc+t/k",
+	"+euj/DXLXYp8Tb4r+jvd2G/rSyyYHb0R2y3eRyosDsB/qS0q4EVEJUxDlm3yK1OwANXqb0is6fF2+2cA",
+	"AAD//1zKz+jeDgAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

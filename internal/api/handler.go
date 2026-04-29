@@ -179,6 +179,45 @@ func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Create a new user
+// (POST /users)
+func (s *Server) PostUsers(w http.ResponseWriter, r *http.Request) {
+	// Limit request body size to 1MB
+	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
+
+	if err := r.ParseForm(); err != nil {
+		slog.Error("Failed to parse form", "error", err)
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	email := r.FormValue("email")
+	if email == "" {
+		http.Error(w, "Email is required", http.StatusBadRequest)
+		return
+	}
+
+	role := r.FormValue("role")
+	if role == "" {
+		http.Error(w, "Role is required", http.StatusBadRequest)
+		return
+	}
+
+	if role != "admin" && role != "member" {
+		http.Error(w, "Invalid role", http.StatusBadRequest)
+		return
+	}
+
+	_, err := s.repo.CreateUser(r.Context(), email, role)
+	if err != nil {
+		slog.Error("Failed to create user", "email", strconv.Quote(email), "role", strconv.Quote(role), "error", err)
+		http.Error(w, "Failed to create user", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+}
+
 // Request a magic link for login
 // (POST /auth/login)
 func (s *Server) PostAuthLogin(w http.ResponseWriter, r *http.Request) {

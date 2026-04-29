@@ -104,6 +104,15 @@ func TestAuthHandler_Verify(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("missing token param", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/auth/verify", nil)
+		rr := httptest.NewRecorder()
+		handler.HandleVerify(rr, req)
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", rr.Code)
+		}
+	})
 }
 
 func TestAuthHandler_Verify_HTTPSCookie(t *testing.T) {

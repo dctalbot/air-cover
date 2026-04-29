@@ -393,7 +393,7 @@ func TestNewRouter(t *testing.T) {
 		t.Errorf("expected status 400 for invalid user ID, got %d", rr.Code)
 	}
 
-	// Test valid wiring (will return 404 depending on db state, but path matches)
+	// Test valid wiring for DELETE /users/{id}
 	req = httptest.NewRequest(http.MethodDelete, "/users/123", nil)
 	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
 	rr = httptest.NewRecorder()
@@ -401,6 +401,17 @@ func TestNewRouter(t *testing.T) {
 	// Should be 404 because user 123 doesn't exist
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected status 404 for non-existent user, got %d", rr.Code)
+	}
+
+	// Test valid wiring for POST /users
+	form := "email=newuser@example.com&role=member"
+	req = httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusSeeOther {
+		t.Errorf("expected status 303 for user creation, got %d", rr.Code)
 	}
 }
 

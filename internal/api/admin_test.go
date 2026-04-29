@@ -125,6 +125,109 @@ func TestServer_GetApp_AdminLinkVisibility(t *testing.T) {
 	}
 }
 
+func TestServer_PostUsers(t *testing.T) {
+	repo := setupTestDB(t)
+	s := NewServer(repo, nil, nil)
+	h := Handler(s)
+
+	tests := []struct {
+		name       string
+		email      string
+		role       string
+		wantStatus int
+	}{
+		{
+			name:       "valid user creation",
+			email:      "new@example.com",
+			role:       "member",
+			wantStatus: http.StatusSeeOther,
+		},
+		{
+			name:       "valid admin creation",
+			email:      "newadmin@example.com",
+			role:       "admin",
+			wantStatus: http.StatusSeeOther,
+		},
+		{
+			name:       "missing email",
+			email:      "",
+			role:       "member",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "missing role",
+			email:      "norole@example.com",
+			role:       "",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "invalid role",
+			email:      "badrole@example.com",
+			role:       "superadmin",
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			form := fmt.Sprintf("email=%s&role=%s", tt.email, tt.role)
+			req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewBufferString(form))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
+
+			if rr.Code != tt.wantStatus {
+				t.Errorf("expected status %v, got %v", tt.wantStatus, rr.Code)
+			}
+
+			if tt.wantStatus == http.StatusSeeOther {
+				if rr.Header().Get("Location") != "/admin" {
+					t.Errorf("expected redirect to /admin, got %v", rr.Header().Get("Location"))
+				}
+				// Verify user exists
+				user, err := repo.GetUserByEmail(context.Background(), tt.email)
+				if err != nil {
+					t.Errorf("expected user %s to be created, got error %v", tt.email, err)
+				}
+				if user.Role != tt.role {
+					t.Errorf("expected role %s, got %s", tt.role, user.Role)
+				}
+			}
+		})
+	}
+
+	// Test database error
+	t.Run("database error", func(t *testing.T) {
+		repo = setupTestDB(t)
+		s = NewServer(repo, nil, nil)
+		dbConn := repo.DB()
+		dbConn.Close()
+
+		form := "email=error@example.com&role=member"
+		req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewBufferString(form))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rr := httptest.NewRecorder()
+		s.PostUsers(rr, req)
+		if rr.Code != http.StatusInternalServerError {
+			t.Errorf("expected InternalServerError, got %v", rr.Code)
+		}
+	})
+
+	// Test form parse error
+	t.Run("form parse error", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewBufferString("invalid%2"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rr := httptest.NewRecorder()
+		s.PostUsers(rr, req)
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected BadRequest for invalid form, got %v", rr.Code)
+		}
+	})
+}
+
 func TestServer_DeleteUsersId(t *testing.T) {
 	repo := setupTestDB(t)
 	s := NewServer(repo, nil, nil)
@@ -221,6 +324,12 @@ func TestUnimplemented_Admin(t *testing.T) {
 
 	rr = httptest.NewRecorder()
 	u.DeleteUsersId(rr, nil, 1)
+	if rr.Code != http.StatusNotImplemented {
+		t.Errorf("expected NotImplemented, got %v", rr.Code)
+	}
+
+	rr = httptest.NewRecorder()
+	u.PostUsers(rr, nil)
 	if rr.Code != http.StatusNotImplemented {
 		t.Errorf("expected NotImplemented, got %v", rr.Code)
 	}

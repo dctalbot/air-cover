@@ -17,6 +17,23 @@
     </div>
 
     <hr />
+    <section style="margin-bottom: 2rem; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 1.5rem;">
+      <h2 style="margin-top: 0;">Create New User</h2>
+      <form action="/users" method="POST" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 200px;">
+          <label for="email" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Email Address</label>
+          <input type="email" id="email" name="email" required placeholder="dj@example.com" style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;" />
+        </div>
+        <div>
+          <label for="role" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Role</label>
+          <select id="role" name="role" required style="padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; background: white;">
+            <option value="member">Member</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button type="submit" style="background-color: #0369a1; color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 6px; cursor: pointer; font-weight: 500; height: 38px;">Create User</button>
+      </form>
+    </section>
 
     <h2>Users</h2>
     <div id="users-list">
