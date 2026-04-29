@@ -8,9 +8,14 @@
   <body>
     <div style="display: flex; justify-content: space-between; align-items: center;">
       <h1>Welcome to Air Cover</h1>
-      <form action="/auth/logout" method="POST">
-        <button type="submit">Log Out</button>
-      </form>
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        {{if .IsAdmin}}
+        <a href="/admin">Admin</a>
+        {{end}}
+        <form action="/auth/logout" method="POST" style="margin: 0;">
+          <button type="submit">Log Out</button>
+        </form>
+      </div>
     </div>
     <form action="/sub-requests" method="POST">
       <label for="show-select">Shows</label>

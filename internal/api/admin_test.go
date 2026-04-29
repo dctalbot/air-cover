@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -58,5 +59,37 @@ func TestServer_GetAdmin(t *testing.T) {
 	}
 	if rr.Header().Get("Content-Type") != "text/html; charset=utf-8" {
 		t.Errorf("expected HTML content type, got %v", rr.Header().Get("Content-Type"))
+	}
+}
+
+func TestServer_GetApp_AdminLinkVisibility(t *testing.T) {
+	repo := setupTestDB(t)
+	s := NewServer(repo, nil, &MockShowsService{})
+
+	tests := []struct {
+		name     string
+		role     string
+		wantLink bool
+	}{
+		{"admin sees link", "admin", true},
+		{"member hides link", "member", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/app", nil)
+			ctx := context.WithValue(req.Context(), UserEmailKey, "test@example.com")
+			ctx = context.WithValue(ctx, UserIDKey, 1)
+			ctx = context.WithValue(ctx, UserRoleKey, tt.role)
+			req = req.WithContext(ctx)
+
+			rr := httptest.NewRecorder()
+			s.GetApp(rr, req)
+
+			containsLink := bytes.Contains(rr.Body.Bytes(), []byte("/admin\">Admin</a>"))
+			if containsLink != tt.wantLink {
+				t.Errorf("expected admin link presence to be %v, got %v", tt.wantLink, containsLink)
+			}
+		})
 	}
 }

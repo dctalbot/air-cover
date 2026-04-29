@@ -133,10 +133,13 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	role, _ := r.Context().Value(UserRoleKey).(string)
+
 	ui.RenderAuthenticated(w, map[string]any{
 		"Shows":       allShows,
 		"Email":       email,
 		"SubRequests": views,
+		"IsAdmin":     role == "admin",
 	})
 }
 
