@@ -99,7 +99,7 @@ var serverCmd = &cobra.Command{
 			_, err := repo.GetUserByEmail(context.Background(), cfg.MasterEmail)
 			if errors.Is(err, db.ErrNotFound) {
 				slog.Info("Creating master admin user", "email", cfg.MasterEmail)
-				_, err = repo.CreateUser(context.Background(), cfg.MasterEmail)
+				_, err = repo.CreateUser(context.Background(), cfg.MasterEmail, "admin")
 				if err != nil {
 					slog.Error("Failed to create master user", "error", err)
 					osExit(1)

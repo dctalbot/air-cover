@@ -71,7 +71,7 @@ func TestIndexHandler(t *testing.T) {
 
 	repo := db.NewRepository(dbConn)
 	ctx := context.Background()
-	user, err := repo.CreateUser(ctx, "test@example.com")
+	user, err := repo.CreateUser(ctx, "test@example.com", "member")
 	if err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}
@@ -325,6 +325,21 @@ func TestServerCmd_MasterEmail(t *testing.T) {
 
 	serverCmd.Run(serverCmd, nil)
 
+	// Verify the user was created with admin role
+	dbConn, err := db.InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dbConn.Close()
+	repo := db.NewRepository(dbConn)
+	u, err := repo.GetUserByEmail(context.Background(), "admin@example.com")
+	if err != nil {
+		t.Fatalf("failed to find master user: %v", err)
+	}
+	if u.Role != "admin" {
+		t.Errorf("expected role 'admin', got %q", u.Role)
+	}
+
 	// Run again so the master email already exists (covers the "already exists" branch)
 	serverCmd.Run(serverCmd, nil)
 }
@@ -364,7 +379,7 @@ func TestAuthRateLimiting(t *testing.T) {
 	defer dbConn.Close()
 
 	repo := db.NewRepository(dbConn)
-	_, _ = repo.CreateUser(context.Background(), "test@example.com")
+	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
 	auth := api.NewAuthHandler(repo, &mockSender{})
 	server := api.NewServer(repo, auth, nil)
 

@@ -21,8 +21,8 @@ func NewRepository(db *sql.DB) *Repository {
 
 func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
-	err := r.db.QueryRowContext(ctx, "SELECT id, email, created_at FROM users WHERE email = ?", email).
-		Scan(&user.ID, &user.Email, &user.CreatedAt)
+	err := r.db.QueryRowContext(ctx, "SELECT id, email, role, created_at FROM users WHERE email = ?", email).
+		Scan(&user.ID, &user.Email, &user.Role, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -34,8 +34,8 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*models.
 
 func (r *Repository) GetUserByID(ctx context.Context, id int) (*models.User, error) {
 	var user models.User
-	err := r.db.QueryRowContext(ctx, "SELECT id, email, created_at FROM users WHERE id = ?", id).
-		Scan(&user.ID, &user.Email, &user.CreatedAt)
+	err := r.db.QueryRowContext(ctx, "SELECT id, email, role, created_at FROM users WHERE id = ?", id).
+		Scan(&user.ID, &user.Email, &user.Role, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -45,8 +45,8 @@ func (r *Repository) GetUserByID(ctx context.Context, id int) (*models.User, err
 	return &user, nil
 }
 
-func (r *Repository) CreateUser(ctx context.Context, email string) (*models.User, error) {
-	res, err := r.db.ExecContext(ctx, "INSERT INTO users (email) VALUES (?)", email)
+func (r *Repository) CreateUser(ctx context.Context, email string, role string) (*models.User, error) {
+	res, err := r.db.ExecContext(ctx, "INSERT INTO users (email, role) VALUES (?, ?)", email, role)
 	if err != nil {
 		return nil, err
 	}

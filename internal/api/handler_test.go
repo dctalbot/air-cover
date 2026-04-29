@@ -39,7 +39,7 @@ func (b *badShowsService) GetShowsPage(ctx context.Context, page int) (spinitron
 
 func TestServer_PostSubRequests(t *testing.T) {
 	repo := setupTestDB(t)
-	u, _ := repo.CreateUser(context.Background(), "test@example.com")
+	u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
 	s := NewServer(repo, nil, &MockShowsService{})
 
 	tests := []struct {
@@ -133,7 +133,7 @@ func TestServer_Get(t *testing.T) {
 	})
 
 	t.Run("authenticated", func(t *testing.T) {
-		u, _ := repo.CreateUser(context.Background(), "test@example.com")
+		u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
 		_ = repo.CreateSession(context.Background(), "sid", "stoken", u.ID, time.Now().Add(1*time.Hour))
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken"})
@@ -248,8 +248,8 @@ func TestServer_GetHealth(t *testing.T) {
 
 func TestServer_DeleteSubRequestsId(t *testing.T) {
 	repo := setupTestDB(t)
-	u1, _ := repo.CreateUser(context.Background(), "user1@example.com")
-	u2, _ := repo.CreateUser(context.Background(), "user2@example.com")
+	u1, _ := repo.CreateUser(context.Background(), "user1@example.com", "member")
+	u2, _ := repo.CreateUser(context.Background(), "user2@example.com", "member")
 	s := NewServer(repo, nil, nil)
 
 	sr := &models.SubRequest{
@@ -760,7 +760,7 @@ func TestServer_DeleteSubRequestsId_DBError(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo := db.NewRepository(dbConn)
-	u, _ := repo.CreateUser(context.Background(), "dberr@example.com")
+	u, _ := repo.CreateUser(context.Background(), "dberr@example.com", "member")
 	sr := &models.SubRequest{
 		ShowID:    1,
 		UserID:    u.ID,
@@ -790,7 +790,7 @@ func TestServer_PostSubRequests_DBError(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo := db.NewRepository(dbConn)
-	u, _ := repo.CreateUser(context.Background(), "postreqerr@example.com")
+	u, _ := repo.CreateUser(context.Background(), "postreqerr@example.com", "member")
 	dbConn.Close() // Force CreateSubRequest to fail
 
 	s := NewServer(repo, nil, nil)
@@ -864,7 +864,7 @@ func TestServer_DeleteSubRequestsId_DeleteError(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo := db.NewRepository(dbConn)
-	u, _ := repo.CreateUser(context.Background(), "deleterr@example.com")
+	u, _ := repo.CreateUser(context.Background(), "deleterr@example.com", "member")
 	sr := &models.SubRequest{
 		ShowID:    1,
 		UserID:    u.ID,
@@ -927,8 +927,8 @@ func TestServer_DeleteSubRequestsId_Unauthorized(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo := db.NewRepository(dbConn)
-	u1, _ := repo.CreateUser(context.Background(), "u1@example.com")
-	u2, _ := repo.CreateUser(context.Background(), "u2@example.com")
+	u1, _ := repo.CreateUser(context.Background(), "u1@example.com", "member")
+	u2, _ := repo.CreateUser(context.Background(), "u2@example.com", "member")
 
 	sr := &models.SubRequest{
 		ShowID:    1,
@@ -957,7 +957,7 @@ func TestServer_DeleteSubRequestsId_NotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo := db.NewRepository(dbConn)
-	u1, _ := repo.CreateUser(context.Background(), "u1@example.com")
+	u1, _ := repo.CreateUser(context.Background(), "u1@example.com", "member")
 
 	s := NewServer(repo, nil, nil)
 	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/999", nil)
@@ -977,7 +977,7 @@ func TestServer_DeleteSubRequestsId_NoUserInContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo := db.NewRepository(dbConn)
-	u1, _ := repo.CreateUser(context.Background(), "u1@example.com")
+	u1, _ := repo.CreateUser(context.Background(), "u1@example.com", "member")
 	sr := &models.SubRequest{
 		ShowID:    1,
 		UserID:    u1.ID,

@@ -31,7 +31,7 @@ func setupTestDB(t *testing.T) *db.Repository {
 func TestAuthHandler_Login(t *testing.T) {
 	repo := setupTestDB(t)
 	handler := NewAuthHandler(repo, &MockSender{})
-	_, _ = repo.CreateUser(context.Background(), "test@example.com")
+	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
 
 	tests := []struct {
 		name       string
@@ -61,7 +61,7 @@ func TestAuthHandler_Login(t *testing.T) {
 func TestAuthHandler_Login_HTTPSScheme(t *testing.T) {
 	// Test that HTTPS scheme is used when X-Forwarded-Proto is https
 	repo := setupTestDB(t)
-	_, _ = repo.CreateUser(context.Background(), "https@example.com")
+	_, _ = repo.CreateUser(context.Background(), "https@example.com", "member")
 	handler := NewAuthHandler(repo, &MockSender{})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"https@example.com"}`))
@@ -77,7 +77,7 @@ func TestAuthHandler_Login_HTTPSScheme(t *testing.T) {
 func TestAuthHandler_Verify(t *testing.T) {
 	repo := setupTestDB(t)
 	handler := NewAuthHandler(repo, &MockSender{})
-	u, _ := repo.CreateUser(context.Background(), "test2@example.com")
+	u, _ := repo.CreateUser(context.Background(), "test2@example.com", "member")
 
 	rawToken, _ := generateRandomToken(32)
 	hashedToken := hashToken(rawToken)
@@ -110,7 +110,7 @@ func TestAuthHandler_Verify_HTTPSCookie(t *testing.T) {
 	// Test that Secure cookie is set when X-Forwarded-Proto is https
 	repo := setupTestDB(t)
 	handler := NewAuthHandler(repo, &MockSender{})
-	u, _ := repo.CreateUser(context.Background(), "secure@example.com")
+	u, _ := repo.CreateUser(context.Background(), "secure@example.com", "member")
 
 	rawToken, _ := generateRandomToken(32)
 	hashedToken := hashToken(rawToken)
@@ -139,7 +139,7 @@ func TestAuthHandler_Verify_HTTPSCookie(t *testing.T) {
 func TestAuthMiddleware(t *testing.T) {
 	repo := setupTestDB(t)
 	handler := NewAuthHandler(repo, &MockSender{})
-	u, _ := repo.CreateUser(context.Background(), "test3@example.com")
+	u, _ := repo.CreateUser(context.Background(), "test3@example.com", "member")
 	_ = repo.CreateSession(context.Background(), "sid", "stoken", u.ID, time.Now().Add(1*time.Hour))
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -174,7 +174,7 @@ func TestAuthMiddleware(t *testing.T) {
 func TestAuthHandler_Logout(t *testing.T) {
 	repo := setupTestDB(t)
 	handler := NewAuthHandler(repo, &MockSender{})
-	u, err := repo.CreateUser(context.Background(), "test-logout@example.com")
+	u, err := repo.CreateUser(context.Background(), "test-logout@example.com", "member")
 	if err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestAuthHandler_Logout_HTTPSSecureCookie(t *testing.T) {
 	// Test that Secure cookie is cleared properly when HTTPS
 	repo := setupTestDB(t)
 	handler := NewAuthHandler(repo, &MockSender{})
-	u, _ := repo.CreateUser(context.Background(), "logout-https@example.com")
+	u, _ := repo.CreateUser(context.Background(), "logout-https@example.com", "member")
 	_ = repo.CreateSession(context.Background(), "sid2", "stoken2", u.ID, time.Now().Add(1*time.Hour))
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
@@ -276,7 +276,7 @@ func TestAuthHandler_Login_DBError(t *testing.T) {
 	}
 	repo := db.NewRepository(dbConn)
 	// Create user first, then close the DB to force errors on subsequent operations
-	_, err = repo.CreateUser(context.Background(), "dberror@example.com")
+	_, err = repo.CreateUser(context.Background(), "dberror@example.com", "member")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +294,7 @@ func TestAuthHandler_Login_DBError(t *testing.T) {
 
 func TestAuthHandler_Login_SendError(t *testing.T) {
 	repo := setupTestDB(t)
-	_, err := repo.CreateUser(context.Background(), "senderror@example.com")
+	_, err := repo.CreateUser(context.Background(), "senderror@example.com", "member")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ func TestAuthHandler_Verify_CreateSessionError(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo := db.NewRepository(dbConn)
-	u, _ := repo.CreateUser(context.Background(), "sessionfail@example.com")
+	u, _ := repo.CreateUser(context.Background(), "sessionfail@example.com", "member")
 
 	rawToken, _ := generateRandomToken(32)
 	hashedToken := hashToken(rawToken)
@@ -344,7 +344,7 @@ func TestAuthHandler_Logout_DBError(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo := db.NewRepository(dbConn)
-	u, _ := repo.CreateUser(context.Background(), "logouterr@example.com")
+	u, _ := repo.CreateUser(context.Background(), "logouterr@example.com", "member")
 	dbConn.Close() // Force DeleteSessionsByUserID to fail
 
 	handler := NewAuthHandler(repo, &MockSender{})
@@ -366,7 +366,7 @@ func TestAuthMiddleware_UserNotFound(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo := db.NewRepository(dbConn)
-	u, _ := repo.CreateUser(context.Background(), "deleteduser@example.com")
+	u, _ := repo.CreateUser(context.Background(), "deleteduser@example.com", "member")
 	_ = repo.CreateSession(context.Background(), "sid-del", "stoken-del", u.ID, time.Now().Add(1*time.Hour))
 	// Close DB to force GetUserByID to fail
 	dbConn.Close()
@@ -392,7 +392,7 @@ func TestAuthMiddleware_GetUserByIDError(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo := db.NewRepository(dbConn)
-	u, _ := repo.CreateUser(context.Background(), "miderr@example.com")
+	u, _ := repo.CreateUser(context.Background(), "miderr@example.com", "member")
 	_ = repo.CreateSession(context.Background(), "sid-mid", "stoken-mid", u.ID, time.Now().Add(1*time.Hour))
 
 	handler := NewAuthHandler(repo, nil)
@@ -416,7 +416,7 @@ func TestAuthMiddleware_GetUserByIDError(t *testing.T) {
 func TestAuthHandler_Login_Form(t *testing.T) {
 	repo := setupTestDB(t)
 	handler := NewAuthHandler(repo, &MockSender{})
-	_, _ = repo.CreateUser(context.Background(), "form@example.com")
+	_, _ = repo.CreateUser(context.Background(), "form@example.com", "member")
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString("email=form@example.com"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

@@ -34,7 +34,7 @@ func TestRepository(t *testing.T) {
 	ctx := context.Background()
 
 	// CreateUser
-	u, err := repo.CreateUser(ctx, "test@example.com")
+	u, err := repo.CreateUser(ctx, "test@example.com", "member")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +231,7 @@ func TestRepositoryErrors(t *testing.T) {
 		t.Error("expected error with cancelled context in GetUserByID")
 	}
 
-	_, err = repo.CreateUser(ctx, "test@example.com")
+	_, err = repo.CreateUser(ctx, "test@example.com", "member")
 	if err == nil {
 		t.Error("expected error with cancelled context in CreateUser")
 	}
@@ -283,8 +283,8 @@ func TestRepositoryErrors(t *testing.T) {
 
 	// Test unique constraint violation
 	ctx = context.Background()
-	_, _ = repo.CreateUser(ctx, "unique@example.com")
-	_, err = repo.CreateUser(ctx, "unique@example.com")
+	_, _ = repo.CreateUser(ctx, "unique@example.com", "member")
+	_, err = repo.CreateUser(ctx, "unique@example.com", "member")
 	if err == nil {
 		t.Error("expected error for duplicate user email")
 	}
@@ -350,8 +350,8 @@ func TestScanErrors(t *testing.T) {
 	// ListSubRequests will fail because it expects a JOIN with users which doesn't exist now
 	// and because of type mismatch.
 	// Actually, we need the JOIN to exist if we want to reach Scan.
-	_, _ = dbConn.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT)")
-	_, _ = dbConn.Exec("INSERT INTO users (id, email) VALUES (1, 'test@example.com')")
+	_, _ = dbConn.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT, role TEXT)")
+	_, _ = dbConn.Exec("INSERT INTO users (id, email, role) VALUES (1, 'test@example.com', 'member')")
 	// Update user_id to be a valid join but other fields to be garbage
 	_, _ = dbConn.Exec("UPDATE sub_requests SET user_id = 1")
 
