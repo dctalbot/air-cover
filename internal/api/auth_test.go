@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -432,12 +433,12 @@ func TestAuthHandler_Login_Form(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.HandleLogin(rr, req)
 
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %v", rr.Code)
+	if rr.Code != http.StatusSeeOther {
+		t.Errorf("expected 303, got %v", rr.Code)
 	}
-	// Check for the success message in the rendered HTML
-	if !bytes.Contains(rr.Body.Bytes(), []byte("If an account exists, an email has been sent.")) {
-		t.Errorf("expected HTML success message, got %s", rr.Body.String())
+	location := rr.Header().Get("Location")
+	if !strings.HasPrefix(location, "/?message=") {
+		t.Errorf("expected redirect to /, got %s", location)
 	}
 }
 

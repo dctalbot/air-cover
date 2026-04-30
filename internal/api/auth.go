@@ -11,13 +11,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"air-cover/internal/db"
 	"air-cover/internal/email"
-	"air-cover/internal/ui"
 )
 
 type AuthHandler struct {
@@ -127,9 +127,7 @@ func (h *AuthHandler) sendLoginResponse(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	ui.RenderUnauthenticated(w, map[string]any{
-		"Message": message,
-	})
+	http.Redirect(w, r, "/?message="+url.QueryEscape(message), http.StatusSeeOther)
 }
 
 func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request, rawToken string) {

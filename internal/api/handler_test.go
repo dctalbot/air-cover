@@ -132,6 +132,18 @@ func TestServer_Get(t *testing.T) {
 		}
 	})
 
+	t.Run("unauthenticated with message", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/?message=Test+Message", nil)
+		rr := httptest.NewRecorder()
+		s.Get(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected OK, got %v", rr.Code)
+		}
+		if !strings.Contains(rr.Body.String(), "Test Message") {
+			t.Errorf("expected message 'Test Message' in body, got %s", rr.Body.String())
+		}
+	})
+
 	t.Run("authenticated", func(t *testing.T) {
 		u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
 		_ = repo.CreateSession(context.Background(), "sid", "stoken", u.ID, time.Now().Add(1*time.Hour))
