@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"air-cover/internal/db"
 )
 
 func TestAuthHandler_RequireAdmin(t *testing.T) {
@@ -225,56 +227,111 @@ func TestServer_PostUsers(t *testing.T) {
 }
 
 func TestServer_PatchUsersId(t *testing.T) {
-	repo := setupTestDB(t)
-	s := NewServer(repo, nil, nil)
-	h := Handler(s)
-
-	admin, _ := repo.CreateUser(context.Background(), "admin@example.com", "admin")
-	member, _ := repo.CreateUser(context.Background(), "member@example.com", "member")
-
 	tests := []struct {
-		name          string
-		currentUserID int
-		targetUserID  int
-		isEnabled     bool
-		wantStatus    int
+		name           string
+		currentUser    string // email of current user
+		targetUser     string // email of target user
+		targetIDOffset int    // if target user is non-existent
+		body           string
+		wantStatus     int
+		check          func(t *testing.T, repo *db.Repository, targetID int)
 	}{
 		{
-			name:          "admin bans member",
-			currentUserID: admin.ID,
-			targetUserID:  member.ID,
-			isEnabled:     false,
-			wantStatus:    http.StatusNoContent,
+			name:        "admin bans member",
+			currentUser: "admin@example.com",
+			targetUser:  "member@example.com",
+			body:        `{"is_enabled": false}`,
+			wantStatus:  http.StatusNoContent,
+			check: func(t *testing.T, repo *db.Repository, targetID int) {
+				user, _ := repo.GetUserByID(context.Background(), targetID)
+				if user.IsEnabled != false {
+					t.Error("expected is_enabled false")
+				}
+				if user.Role != "member" {
+					t.Error("expected role to remain member")
+				}
+			},
 		},
 		{
-			name:          "admin reinstates member",
-			currentUserID: admin.ID,
-			targetUserID:  member.ID,
-			isEnabled:     true,
-			wantStatus:    http.StatusNoContent,
+			name:        "admin promotes member",
+			currentUser: "admin@example.com",
+			targetUser:  "member@example.com",
+			body:        `{"role": "admin"}`,
+			wantStatus:  http.StatusNoContent,
+			check: func(t *testing.T, repo *db.Repository, targetID int) {
+				user, _ := repo.GetUserByID(context.Background(), targetID)
+				if user.Role != "admin" {
+					t.Error("expected role admin")
+				}
+				if user.IsEnabled != true {
+					t.Error("expected is_enabled to remain true")
+				}
+			},
 		},
 		{
-			name:          "admin cannot ban self",
-			currentUserID: admin.ID,
-			targetUserID:  admin.ID,
-			isEnabled:     false,
-			wantStatus:    http.StatusForbidden,
+			name:        "admin cannot ban self",
+			currentUser: "admin@example.com",
+			targetUser:  "admin@example.com",
+			body:        `{"is_enabled": false}`,
+			wantStatus:  http.StatusForbidden,
 		},
 		{
-			name:          "ban non-existent user",
-			currentUserID: admin.ID,
-			targetUserID:  999,
-			isEnabled:     false,
-			wantStatus:    http.StatusNotFound,
+			name:        "admin can change own role",
+			currentUser: "admin@example.com",
+			targetUser:  "admin@example.com",
+			body:        `{"role": "member"}`,
+			wantStatus:  http.StatusNoContent,
+			check: func(t *testing.T, repo *db.Repository, targetID int) {
+				user, _ := repo.GetUserByID(context.Background(), targetID)
+				if user.Role != "member" {
+					t.Error("expected role member")
+				}
+			},
+		},
+		{
+			name:        "invalid role",
+			currentUser: "admin@example.com",
+			targetUser:  "member@example.com",
+			body:        `{"role": "superadmin"}`,
+			wantStatus:  http.StatusBadRequest,
+		},
+		{
+			name:           "ban non-existent user",
+			currentUser:    "admin@example.com",
+			targetIDOffset: 999,
+			body:           `{"is_enabled": false}`,
+			wantStatus:     http.StatusNotFound,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			body := fmt.Sprintf(`{"is_enabled": %v}`, tt.isEnabled)
-			req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/users/%d", tt.targetUserID), bytes.NewBufferString(body))
+			repo := setupTestDB(t)
+			s := NewServer(repo, nil, nil)
+			h := Handler(s)
+
+			admin, _ := repo.CreateUser(context.Background(), "admin@example.com", "admin")
+			member, _ := repo.CreateUser(context.Background(), "member@example.com", "member")
+
+			var currentID int
+			if tt.currentUser == "admin@example.com" {
+				currentID = admin.ID
+			} else {
+				currentID = member.ID
+			}
+
+			var targetID int
+			if tt.targetIDOffset != 0 {
+				targetID = tt.targetIDOffset
+			} else if tt.targetUser == "admin@example.com" {
+				targetID = admin.ID
+			} else {
+				targetID = member.ID
+			}
+
+			req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/users/%d", targetID), bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
-			ctx := context.WithValue(req.Context(), UserIDKey, tt.currentUserID)
+			ctx := context.WithValue(req.Context(), UserIDKey, currentID)
 			req = req.WithContext(ctx)
 
 			rr := httptest.NewRecorder()
@@ -284,11 +341,8 @@ func TestServer_PatchUsersId(t *testing.T) {
 				t.Errorf("expected status %v, got %v", tt.wantStatus, rr.Code)
 			}
 
-			if tt.wantStatus == http.StatusNoContent {
-				user, _ := repo.GetUserByID(context.Background(), tt.targetUserID)
-				if user.IsEnabled != tt.isEnabled {
-					t.Errorf("expected is_enabled %v, got %v", tt.isEnabled, user.IsEnabled)
-				}
+			if tt.wantStatus == http.StatusNoContent && tt.check != nil {
+				tt.check(t, repo, targetID)
 			}
 		})
 	}

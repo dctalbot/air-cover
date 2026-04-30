@@ -221,8 +221,28 @@ func (r *Repository) ListUsers(ctx context.Context) ([]*models.User, error) {
 	return users, nil
 }
 
-func (r *Repository) UpdateUserEnabled(ctx context.Context, id int, enabled bool) error {
-	res, err := r.db.ExecContext(ctx, "UPDATE users SET is_enabled = ? WHERE id = ?", enabled, id)
+func (r *Repository) UpdateUser(ctx context.Context, id int, role *string, isEnabled *bool) error {
+	query := "UPDATE users SET "
+	var args []any
+	if role != nil {
+		query += "role = ?, "
+		args = append(args, *role)
+	}
+	if isEnabled != nil {
+		query += "is_enabled = ?, "
+		args = append(args, *isEnabled)
+	}
+
+	if len(args) == 0 {
+		return nil
+	}
+
+	// Remove trailing comma and space
+	query = query[:len(query)-2]
+	query += " WHERE id = ?"
+	args = append(args, id)
+
+	res, err := r.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}

@@ -346,12 +346,21 @@ func (s *Server) DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id 
 // (PATCH /users/{id})
 func (s *Server) PatchUsersId(w http.ResponseWriter, r *http.Request, id int) {
 	var req struct {
-		IsEnabled bool `json:"is_enabled"`
+		IsEnabled *bool   `json:"is_enabled"`
+		Role      *string `json:"role"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
+	}
+
+	if req.Role != nil {
+		role := *req.Role
+		if role != "admin" && role != "member" {
+			http.Error(w, "Invalid role", http.StatusBadRequest)
+			return
+		}
 	}
 
 	currentUserID, ok := r.Context().Value(UserIDKey).(int)
@@ -360,17 +369,18 @@ func (s *Server) PatchUsersId(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 
-	if currentUserID == id {
+	// Only check self-ban if is_enabled is provided and false
+	if req.IsEnabled != nil && !*req.IsEnabled && currentUserID == id {
 		http.Error(w, "Cannot ban your own account", http.StatusForbidden)
 		return
 	}
 
-	if err := s.repo.UpdateUserEnabled(r.Context(), id, req.IsEnabled); err != nil {
+	if err := s.repo.UpdateUser(r.Context(), id, req.Role, req.IsEnabled); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "User not found", http.StatusNotFound)
 			return
 		}
-		slog.Error("Failed to update user status", "id", id, "error", err)
+		slog.Error("Failed to update user", "id", id, "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}

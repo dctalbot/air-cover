@@ -21,16 +21,34 @@ import (
 
 // Defines values for PostUsersFormdataBodyRole.
 const (
-	Admin  PostUsersFormdataBodyRole = "admin"
-	Member PostUsersFormdataBodyRole = "member"
+	PostUsersFormdataBodyRoleAdmin  PostUsersFormdataBodyRole = "admin"
+	PostUsersFormdataBodyRoleMember PostUsersFormdataBodyRole = "member"
 )
 
 // Valid indicates whether the value is a known member of the PostUsersFormdataBodyRole enum.
 func (e PostUsersFormdataBodyRole) Valid() bool {
 	switch e {
-	case Admin:
+	case PostUsersFormdataBodyRoleAdmin:
 		return true
-	case Member:
+	case PostUsersFormdataBodyRoleMember:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PatchUsersIdJSONBodyRole.
+const (
+	PatchUsersIdJSONBodyRoleAdmin  PatchUsersIdJSONBodyRole = "admin"
+	PatchUsersIdJSONBodyRoleMember PatchUsersIdJSONBodyRole = "member"
+)
+
+// Valid indicates whether the value is a known member of the PatchUsersIdJSONBodyRole enum.
+func (e PatchUsersIdJSONBodyRole) Valid() bool {
+	switch e {
+	case PatchUsersIdJSONBodyRoleAdmin:
+		return true
+	case PatchUsersIdJSONBodyRoleMember:
 		return true
 	default:
 		return false
@@ -71,8 +89,12 @@ type PostUsersFormdataBodyRole string
 
 // PatchUsersIdJSONBody defines parameters for PatchUsersId.
 type PatchUsersIdJSONBody struct {
-	IsEnabled bool `json:"is_enabled"`
+	IsEnabled *bool                     `json:"is_enabled,omitempty"`
+	Role      *PatchUsersIdJSONBodyRole `json:"role,omitempty"`
 }
+
+// PatchUsersIdJSONBodyRole defines parameters for PatchUsersId.
+type PatchUsersIdJSONBodyRole string
 
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody = LoginRequest
@@ -554,23 +576,23 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

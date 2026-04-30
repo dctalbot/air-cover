@@ -181,8 +181,9 @@ paths:
               properties:
                 is_enabled:
                   type: boolean
-              required:
-                - is_enabled
+                role:
+                  type: string
+                  enum: [member, admin]
       responses:
         '204':
           description: User updated
