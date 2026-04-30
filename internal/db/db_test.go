@@ -160,14 +160,14 @@ func TestRepository(t *testing.T) {
 
 	// CreateSubRequest
 	sr := &models.SubRequest{
-		ShowID:    123,
-		UserID:    u.ID,
-		StartTime: time.Now(),
-		EndTime:   time.Now().Add(1 * time.Hour),
-		Notes:     "test notes",
-		Status:    "open",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ShowID:         123,
+		PostedByUserID: u.ID,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(1 * time.Hour),
+		Notes:          "test notes",
+		Status:         "open",
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
 	err = repo.CreateSubRequest(ctx, sr)
 	if err != nil {
@@ -399,7 +399,7 @@ func TestScanErrors(t *testing.T) {
 	_, _ = dbConn.Exec("DROP TABLE sub_requests")
 	_, err = dbConn.Exec(`
 		CREATE TABLE sub_requests (
-			id TEXT, show_id TEXT, user_id TEXT, start_time TEXT, end_time TEXT, 
+			id TEXT, show_id TEXT, posted_by_user_id TEXT, start_time TEXT, end_time TEXT, 
 			notes TEXT, status TEXT, created_at TEXT, updated_at TEXT
 		)
 	`)
@@ -409,7 +409,7 @@ func TestScanErrors(t *testing.T) {
 
 	// Insert garbage data
 	_, err = dbConn.Exec(`
-		INSERT INTO sub_requests (id, show_id, user_id, start_time, end_time, notes, status, created_at, updated_at)
+		INSERT INTO sub_requests (id, show_id, posted_by_user_id, start_time, end_time, notes, status, created_at, updated_at)
 		VALUES ('bad-id', 'not-an-int', 'not-an-int', 'not-a-date', 'not-a-date', 'notes', 'open', 'not-a-date', 'not-a-date')
 	`)
 	if err != nil {
@@ -421,8 +421,8 @@ func TestScanErrors(t *testing.T) {
 	// Actually, we need the JOIN to exist if we want to reach Scan.
 	_, _ = dbConn.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT, role TEXT)")
 	_, _ = dbConn.Exec("INSERT INTO users (id, email, role) VALUES (1, 'test@example.com', 'member')")
-	// Update user_id to be a valid join but other fields to be garbage
-	_, _ = dbConn.Exec("UPDATE sub_requests SET user_id = 1")
+	// Update posted_by_user_id to be a valid join but other fields to be garbage
+	_, _ = dbConn.Exec("UPDATE sub_requests SET posted_by_user_id = 1")
 
 	_, err = repo.ListSubRequests(ctx)
 	if err == nil {

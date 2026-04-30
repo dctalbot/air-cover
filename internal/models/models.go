@@ -15,7 +15,7 @@ type Persona struct {
 type SubRequest struct {
 	ID             int       `json:"id"`
 	ShowID         int       `json:"show_id"`
-	UserID         int       `json:"user_id"`
+	PostedByUserID int       `json:"posted_by_user_id"`
 	RequesterEmail string    `json:"requester_email,omitempty"`
 	SubstituteID   *int      `json:"substitute_id"` // Persona ID, nil if not picked up yet
 	StartTime      time.Time `json:"start_time"`

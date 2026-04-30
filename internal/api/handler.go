@@ -129,7 +129,7 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 			EndTime:        sr.EndTime.Format("Mon, Jan 02 at 3:04 PM"),
 			Notes:          sr.Notes,
 			Status:         sr.Status,
-			CanDelete:      sr.UserID == userID,
+			CanDelete:      sr.PostedByUserID == userID,
 		})
 	}
 
@@ -285,14 +285,14 @@ func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sr := &models.SubRequest{
-		ShowID:    showID,
-		UserID:    userID,
-		StartTime: startTime,
-		EndTime:   endTime,
-		Notes:     notes,
-		Status:    "open",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ShowID:         showID,
+		PostedByUserID: userID,
+		StartTime:      startTime,
+		EndTime:        endTime,
+		Notes:          notes,
+		Status:         "open",
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
 
 	if err := s.repo.CreateSubRequest(r.Context(), sr); err != nil {
@@ -324,7 +324,7 @@ func (s *Server) DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id 
 		return
 	}
 
-	if sr.UserID != userID {
+	if sr.PostedByUserID != userID {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}

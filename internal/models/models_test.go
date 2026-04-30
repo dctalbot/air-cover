@@ -22,15 +22,15 @@ func TestModels(t *testing.T) {
 	}
 
 	sr := SubRequest{
-		ID:        1,
-		ShowID:    42,
-		UserID:    1,
-		StartTime: time.Now(),
-		EndTime:   time.Now().Add(time.Hour),
-		Notes:     "test",
-		Status:    "open",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:             1,
+		ShowID:         42,
+		PostedByUserID: 1,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(time.Hour),
+		Notes:          "test",
+		Status:         "open",
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
 	if sr.ShowID != 42 {
 		t.Errorf("expected ShowID 42, got %d", sr.ShowID)

@@ -253,11 +253,11 @@ func TestServer_DeleteSubRequestsId(t *testing.T) {
 	s := NewServer(repo, nil, nil)
 
 	sr := &models.SubRequest{
-		ShowID:    1,
-		UserID:    u1.ID,
-		StartTime: time.Now(),
-		EndTime:   time.Now().Add(1 * time.Hour),
-		Status:    "open",
+		ShowID:         1,
+		PostedByUserID: u1.ID,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(1 * time.Hour),
+		Status:         "open",
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
 
@@ -762,11 +762,11 @@ func TestServer_DeleteSubRequestsId_DBError(t *testing.T) {
 	repo := db.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "dberr@example.com", "member")
 	sr := &models.SubRequest{
-		ShowID:    1,
-		UserID:    u.ID,
-		StartTime: time.Now(),
-		EndTime:   time.Now().Add(time.Hour),
-		Status:    "open",
+		ShowID:         1,
+		PostedByUserID: u.ID,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(time.Hour),
+		Status:         "open",
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
 	dbConn.Close() // Force GetSubRequestByID to fail
@@ -866,11 +866,11 @@ func TestServer_DeleteSubRequestsId_DeleteError(t *testing.T) {
 	repo := db.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "deleterr@example.com", "member")
 	sr := &models.SubRequest{
-		ShowID:    1,
-		UserID:    u.ID,
-		StartTime: time.Now(),
-		EndTime:   time.Now().Add(time.Hour),
-		Status:    "open",
+		ShowID:         1,
+		PostedByUserID: u.ID,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(time.Hour),
+		Status:         "open",
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
 	dbConn.Close() // Force GetSubRequestByID to fail
@@ -931,11 +931,11 @@ func TestServer_DeleteSubRequestsId_Unauthorized(t *testing.T) {
 	u2, _ := repo.CreateUser(context.Background(), "u2@example.com", "member")
 
 	sr := &models.SubRequest{
-		ShowID:    1,
-		UserID:    u1.ID,
-		StartTime: time.Now(),
-		EndTime:   time.Now().Add(time.Hour),
-		Status:    "open",
+		ShowID:         1,
+		PostedByUserID: u1.ID,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(time.Hour),
+		Status:         "open",
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
 
@@ -979,11 +979,11 @@ func TestServer_DeleteSubRequestsId_NoUserInContext(t *testing.T) {
 	repo := db.NewRepository(dbConn)
 	u1, _ := repo.CreateUser(context.Background(), "u1@example.com", "member")
 	sr := &models.SubRequest{
-		ShowID:    1,
-		UserID:    u1.ID,
-		StartTime: time.Now(),
-		EndTime:   time.Now().Add(time.Hour),
-		Status:    "open",
+		ShowID:         1,
+		PostedByUserID: u1.ID,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(time.Hour),
+		Status:         "open",
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
 
