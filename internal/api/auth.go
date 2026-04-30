@@ -85,6 +85,11 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+	if !user.IsEnabled {
+		slog.Warn("Login attempt by disabled user", "email", strconv.Quote(emailVal))
+		h.sendLoginResponse(w, r, "If an account exists, an email has been sent.")
+		return
+	}
 
 	rawToken, err := generateRandomToken(32)
 	if err != nil {
@@ -231,7 +236,7 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		user, err := h.repo.GetUserByID(ctx, session.UserID)
-		if err != nil {
+		if err != nil || !user.IsEnabled {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}

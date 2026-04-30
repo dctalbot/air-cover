@@ -25,8 +25,8 @@ func (r *Repository) DB() *sql.DB {
 
 func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
-	err := r.db.QueryRowContext(ctx, "SELECT id, email, role, created_at FROM users WHERE email = ?", email).
-		Scan(&user.ID, &user.Email, &user.Role, &user.CreatedAt)
+	err := r.db.QueryRowContext(ctx, "SELECT id, email, role, is_enabled, created_at FROM users WHERE email = ?", email).
+		Scan(&user.ID, &user.Email, &user.Role, &user.IsEnabled, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -38,8 +38,8 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*models.
 
 func (r *Repository) GetUserByID(ctx context.Context, id int) (*models.User, error) {
 	var user models.User
-	err := r.db.QueryRowContext(ctx, "SELECT id, email, role, created_at FROM users WHERE id = ?", id).
-		Scan(&user.ID, &user.Email, &user.Role, &user.CreatedAt)
+	err := r.db.QueryRowContext(ctx, "SELECT id, email, role, is_enabled, created_at FROM users WHERE id = ?", id).
+		Scan(&user.ID, &user.Email, &user.Role, &user.IsEnabled, &user.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -201,7 +201,7 @@ func (r *Repository) DeleteSubRequest(ctx context.Context, id int) error {
 }
 
 func (r *Repository) ListUsers(ctx context.Context) ([]*models.User, error) {
-	rows, err := r.db.QueryContext(ctx, "SELECT id, email, role, created_at FROM users ORDER BY created_at DESC")
+	rows, err := r.db.QueryContext(ctx, "SELECT id, email, role, is_enabled, created_at FROM users ORDER BY created_at DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +210,7 @@ func (r *Repository) ListUsers(ctx context.Context) ([]*models.User, error) {
 	var users []*models.User
 	for rows.Next() {
 		var user models.User
-		if err := rows.Scan(&user.ID, &user.Email, &user.Role, &user.CreatedAt); err != nil {
+		if err := rows.Scan(&user.ID, &user.Email, &user.Role, &user.IsEnabled, &user.CreatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, &user)

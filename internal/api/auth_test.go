@@ -59,6 +59,28 @@ func TestAuthHandler_Login(t *testing.T) {
 	}
 }
 
+func TestAuthHandler_Login_Disabled(t *testing.T) {
+	repo := setupTestDB(t)
+	handler := NewAuthHandler(repo, &MockSender{})
+	u, _ := repo.CreateUser(context.Background(), "disabled@example.com", "member")
+
+	// Disable user
+	_, _ = repo.DB().Exec("UPDATE users SET is_enabled = 0 WHERE id = ?", u.ID)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"disabled@example.com"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	handler.HandleLogin(rr, req)
+
+	// Should return 200 with generic message to avoid enumeration
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %v", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "If an account exists, an email has been sent.") {
+		t.Errorf("expected generic message, got %s", rr.Body.String())
+	}
+}
+
 func TestAuthHandler_Login_HTTPSScheme(t *testing.T) {
 	// Test that HTTPS scheme is used when X-Forwarded-Proto is https
 	repo := setupTestDB(t)
@@ -178,6 +200,30 @@ func TestAuthMiddleware(t *testing.T) {
 	mw.ServeHTTP(rr3, req3)
 	if rr3.Code != http.StatusOK {
 		t.Errorf("expected OK with valid cookie")
+	}
+}
+
+func TestAuthMiddleware_Disabled(t *testing.T) {
+	repo := setupTestDB(t)
+	handler := NewAuthHandler(repo, &MockSender{})
+	u, _ := repo.CreateUser(context.Background(), "disabled-session@example.com", "member")
+	_ = repo.CreateSession(context.Background(), "sid", "stoken", u.ID, time.Now().Add(1*time.Hour))
+
+	// Disable user
+	_, _ = repo.DB().Exec("UPDATE users SET is_enabled = 0 WHERE id = ?", u.ID)
+
+	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	mw := handler.AuthMiddleware(testHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken"})
+	rr := httptest.NewRecorder()
+	mw.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for disabled user session, got %d", rr.Code)
 	}
 }
 

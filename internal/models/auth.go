@@ -6,6 +6,7 @@ type User struct {
 	ID        int       `json:"id"`
 	Email     string    `json:"email"`
 	Role      string    `json:"role"`
+	IsEnabled bool      `json:"is_enabled"`
 	CreatedAt time.Time `json:"created_at"`
 }
 

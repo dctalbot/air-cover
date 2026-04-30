@@ -45,6 +45,9 @@ func TestRepository(t *testing.T) {
 	if u.Email != "test@example.com" {
 		t.Fatalf("expected test@example.com, got %v", u.Email)
 	}
+	if !u.IsEnabled {
+		t.Error("expected IsEnabled to be true by default")
+	}
 
 	// GetUserByEmail
 	u2, err := repo.GetUserByEmail(ctx, "test@example.com")
@@ -228,6 +231,9 @@ func TestRepository(t *testing.T) {
 	}
 	if len(users) == 0 {
 		t.Fatal("expected at least one user")
+	}
+	if !users[0].IsEnabled {
+		t.Error("expected users[0].IsEnabled to be true")
 	}
 
 	// DeleteUser
@@ -418,8 +424,8 @@ func TestScanErrors(t *testing.T) {
 	// ListSubRequests will fail because it expects a JOIN with users which doesn't exist now
 	// and because of type mismatch.
 	// Actually, we need the JOIN to exist if we want to reach Scan.
-	_, _ = dbConn.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT, role TEXT)")
-	_, _ = dbConn.Exec("INSERT INTO users (id, email, role) VALUES (1, 'test@example.com', 'member')")
+	_, _ = dbConn.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT, role TEXT, is_enabled BOOLEAN)")
+	_, _ = dbConn.Exec("INSERT INTO users (id, email, role, is_enabled) VALUES (1, 'test@example.com', 'member', 1)")
 	// Update posted_by_user_id to be a valid join but other fields to be garbage
 	_, _ = dbConn.Exec("UPDATE sub_requests SET posted_by_user_id = 1")
 
@@ -435,8 +441,8 @@ func TestScanErrors(t *testing.T) {
 
 	// ListUsers scan error
 	_, _ = dbConn.Exec("DROP TABLE users")
-	_, _ = dbConn.Exec("CREATE TABLE users (id TEXT, email TEXT, role TEXT, created_at TEXT)")
-	_, _ = dbConn.Exec("INSERT INTO users (id, email, role, created_at) VALUES ('bad', 'bad', 'bad', 'bad')")
+	_, _ = dbConn.Exec("CREATE TABLE users (id TEXT, email TEXT, role TEXT, is_enabled TEXT, created_at TEXT)")
+	_, _ = dbConn.Exec("INSERT INTO users (id, email, role, is_enabled, created_at) VALUES ('bad', 'bad', 'bad', 'bad', 'bad')")
 	_, err = repo.ListUsers(ctx)
 	if err == nil {
 		t.Error("expected scan error in ListUsers")
