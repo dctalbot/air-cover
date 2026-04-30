@@ -174,8 +174,11 @@ func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	email, _ := r.Context().Value(UserEmailKey).(string)
+
 	ui.RenderAdmin(w, map[string]any{
 		"Users": views,
+		"Email": email,
 	})
 }
 
