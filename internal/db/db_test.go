@@ -399,7 +399,7 @@ func TestScanErrors(t *testing.T) {
 	_, _ = dbConn.Exec("DROP TABLE sub_requests")
 	_, err = dbConn.Exec(`
 		CREATE TABLE sub_requests (
-			id TEXT, show_id TEXT, posted_by_user_id TEXT, start_time TEXT, end_time TEXT, 
+			id TEXT, show_id TEXT, posted_by_user_id TEXT, taken_by_user_id TEXT, start_time TEXT, end_time TEXT, 
 			notes TEXT, status TEXT, created_at TEXT, updated_at TEXT
 		)
 	`)
@@ -409,8 +409,8 @@ func TestScanErrors(t *testing.T) {
 
 	// Insert garbage data
 	_, err = dbConn.Exec(`
-		INSERT INTO sub_requests (id, show_id, posted_by_user_id, start_time, end_time, notes, status, created_at, updated_at)
-		VALUES ('bad-id', 'not-an-int', 'not-an-int', 'not-a-date', 'not-a-date', 'notes', 'open', 'not-a-date', 'not-a-date')
+		INSERT INTO sub_requests (id, show_id, posted_by_user_id, taken_by_user_id, start_time, end_time, notes, status, created_at, updated_at)
+		VALUES ('bad-id', 'not-an-int', 'not-an-int', 'not-an-int', 'not-a-date', 'not-a-date', 'notes', 'open', 'not-a-date', 'not-a-date')
 	`)
 	if err != nil {
 		t.Fatal(err)
