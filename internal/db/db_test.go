@@ -236,20 +236,6 @@ func TestRepository(t *testing.T) {
 		t.Error("expected users[0].IsEnabled to be true")
 	}
 
-	// DeleteUser
-	err = repo.DeleteUser(ctx, u.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = repo.GetUserByID(ctx, u.ID)
-	if err != ErrNotFound {
-		t.Fatalf("expected user to be deleted, got %v", err)
-	}
-
-	err = repo.DeleteUser(ctx, 9999)
-	if err != ErrNotFound {
-		t.Fatalf("expected ErrNotFound for missing user, got %v", err)
-	}
 }
 
 func TestRepositoryErrors(t *testing.T) {
@@ -324,10 +310,6 @@ func TestRepositoryErrors(t *testing.T) {
 		t.Error("expected error with cancelled context in DeleteSubRequest")
 	}
 
-	err = repo.DeleteUser(ctx, 1)
-	if err == nil {
-		t.Error("expected error with cancelled context in DeleteUser")
-	}
 
 	_, err = repo.ListUsers(ctx)
 	if err == nil {
@@ -375,21 +357,6 @@ func TestListSubRequestsErrors(t *testing.T) {
 	}
 }
 
-func TestDeleteUserErrors(t *testing.T) {
-	dbConn, err := InitDB("file::memory:?cache=shared")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := NewRepository(dbConn)
-	ctx := context.Background()
-
-	// BeginTx failure
-	dbConn.Close()
-	err = repo.DeleteUser(ctx, 1)
-	if err == nil {
-		t.Error("expected error with closed db in DeleteUser")
-	}
-}
 
 func TestScanErrors(t *testing.T) {
 	dbConn, err := InitDB("file::memory:?cache=shared")

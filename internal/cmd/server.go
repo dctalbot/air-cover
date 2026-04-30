@@ -75,7 +75,6 @@ func newRouter(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
 		r.Use(authHandler.RequireAdmin)
 		r.Get("/admin", wrapper.GetAdmin)
 		r.Post("/users", wrapper.PostUsers)
-		r.Delete("/users/{id}", wrapper.DeleteUsersId)
 	})
 
 	return r

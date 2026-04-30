@@ -113,9 +113,6 @@ type ServerInterface interface {
 	// Create a new user
 	// (POST /users)
 	PostUsers(w http.ResponseWriter, r *http.Request)
-	// Delete a user
-	// (DELETE /users/{id})
-	DeleteUsersId(w http.ResponseWriter, r *http.Request, id int)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -179,12 +176,6 @@ func (_ Unimplemented) DeleteSubRequestsId(w http.ResponseWriter, r *http.Reques
 // Create a new user
 // (POST /users)
 func (_ Unimplemented) PostUsers(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Delete a user
-// (DELETE /users/{id})
-func (_ Unimplemented) DeleteUsersId(w http.ResponseWriter, r *http.Request, id int) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -368,31 +359,6 @@ func (siw *ServerInterfaceWrapper) PostUsers(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
-// DeleteUsersId operation middleware
-func (siw *ServerInterfaceWrapper) DeleteUsersId(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-
-	// ------------- Path parameter "id" -------------
-	var id int
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteUsersId(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -536,9 +502,6 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/users", wrapper.PostUsers)
 	})
-	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/users/{id}", wrapper.DeleteUsersId)
-	})
 
 	return r
 }
@@ -546,23 +509,22 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/8xWTXPbNhD9Kxi0h3aGlhQ7J93cdNpoEjcep+kl4+lAxIpERHwYWFp2PfrvnQUoix+y",
-	"wrp124tNEcvlvn37HveB51Y7a8Bg4PMHHvIStIiX722hzBXc1BCQfjtvHXhUEE9BC1XRxcp6LZDPmzsZ",
-	"x3sHfM4DemUKvt1m3MNNrTxIPv/cRF0/htnlF8iRbzN+ASGIAq4gOGsCDF+pUwBdDt/RS0e3lFlZCpYQ",
-	"cq8cKmv4nJ9fLtjKenauPHtjb8GzACEoa5gWRhSgwSATRrJQ2g1DL/K1MsWEgCms6B37J88vFzzjt+BD",
-	"yv1qMpvMCIt1YIRTfM7PJrPJGc+4E1hGFFP6U0BsKaETVNdC8jn/GZBTsxL+GHw6m9G/3BoEEx9BuMNp",
-	"ibras3WoIdusB/vtrxfv2S4PHYdaa+Hv6chqYE4UwKxnFbEef8WoqZBamWMln8eAf6nujL+evRpy+smI",
-	"Gkvr1R8gU9DZMOgn65dKSjA9+BEAkyKUSyu8bGA7dxS0c/8ryF1ANZZgUOUCQTLhXEWXNOEtWmssp5Hr",
-	"qDMbDuC8tAEpVzQCnmQMAX+w8r6HtPWO6ZdgTRfwtx5WfM6/me6tZtr4zLRjMlRZO9XdyWazOSGDOal9",
-	"BSa3kkzkmbk7RoS+hu1XGXw+rr6ZHaD5QhQqZ5UyaxYemZ4NmV6YW1EpyXyrS3uyG3xMML3Pt9oJuUu2",
-	"rXEU2xTX683Z7HRY2RVI5SFHhpaVVsNzhjW9LhquSkAFws6SQ6v+W/BqdX9UlDWWv6Uo8lsvNCD4wOef",
-	"HzjNOb+pwdOZEZoUiHYNu7neT0V2RKrXz+kKuSrZyVPN2fFrPYM7R4WwVFm3UQlZm2XqWe6h1a/UrhJE",
-	"heWxTr1NEeMczFVC9SYf7oR28Vv44d2BL/5g1D+8639yYgEsLyFfp6JDvTxpJjwcH9KP9fJqFzjWlEY4",
-	"SW+9MfJ3VPrQspFxYzFFDU5oZ2gdKINQgI8nKDw+lbK3I8UsnUeyfUHXB3edY85m6qpqN/9NmhnBDGxY",
-	"qJcdZ+kQMX1QcpsmtgKEIR8/xvstRhbyCe3R/rOXnpJjdPfYvoHwTmevh0L6uIfCUsHyH9oY2HfGIsMS",
-	"kt6s/z49c6CIXyyyla1N3+dSp5gYNrwOsVHHRv5TDHm5YR+7y2fc2wqSPmpNo6pBL8HzjKc98Xrc+t/k",
-	"+euj/DXLXYp8Tb4r+jvd2G/rSyyYHb0R2y3eRyosDsB/qS0q4EVEJUxDlm3yK1OwANXqb0is6fF2+2cA",
-	"AAD//1zKz+jeDgAA",
+	"H4sIAAAAAAAC/8xWTW8bNxD9KwTbQwusLcXOSTc3RRshcWM4TS+BUVDLkZbRkkOTs5ZdQ/+9GFKy9kNW",
+	"VKMperFXy9nZee/NvJ1HWaL16MBRlJNHGcsKrEqX73Fh3DXcNhCJf/uAHgIZSKdglan5Yo7BKpKTzZ1C",
+	"0oMHOZGRgnELuV4XMsBtYwJoOfm8ibp5CsPZFyhJrgt5CTGqBVxD9OgiDF9pcwBfDt/RS8e3jJsjB2uI",
+	"ZTCeDDo5kRdXUzHHIC5MEG/wDoKIEKNBJ6xyagEWHAnltIgVrgQFVS6NW5wyMEM1v2P35MXVVBbyDkLM",
+	"uV+djk/HjAU9OOWNnMjz0/HpuSykV1QlFCP+s4BEKaNTXNdUy4n8FUgyWRl/Cj4bj/lfiY7ApUcI7mlU",
+	"ka13au0jZF30YL/9/fK92Obh49hYq8IDH6EF4dUCBAZRs+rpV4oaKW2NO1TyRQr4j+ou5Ovxq6Gmn5xq",
+	"qMJg/gKdg86HQb9gmBmtwfXgJwBCq1jNUAW9ge39QdDe/68gdwE1VIEjUyoCLZT3NV9yh7dkbagaJa3T",
+	"nGHcg/MKI3GuZAQyjzFE+gn1Qw9p6x2jLxFdF/D3AeZyIr8b7axmtPGZUcdkuLJ2qvuT1Wp1wgZz0oQa",
+	"XImaTeSFuTtGRKGB9VcVfDmuvpntkflSLUwpauOWIj4pPR4qPXV3qjZahBZLO7E3+IQSdpdvvh3krtjY",
+	"0FFqc1yPm/Px2bCya9AmQEmCUFRo4SXNml+XDNdkoIpga8mxVf8dBDN/ODiUDVV/5Cj226AsEIQoJ58f",
+	"Jfe5vG0g8JlTlieQcAnbvt51RXFgVG9ewgq7KtvJc+Rs9cUg4N5zISJX1iUqI2urzJyVAVp8ZboqUDVV",
+	"h5h6myOOczBfK9PrfLhX1qdv4Yd3e774g1b/8K7/yUkFiLKCcpmLjs3sZNPh8XCTfmxm19vAY03pCCfp",
+	"rTdO/0nG7ls2CumQctTghHeG1oFxBAsI6YRUoOdS9naklKXzSLEr6GbvrnPI2VxT123y3+SeUcLBSsRm",
+	"1nGWjhCjR6PXuWNrIBjq8XO631Jkqp+ZPd5/dqNn9DFz90TfYPDOxq+Hg/RxB0XkgvW/tDGIHxySoAry",
+	"vGH4MT+zp4jfkMQcG9f3ucyUUEPCm5iIOtTyn1LIt2v2Y3f5QgasIc9HY7lVLdgZBFnIvCfeHLf+b/L8",
+	"81b+muXOVLlk31X9ne7Yb+u3WDA788ZqM8713wEAAP//pZSsEXoNAAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

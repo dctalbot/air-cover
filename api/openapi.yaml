@@ -162,24 +162,6 @@ paths:
           description: Unauthorized
         '403':
           description: Forbidden
-  /users/{id}:
-    delete:
-      summary: Delete a user
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '204':
-          description: User deleted
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden (not an admin or deleting self)
-        '404':
-          description: Not found
 
 components:
   schemas:

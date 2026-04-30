@@ -61,8 +61,8 @@ Coverage has improved dramatically from **59.3% → 91.5%**, but the 100% gate s
 
 **Recommendation:** Focus on the three lowest-coverage packages:
 - `internal/cmd` (77.8%): Test the server startup paths — especially the master email provisioning branches and the `newRouter` construction.
-- `internal/db` (86.9%): Add tests for remaining error branches in `DeleteUser` (transaction rollback paths), `UseMagicLink` edge cases, and `CreateUser` `LastInsertId` failures.
-- `internal/api` (89.8%): Cover remaining error branches in `GetApp` (show pagination edge cases), `PostUsers` validation paths, and `DeleteUsersId`.
+- `internal/db` (86.9%): Add tests for remaining error branches in `UseMagicLink` edge cases, and `CreateUser` `LastInsertId` failures.
+- `internal/api` (89.8%): Cover remaining error branches in `GetApp` (show pagination edge cases) and `PostUsers` validation paths.
 
 ---
 
@@ -306,6 +306,5 @@ These patterns are exemplary and should be preserved:
 - **Ownership authorization on DELETE** — the handler checks `sr.UserID == userID` before deleting, preventing cross-user data deletion.
 - **Per-IP rate limiting on auth** — `httprate.LimitByIP` on login and verify endpoints prevents brute-force and quota exhaustion.
 - **Configurable email sender** — `FromEmail` and `SendGridAPIKey` from config; `HTTPClient` injected with timeout; console fallback in non-production.
-- **Role-based access control** — `RequireAdmin` middleware protects admin endpoints; self-deletion prevented on user management.
-- **Transactional user deletion** — `DeleteUser` cascades cleanup of sessions, magic links, and sub-requests within a transaction.
+- **Role-based access control** — `RequireAdmin` middleware protects admin endpoints.
 - **Safe type assertions** — all context value extractions use the comma-ok idiom consistently across handlers.
