@@ -163,6 +163,38 @@ paths:
         '403':
           description: Forbidden
 
+  /users/{id}:
+    patch:
+      summary: Update a user's status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_enabled:
+                  type: boolean
+              required:
+                - is_enabled
+      responses:
+        '204':
+          description: User updated
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
+
 components:
   schemas:
     LoginRequest:

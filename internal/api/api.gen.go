@@ -69,6 +69,11 @@ type PostUsersFormdataBody struct {
 // PostUsersFormdataBodyRole defines parameters for PostUsers.
 type PostUsersFormdataBodyRole string
 
+// PatchUsersIdJSONBody defines parameters for PatchUsersId.
+type PatchUsersIdJSONBody struct {
+	IsEnabled bool `json:"is_enabled"`
+}
+
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody = LoginRequest
 
@@ -80,6 +85,9 @@ type PostSubRequestsFormdataRequestBody PostSubRequestsFormdataBody
 
 // PostUsersFormdataRequestBody defines body for PostUsers for application/x-www-form-urlencoded ContentType.
 type PostUsersFormdataRequestBody PostUsersFormdataBody
+
+// PatchUsersIdJSONRequestBody defines body for PatchUsersId for application/json ContentType.
+type PatchUsersIdJSONRequestBody PatchUsersIdJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -113,6 +121,9 @@ type ServerInterface interface {
 	// Create a new user
 	// (POST /users)
 	PostUsers(w http.ResponseWriter, r *http.Request)
+	// Update a user's status
+	// (PATCH /users/{id})
+	PatchUsersId(w http.ResponseWriter, r *http.Request, id int)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -176,6 +187,12 @@ func (_ Unimplemented) DeleteSubRequestsId(w http.ResponseWriter, r *http.Reques
 // Create a new user
 // (POST /users)
 func (_ Unimplemented) PostUsers(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update a user's status
+// (PATCH /users/{id})
+func (_ Unimplemented) PatchUsersId(w http.ResponseWriter, r *http.Request, id int) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -359,6 +376,31 @@ func (siw *ServerInterfaceWrapper) PostUsers(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// PatchUsersId operation middleware
+func (siw *ServerInterfaceWrapper) PatchUsersId(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchUsersId(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -502,6 +544,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/users", wrapper.PostUsers)
 	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/users/{id}", wrapper.PatchUsersId)
+	})
 
 	return r
 }
@@ -509,22 +554,23 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

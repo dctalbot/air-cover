@@ -221,3 +221,17 @@ func (r *Repository) ListUsers(ctx context.Context) ([]*models.User, error) {
 	return users, nil
 }
 
+func (r *Repository) UpdateUserEnabled(ctx context.Context, id int, enabled bool) error {
+	res, err := r.db.ExecContext(ctx, "UPDATE users SET is_enabled = ? WHERE id = ?", enabled, id)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

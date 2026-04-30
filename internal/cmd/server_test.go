@@ -384,8 +384,9 @@ func TestNewRouter(t *testing.T) {
 		t.Errorf("expected status 400 for invalid ID, got %d", rr.Code)
 	}
 
-	// Test invalid ID in users Delete route (now handled by generated wrapper)
-	req = httptest.NewRequest(http.MethodDelete, "/users/abc", nil)
+	// Test invalid ID in users Patch route (now handled by generated wrapper)
+	req = httptest.NewRequest(http.MethodPatch, "/users/abc", strings.NewReader(`{"is_enabled":false}`))
+	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
 	rr = httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
@@ -393,8 +394,9 @@ func TestNewRouter(t *testing.T) {
 		t.Errorf("expected status 400 for invalid user ID, got %d", rr.Code)
 	}
 
-	// Test valid wiring for DELETE /users/{id}
-	req = httptest.NewRequest(http.MethodDelete, "/users/123", nil)
+	// Test valid wiring for PATCH /users/{id}
+	req = httptest.NewRequest(http.MethodPatch, "/users/123", strings.NewReader(`{"is_enabled":false}`))
+	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
 	rr = httptest.NewRecorder()
 	r.ServeHTTP(rr, req)

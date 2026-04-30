@@ -310,7 +310,6 @@ func TestRepositoryErrors(t *testing.T) {
 		t.Error("expected error with cancelled context in DeleteSubRequest")
 	}
 
-
 	_, err = repo.ListUsers(ctx)
 	if err == nil {
 		t.Error("expected error with cancelled context in ListUsers")
@@ -356,7 +355,6 @@ func TestListSubRequestsErrors(t *testing.T) {
 		t.Error("expected error with closed db in ListUsers")
 	}
 }
-
 
 func TestScanErrors(t *testing.T) {
 	dbConn, err := InitDB("file::memory:?cache=shared")

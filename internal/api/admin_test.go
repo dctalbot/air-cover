@@ -224,6 +224,75 @@ func TestServer_PostUsers(t *testing.T) {
 	})
 }
 
+func TestServer_PatchUsersId(t *testing.T) {
+	repo := setupTestDB(t)
+	s := NewServer(repo, nil, nil)
+	h := Handler(s)
+
+	admin, _ := repo.CreateUser(context.Background(), "admin@example.com", "admin")
+	member, _ := repo.CreateUser(context.Background(), "member@example.com", "member")
+
+	tests := []struct {
+		name          string
+		currentUserID int
+		targetUserID  int
+		isEnabled     bool
+		wantStatus    int
+	}{
+		{
+			name:          "admin bans member",
+			currentUserID: admin.ID,
+			targetUserID:  member.ID,
+			isEnabled:     false,
+			wantStatus:    http.StatusNoContent,
+		},
+		{
+			name:          "admin reinstates member",
+			currentUserID: admin.ID,
+			targetUserID:  member.ID,
+			isEnabled:     true,
+			wantStatus:    http.StatusNoContent,
+		},
+		{
+			name:          "admin cannot ban self",
+			currentUserID: admin.ID,
+			targetUserID:  admin.ID,
+			isEnabled:     false,
+			wantStatus:    http.StatusForbidden,
+		},
+		{
+			name:          "ban non-existent user",
+			currentUserID: admin.ID,
+			targetUserID:  999,
+			isEnabled:     false,
+			wantStatus:    http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := fmt.Sprintf(`{"is_enabled": %v}`, tt.isEnabled)
+			req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/users/%d", tt.targetUserID), bytes.NewBufferString(body))
+			req.Header.Set("Content-Type", "application/json")
+			ctx := context.WithValue(req.Context(), UserIDKey, tt.currentUserID)
+			req = req.WithContext(ctx)
+
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
+
+			if rr.Code != tt.wantStatus {
+				t.Errorf("expected status %v, got %v", tt.wantStatus, rr.Code)
+			}
+
+			if tt.wantStatus == http.StatusNoContent {
+				user, _ := repo.GetUserByID(context.Background(), tt.targetUserID)
+				if user.IsEnabled != tt.isEnabled {
+					t.Errorf("expected is_enabled %v, got %v", tt.isEnabled, user.IsEnabled)
+				}
+			}
+		})
+	}
+}
 
 func TestUnimplemented_Admin(t *testing.T) {
 	u := Unimplemented{}
@@ -233,6 +302,11 @@ func TestUnimplemented_Admin(t *testing.T) {
 		t.Errorf("expected NotImplemented, got %v", rr.Code)
 	}
 
+	rr = httptest.NewRecorder()
+	u.PatchUsersId(rr, nil, 1)
+	if rr.Code != http.StatusNotImplemented {
+		t.Errorf("expected NotImplemented, got %v", rr.Code)
+	}
 
 	rr = httptest.NewRecorder()
 	u.PostUsers(rr, nil)
