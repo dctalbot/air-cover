@@ -257,7 +257,6 @@ func TestServer_DeleteSubRequestsId(t *testing.T) {
 		PostedByUserID: u1.ID,
 		StartTime:      time.Now(),
 		EndTime:        time.Now().Add(1 * time.Hour),
-		Status:         "open",
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
 
@@ -766,7 +765,6 @@ func TestServer_DeleteSubRequestsId_DBError(t *testing.T) {
 		PostedByUserID: u.ID,
 		StartTime:      time.Now(),
 		EndTime:        time.Now().Add(time.Hour),
-		Status:         "open",
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
 	dbConn.Close() // Force GetSubRequestByID to fail
@@ -870,7 +868,6 @@ func TestServer_DeleteSubRequestsId_DeleteError(t *testing.T) {
 		PostedByUserID: u.ID,
 		StartTime:      time.Now(),
 		EndTime:        time.Now().Add(time.Hour),
-		Status:         "open",
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
 	dbConn.Close() // Force GetSubRequestByID to fail
@@ -935,7 +932,6 @@ func TestServer_DeleteSubRequestsId_Unauthorized(t *testing.T) {
 		PostedByUserID: u1.ID,
 		StartTime:      time.Now(),
 		EndTime:        time.Now().Add(time.Hour),
-		Status:         "open",
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
 
@@ -983,7 +979,6 @@ func TestServer_DeleteSubRequestsId_NoUserInContext(t *testing.T) {
 		PostedByUserID: u1.ID,
 		StartTime:      time.Now(),
 		EndTime:        time.Now().Add(time.Hour),
-		Status:         "open",
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
 

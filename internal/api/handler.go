@@ -128,7 +128,7 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 			StartTime:      sr.StartTime.Format("Mon, Jan 02 at 3:04 PM"),
 			EndTime:        sr.EndTime.Format("Mon, Jan 02 at 3:04 PM"),
 			Notes:          sr.Notes,
-			Status:         sr.Status,
+			Status:         sr.GetStatus(),
 			CanDelete:      sr.PostedByUserID == userID,
 		})
 	}
@@ -290,7 +290,6 @@ func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 		StartTime:      startTime,
 		EndTime:        endTime,
 		Notes:          notes,
-		Status:         "open",
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 	}

@@ -22,7 +22,13 @@ type SubRequest struct {
 	StartTime      time.Time `json:"start_time"`
 	EndTime        time.Time `json:"end_time"`
 	Notes          string    `json:"notes"`
-	Status         string    `json:"status"` // "open", "filled", "cancelled"
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+func (s *SubRequest) GetStatus() string {
+	if s.TakenByUserID == nil {
+		return "open"
+	}
+	return "filled"
 }

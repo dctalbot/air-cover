@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS sub_requests (
     start_time DATETIME NOT NULL,
     end_time DATETIME NOT NULL,
     notes TEXT,
-    status TEXT DEFAULT 'open',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(posted_by_user_id) REFERENCES users(id),

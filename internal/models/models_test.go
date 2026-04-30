@@ -28,12 +28,21 @@ func TestModels(t *testing.T) {
 		StartTime:      time.Now(),
 		EndTime:        time.Now().Add(time.Hour),
 		Notes:          "test",
-		Status:         "open",
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 	}
 	if sr.ShowID != 42 {
 		t.Errorf("expected ShowID 42, got %d", sr.ShowID)
+	}
+
+	if sr.GetStatus() != "open" {
+		t.Errorf("expected status open, got %s", sr.GetStatus())
+	}
+
+	uid := 1
+	sr.TakenByUserID = &uid
+	if sr.GetStatus() != "filled" {
+		t.Errorf("expected status filled, got %s", sr.GetStatus())
 	}
 
 	p := Persona{ID: 1, Name: "DJ Test", Email: "dj@example.com"}

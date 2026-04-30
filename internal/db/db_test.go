@@ -165,7 +165,6 @@ func TestRepository(t *testing.T) {
 		StartTime:      time.Now(),
 		EndTime:        time.Now().Add(1 * time.Hour),
 		Notes:          "test notes",
-		Status:         "open",
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 	}
@@ -400,7 +399,7 @@ func TestScanErrors(t *testing.T) {
 	_, err = dbConn.Exec(`
 		CREATE TABLE sub_requests (
 			id TEXT, show_id TEXT, posted_by_user_id TEXT, taken_by_user_id TEXT, start_time TEXT, end_time TEXT, 
-			notes TEXT, status TEXT, created_at TEXT, updated_at TEXT
+			notes TEXT, created_at TEXT, updated_at TEXT
 		)
 	`)
 	if err != nil {
@@ -409,8 +408,8 @@ func TestScanErrors(t *testing.T) {
 
 	// Insert garbage data
 	_, err = dbConn.Exec(`
-		INSERT INTO sub_requests (id, show_id, posted_by_user_id, taken_by_user_id, start_time, end_time, notes, status, created_at, updated_at)
-		VALUES ('bad-id', 'not-an-int', 'not-an-int', 'not-an-int', 'not-a-date', 'not-a-date', 'notes', 'open', 'not-a-date', 'not-a-date')
+		INSERT INTO sub_requests (id, show_id, posted_by_user_id, taken_by_user_id, start_time, end_time, notes, created_at, updated_at)
+		VALUES ('bad-id', 'not-an-int', 'not-an-int', 'not-an-int', 'not-a-date', 'not-a-date', 'notes', 'not-a-date', 'not-a-date')
 	`)
 	if err != nil {
 		t.Fatal(err)

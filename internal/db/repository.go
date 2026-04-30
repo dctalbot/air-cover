@@ -124,9 +124,9 @@ func (r *Repository) DeleteSessionsByUserID(ctx context.Context, userID int) err
 
 func (r *Repository) CreateSubRequest(ctx context.Context, sr *models.SubRequest) error {
 	res, err := r.db.ExecContext(ctx, `
-		INSERT INTO sub_requests (show_id, posted_by_user_id, taken_by_user_id, start_time, end_time, notes, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, sr.ShowID, sr.PostedByUserID, sr.TakenByUserID, sr.StartTime, sr.EndTime, sr.Notes, sr.Status, sr.CreatedAt, sr.UpdatedAt)
+		INSERT INTO sub_requests (show_id, posted_by_user_id, taken_by_user_id, start_time, end_time, notes, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, sr.ShowID, sr.PostedByUserID, sr.TakenByUserID, sr.StartTime, sr.EndTime, sr.Notes, sr.CreatedAt, sr.UpdatedAt)
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (r *Repository) CreateSubRequest(ctx context.Context, sr *models.SubRequest
 }
 func (r *Repository) ListSubRequests(ctx context.Context) ([]*models.SubRequest, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT sr.id, sr.show_id, sr.posted_by_user_id, sr.taken_by_user_id, u.email, sr.start_time, sr.end_time, sr.notes, sr.status, sr.created_at, sr.updated_at
+		SELECT sr.id, sr.show_id, sr.posted_by_user_id, sr.taken_by_user_id, u.email, sr.start_time, sr.end_time, sr.notes, sr.created_at, sr.updated_at
 		FROM sub_requests sr
 		JOIN users u ON sr.posted_by_user_id = u.id
 		ORDER BY sr.created_at DESC
@@ -154,7 +154,7 @@ func (r *Repository) ListSubRequests(ctx context.Context) ([]*models.SubRequest,
 		var sr models.SubRequest
 		err := rows.Scan(
 			&sr.ID, &sr.ShowID, &sr.PostedByUserID, &sr.TakenByUserID, &sr.RequesterEmail,
-			&sr.StartTime, &sr.EndTime, &sr.Notes, &sr.Status, &sr.CreatedAt, &sr.UpdatedAt,
+			&sr.StartTime, &sr.EndTime, &sr.Notes, &sr.CreatedAt, &sr.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -170,11 +170,11 @@ func (r *Repository) ListSubRequests(ctx context.Context) ([]*models.SubRequest,
 func (r *Repository) GetSubRequestByID(ctx context.Context, id int) (*models.SubRequest, error) {
 	var sr models.SubRequest
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, show_id, posted_by_user_id, taken_by_user_id, start_time, end_time, notes, status, created_at, updated_at
+		SELECT id, show_id, posted_by_user_id, taken_by_user_id, start_time, end_time, notes, created_at, updated_at
 		FROM sub_requests
 		WHERE id = ?
 	`, id).Scan(
-		&sr.ID, &sr.ShowID, &sr.PostedByUserID, &sr.TakenByUserID, &sr.StartTime, &sr.EndTime, &sr.Notes, &sr.Status, &sr.CreatedAt, &sr.UpdatedAt,
+		&sr.ID, &sr.ShowID, &sr.PostedByUserID, &sr.TakenByUserID, &sr.StartTime, &sr.EndTime, &sr.Notes, &sr.CreatedAt, &sr.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
