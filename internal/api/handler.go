@@ -158,24 +158,24 @@ func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type userView struct {
-		ID        int
-		Email     string
-		Role      string
-		CreatedAt string
-		IsEnabled bool
-		CanBan    bool
+		ID            int
+		Email         string
+		Role          string
+		CreatedAt     string
+		IsEnabled     bool
+		CanDeactivate bool
 	}
 
 	currentUserID, _ := r.Context().Value(UserIDKey).(int)
 	var views []userView
 	for _, u := range users {
 		views = append(views, userView{
-			ID:        u.ID,
-			Email:     u.Email,
-			Role:      u.Role,
-			CreatedAt: u.CreatedAt.Format("Jan 02, 2006 at 3:04 PM"),
-			IsEnabled: u.IsEnabled,
-			CanBan:    u.ID != currentUserID,
+			ID:            u.ID,
+			Email:         u.Email,
+			Role:          u.Role,
+			CreatedAt:     u.CreatedAt.Format("Jan 02, 2006 at 3:04 PM"),
+			IsEnabled:     u.IsEnabled,
+			CanDeactivate: u.ID != currentUserID,
 		})
 	}
 
@@ -369,9 +369,9 @@ func (s *Server) PatchUsersId(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 
-	// Only check self-ban if is_enabled is provided and false
+	// Only check self-deactivation if is_enabled is provided and false
 	if req.IsEnabled != nil && !*req.IsEnabled && currentUserID == id {
-		http.Error(w, "Cannot ban your own account", http.StatusForbidden)
+		http.Error(w, "Cannot deactivate your own account", http.StatusForbidden)
 		return
 	}
 

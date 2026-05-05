@@ -237,7 +237,7 @@ func TestServer_PatchUsersId(t *testing.T) {
 		check          func(t *testing.T, repo *db.Repository, targetID int)
 	}{
 		{
-			name:        "admin bans member",
+			name:        "admin deactivates member",
 			currentUser: "admin@example.com",
 			targetUser:  "member@example.com",
 			body:        `{"is_enabled": false}`,
@@ -269,7 +269,7 @@ func TestServer_PatchUsersId(t *testing.T) {
 			},
 		},
 		{
-			name:        "admin cannot ban self",
+			name:        "admin cannot deactivate self",
 			currentUser: "admin@example.com",
 			targetUser:  "admin@example.com",
 			body:        `{"is_enabled": false}`,
@@ -296,7 +296,7 @@ func TestServer_PatchUsersId(t *testing.T) {
 			wantStatus:  http.StatusBadRequest,
 		},
 		{
-			name:           "ban non-existent user",
+			name:           "deactivate non-existent user",
 			currentUser:    "admin@example.com",
 			targetIDOffset: 999,
 			body:           `{"is_enabled": false}`,
