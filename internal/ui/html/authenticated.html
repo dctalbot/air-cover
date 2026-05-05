@@ -6,22 +6,26 @@
     <title>Air Cover</title>
   </head>
   <body>
-    <div style="display: flex; justify-content: space-between; align-items: center;">
+    <div
+      style="display: flex; justify-content: space-between; align-items: center"
+    >
       <h1>Welcome to Air Cover</h1>
-      <div style="display: flex; align-items: center; gap: 1rem;">
+      <div style="display: flex; align-items: center; gap: 1rem">
         {{if .IsAdmin}}
         <a href="/admin">Admin</a>
         {{end}}
-        <div style="display: flex; flex-direction: column; align-items: flex-end;">
-          <span style="font-size: 0.8rem; color: #666;">{{.Email}}</span>
-          <form action="/auth/logout" method="POST" style="margin: 0;">
+        <div
+          style="display: flex; flex-direction: column; align-items: flex-end"
+        >
+          <span style="font-size: 0.8rem; color: #666">{{.Email}}</span>
+          <form action="/auth/logout" method="POST" style="margin: 0">
             <button type="submit">Log Out</button>
           </form>
         </div>
       </div>
     </div>
     <form action="/sub-requests" method="POST">
-      <label for="show-select">Shows</label>
+      <label for="show-select">Show</label>
       <select id="show-select" name="show" required>
         {{if not .Shows}}
         <option value="">No shows available</option>
@@ -34,13 +38,12 @@
         {{end}} {{end}}
       </select>
       <br />
-      <label for="start-time">Start Time</label>
+      <label for="start-time">Start Time (station time zone)</label>
       <input type="datetime-local" id="start-time" name="start_time" required />
       <br />
-      <label for="end-time">End Time</label>
+      <label for="end-time">End Time (station time zone)</label>
       <input type="datetime-local" id="end-time" name="end_time" required />
       <br />
-      <label for="blockquote-preview">Preview</label>
       <blockquote id="blockquote-preview">
         <p>
           <b>{{.Email}}</b> is requesting a sub<span id="selected-show"></span
@@ -82,10 +85,11 @@
           <strong>Notes:</strong>
           <p>{{.Notes}}</p>
         </div>
-        {{end}}
-        {{if .CanDelete}}
-        <div class="actions" style="margin-top: 1rem;">
-          <button class="delete-btn" onclick="deleteRequest('{{.ID}}')">Delete Request</button>
+        {{end}} {{if .CanDelete}}
+        <div class="actions" style="margin-top: 1rem">
+          <button class="delete-btn" onclick="deleteRequest('{{.ID}}')">
+            Delete Request
+          </button>
         </div>
         {{end}}
       </div>
@@ -94,7 +98,10 @@
 
     <style>
       body {
-        font-family: system-ui, -apple-system, sans-serif;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
         line-height: 1.5;
         max-width: 800px;
         margin: 0 auto;
