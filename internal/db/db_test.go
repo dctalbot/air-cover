@@ -236,6 +236,36 @@ func TestRepository(t *testing.T) {
 		t.Error("expected users[0].IsEnabled to be true")
 	}
 
+	// UpdateUser
+	newRole := "admin"
+	newIsEnabled := false
+	err = repo.UpdateUser(ctx, u.ID, &newRole, &newIsEnabled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uUpdated, err := repo.GetUserByID(ctx, u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uUpdated.Role != "admin" {
+		t.Fatalf("expected role admin, got %s", uUpdated.Role)
+	}
+	if uUpdated.IsEnabled {
+		t.Error("expected IsEnabled to be false")
+	}
+
+	// UpdateUser with nil args
+	err = repo.UpdateUser(ctx, u.ID, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// UpdateUser err not found
+	err = repo.UpdateUser(ctx, 99999, &newRole, nil)
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+
 }
 
 func TestRepositoryErrors(t *testing.T) {
@@ -315,6 +345,18 @@ func TestRepositoryErrors(t *testing.T) {
 		t.Error("expected error with cancelled context in ListUsers")
 	}
 
+	err = repo.UpdateUser(ctx, 1, nil, nil)
+	// nil args return early without error
+	if err != nil {
+		t.Errorf("expected nil error with nil args and cancelled context, got %v", err)
+	}
+
+	role := "admin"
+	err = repo.UpdateUser(ctx, 1, &role, nil)
+	if err == nil {
+		t.Error("expected error with cancelled context in UpdateUser")
+	}
+
 	// Test unique constraint violation
 	ctx = context.Background()
 	_, _ = repo.CreateUser(ctx, "unique@example.com", "member")
@@ -332,6 +374,14 @@ func TestInitDBErrors(t *testing.T) {
 	_, err := InitDB("file:/nonexistent/path/db.sqlite?mode=ro")
 	if err == nil {
 		t.Error("expected error for nonexistent path in InitDB")
+	}
+
+	// Wait, libsql actually accepts practically any URI until ping?
+	// Let's try to pass an invalid scheme to make sql.Open fail if the driver rejects it.
+	// The libsql driver supports specific schemes. If we provide something it rejects completely at Open time:
+	_, err = InitDB("invalid-uri-scheme:///")
+	if err == nil {
+		t.Error("expected error for invalid URI scheme in InitDB")
 	}
 }
 
@@ -429,5 +479,45 @@ func TestInitDB_MigrationError(t *testing.T) {
 	_, err = InitDB(f.Name())
 	if err == nil {
 		t.Log("Note: root/owner can sometimes bypass 0000 permissions")
+	}
+}
+
+func TestRunMigration(t *testing.T) {
+	dbConn, err := InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dbConn.Close()
+
+	if err := RunMigration(dbConn, "status"); err != nil {
+		t.Fatalf("expected no error for status, got %v", err)
+	}
+
+	if err := RunMigration(dbConn, "down"); err != nil {
+		t.Fatalf("expected no error for down, got %v", err)
+	}
+
+	if err := RunMigration(dbConn, "up"); err != nil {
+		t.Fatalf("expected no error for up, got %v", err)
+	}
+
+	if err := RunMigration(dbConn, "reset"); err != nil {
+		t.Fatalf("expected no error for reset, got %v", err)
+	}
+
+	if err := RunMigration(dbConn, "invalid"); err == nil {
+		t.Fatal("expected error for invalid command")
+	}
+}
+
+func TestRunMigrationError(t *testing.T) {
+	dbConn, err := InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dbConn.Close()
+
+	if err := RunMigration(dbConn, "up"); err == nil {
+		t.Fatal("expected error for up with closed db")
 	}
 }
