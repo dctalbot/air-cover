@@ -8,8 +8,10 @@
   <body>
     <h1>Air Cover</h1>
     <p>Enter your account email address to receive a login link.</p>
-    {{if .Message}}
-    <p id="message" role="status"><strong>{{.Message}}</strong></p>
+    {{if .Submitted}}
+    <p id="message" role="status">
+      <strong>If an account exists, an email has been sent.</strong>
+    </p>
     {{end}}
     <form id="magic-link-form" action="/auth/login" method="POST">
       <label for="email">Email</label>

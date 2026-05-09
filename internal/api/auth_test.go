@@ -483,8 +483,8 @@ func TestAuthHandler_Login_Form(t *testing.T) {
 		t.Errorf("expected 303, got %v", rr.Code)
 	}
 	location := rr.Header().Get("Location")
-	if !strings.HasPrefix(location, "/?message=") {
-		t.Errorf("expected redirect to /, got %s", location)
+	if location != "/?submitted=true" {
+		t.Errorf("expected redirect to /?submitted=true, got %s", location)
 	}
 }
 

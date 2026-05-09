@@ -55,9 +55,8 @@ func (s *Server) Get(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	message := r.URL.Query().Get("message")
 	ui.RenderUnauthenticated(w, map[string]any{
-		"Message": message,
+		"Submitted": r.URL.Query().Get("submitted") == "true",
 	})
 }
 

@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -132,7 +131,7 @@ func (h *AuthHandler) sendLoginResponse(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	http.Redirect(w, r, "/?message="+url.QueryEscape(message), http.StatusSeeOther)
+	http.Redirect(w, r, "/?submitted=true", http.StatusSeeOther)
 }
 
 func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request, rawToken string) {

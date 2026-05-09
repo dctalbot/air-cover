@@ -106,6 +106,12 @@ func TestIndexHandler(t *testing.T) {
 			wantStatus: http.StatusFound,
 			wantHeader: "/app",
 		},
+		{
+			name:       "submitted success",
+			path:       "/?submitted=true",
+			wantStatus: http.StatusOK,
+			wantBody:   "If an account exists, an email has been sent.",
+		},
 	}
 
 	for _, tt := range tests {
