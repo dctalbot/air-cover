@@ -178,6 +178,13 @@ func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	sort.Slice(views, func(i, j int) bool {
+		if views[i].IsEnabled == views[j].IsEnabled {
+			return views[i].ID < views[j].ID
+		}
+		return views[i].IsEnabled
+	})
+
 	email, _ := r.Context().Value(UserEmailKey).(string)
 
 	ui.RenderAdmin(w, map[string]any{
