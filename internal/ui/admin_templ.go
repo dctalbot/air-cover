@@ -47,7 +47,7 @@ func Admin(users []UserView, email string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " <a href=\"/app\" style=\"display: inline-block; margin-bottom: 0.5rem; color: #2563eb; text-decoration: none\">&larr; Go to sub board</a>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -63,10 +63,6 @@ func Admin(users []UserView, email string) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<a href=\"/app\">Back to App</a>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
 				templ_7745c5c3_Err = UserMenu(email).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -77,22 +73,22 @@ func Admin(users []UserView, email string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " <hr><div style=\"display: flex; justify-content: flex-end; margin-bottom: 1rem\"><form action=\"/users/import/spinitron\" method=\"POST\" style=\"margin: 0\"><button type=\"submit\" style=\"\n\t\t\t\t\tbackground: #2563eb;\n\t\t\t\t\tcolor: white;\n\t\t\t\t\tborder: none;\n\t\t\t\t\tpadding: 0.5rem 1rem;\n\t\t\t\t\tborder-radius: 4px;\n\t\t\t\t\tcursor: pointer;\n\t\t\t\t  \">Import all Spinitron DJs</button></form></div><section style=\"\n\t\t\t\tmargin-bottom: 2rem;\n\t\t\t\tbackground: #f0f9ff;\n\t\t\t\tborder: 1px solid #bae6fd;\n\t\t\t\tborder-radius: 8px;\n\t\t\t\tpadding: 0.5rem;\n\t\t\t  \"><form action=\"/users\" method=\"POST\"><div style=\"flex: 1; min-width: 200px; margin-bottom: 0.5rem\"><label for=\"email\">Add a user</label> <input type=\"email\" id=\"email\" name=\"email\" required placeholder=\"dj@example.com\" style=\"\n\t\t\t\t\t  width: 100%;\n\t\t\t\t\t  padding: 0.5rem;\n\t\t\t\t\t  border: 1px solid #ccc;\n\t\t\t\t\t  box-sizing: border-box;\n\t\t\t\t\t\"></div><button type=\"submit\">Add user</button></form></section><div id=\"users-list\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " <hr><div style=\"display: flex; justify-content: flex-end; margin-bottom: 1rem\"><form action=\"/users/import/spinitron\" method=\"POST\" style=\"margin: 0\"><button type=\"submit\" style=\"\n\t\t\t\t\tbackground: #2563eb;\n\t\t\t\t\tcolor: white;\n\t\t\t\t\tborder: none;\n\t\t\t\t\tpadding: 0.5rem 1rem;\n\t\t\t\t\tborder-radius: 4px;\n\t\t\t\t\tcursor: pointer;\n\t\t\t\t  \">Import all Spinitron DJs</button></form></div><section style=\"\n\t\t\t\tmargin-bottom: 2rem;\n\t\t\t\tbackground: #f0f9ff;\n\t\t\t\tborder: 1px solid #bae6fd;\n\t\t\t\tborder-radius: 8px;\n\t\t\t\tpadding: 0.5rem;\n\t\t\t  \"><form action=\"/users\" method=\"POST\"><div style=\"flex: 1; min-width: 200px; margin-bottom: 0.5rem\"><label for=\"email\">Add a user</label> <input type=\"email\" id=\"email\" name=\"email\" required placeholder=\"dj@example.com\" style=\"\n\t\t\t\t\t  width: 100%;\n\t\t\t\t\t  padding: 0.5rem;\n\t\t\t\t\t  border: 1px solid #ccc;\n\t\t\t\t\t  box-sizing: border-box;\n\t\t\t\t\t\"></div><button type=\"submit\">Add user</button></form></section><div id=\"users-list\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if len(users) == 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<p>No users found.</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<p>No users found.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<table class=\"users-table\"><thead><tr><th>Email</th><th>Role</th><th>Actions</th></tr></thead> <tbody>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<table class=\"users-table\"><thead><tr><th>Email</th><th>Role</th><th>Actions</th></tr></thead> <tbody>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				for _, user := range users {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<tr id=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<tr id=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -105,7 +101,7 @@ func Admin(users []UserView, email string) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"><td>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\"><td>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -118,7 +114,7 @@ func Admin(users []UserView, email string) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</td><td>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</td><td>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -128,7 +124,7 @@ func Admin(users []UserView, email string) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<span class=\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<span class=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -141,7 +137,7 @@ func Admin(users []UserView, email string) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -154,12 +150,12 @@ func Admin(users []UserView, email string) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</span>")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</span>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</td><td class=\"user-actions\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</td><td class=\"user-actions\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -173,7 +169,7 @@ func Admin(users []UserView, email string) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<button class=\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<button class=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -186,7 +182,7 @@ func Admin(users []UserView, email string) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" onclick=\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" onclick=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -195,22 +191,22 @@ func Admin(users []UserView, email string) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						if user.IsEnabled {
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "Deactivate")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "Deactivate")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
 						} else {
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "Reinstate")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "Reinstate")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</button> ")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</button> ")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -219,7 +215,7 @@ func Admin(users []UserView, email string) templ.Component {
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<button class=\"role-button\" onclick=\"")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<button class=\"role-button\" onclick=\"")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -228,7 +224,7 @@ func Admin(users []UserView, email string) templ.Component {
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\">")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\">")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -253,23 +249,23 @@ func Admin(users []UserView, email string) templ.Component {
 									return templ_7745c5c3_Err
 								}
 							}
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</button>")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</button>")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
 						}
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</td></tr>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</td></tr>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</tbody></table>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</tbody></table>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</div><script>\n\t\t\tasync function toggleUserStatus(userId, currentIsEnabled) {\n\t\t\t\tconst newStatus = !currentIsEnabled;\n\t\t\t\tconst action = newStatus ? \"activate\" : \"deactivate\";\n\t\t\t\tif (!confirm(`Are you sure you want to ${action} this user?`)) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\ttry {\n\t\t\t\t\tconst response = await fetch(`/users/${userId}`, {\n\t\t\t\t\t\tmethod: \"PATCH\",\n\t\t\t\t\t\theaders: {\n\t\t\t\t\t\t\t\"Content-Type\": \"application/json\",\n\t\t\t\t\t\t},\n\t\t\t\t\t\tbody: JSON.stringify({ is_enabled: newStatus }),\n\t\t\t\t\t});\n\n\t\t\t\t\tif (response.ok) {\n\t\t\t\t\t\twindow.location.reload();\n\t\t\t\t\t} else {\n\t\t\t\t\t\tconst error = await response.text();\n\t\t\t\t\t\talert(`Failed to ${action} user: ${error}`);\n\t\t\t\t\t}\n\t\t\t\t} catch (err) {\n\t\t\t\t\tconsole.error(\"Update failed:\", err);\n\t\t\t\t\talert(`Failed to ${action} user due to a network error.`);\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tasync function toggleUserRole(userId, currentRole) {\n\t\t\t\tconst newRole = currentRole === \"admin\" ? \"member\" : \"admin\";\n\t\t\t\tconst action = newRole === \"admin\" ? \"promote\" : \"demote\";\n\t\t\t\tif (\n\t\t\t\t\t!confirm(\n\t\t\t\t\t\t`Are you sure you want to ${action} this user to ${newRole}?`,\n\t\t\t\t\t)\n\t\t\t\t) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\ttry {\n\t\t\t\t\tconst response = await fetch(`/users/${userId}`, {\n\t\t\t\t\t\tmethod: \"PATCH\",\n\t\t\t\t\t\theaders: {\n\t\t\t\t\t\t\t\"Content-Type\": \"application/json\",\n\t\t\t\t\t\t},\n\t\t\t\t\t\tbody: JSON.stringify({ role: newRole }),\n\t\t\t\t\t});\n\n\t\t\t\t\tif (response.ok) {\n\t\t\t\t\t\twindow.location.reload();\n\t\t\t\t\t} else {\n\t\t\t\t\t\tconst error = await response.text();\n\t\t\t\t\t\talert(`Failed to ${action} user: ${error}`);\n\t\t\t\t\t}\n\t\t\t\t} catch (err) {\n\t\t\t\t\tconsole.error(\"Update failed:\", err);\n\t\t\t\t\talert(`Failed to ${action} user due to a network error.`);\n\t\t\t\t}\n\t\t\t}\n\t\t</script> <style>\n\t\t\t.users-table {\n\t\t\t\twidth: 100%;\n\t\t\t\tborder-collapse: collapse;\n\t\t\t\tmargin-top: 1rem;\n\t\t\t}\n\n\t\t\t.users-table th,\n\t\t\t.users-table td {\n\t\t\t\ttext-align: left;\n\t\t\t\tborder-bottom: 1px solid #eee;\n\t\t\t\twhite-space: nowrap;\n\t\t\t\tdisplay: revert;\n\t\t\t}\n\n\t\t\t.users-table th {\n\t\t\t\tbackground-color: #f9f9f9;\n\t\t\t\tfont-weight: 600;\n\t\t\t\tborder-bottom: 2px solid #ddd;\n\t\t\t}\n\n\t\t\t.users-table tbody tr {\n\t\t\t\theight: 1rem;\n\t\t\t}\n\n\t\t\t.users-table tbody tr:hover {\n\t\t\t\tbackground-color: #f5f5f5;\n\t\t\t}\n\n\t\t\t.user-actions {\n\t\t\t\tdisplay: flex;\n\t\t\t\tgap: 0.5rem;\n\t\t\t}\n\n\t\t\t.role-badge {\n\t\t\t\tdisplay: inline-block;\n\t\t\t\tpadding: 0.125rem 0.5rem;\n\t\t\t\tborder-radius: 4px;\n\t\t\t\tfont-size: 0.875rem;\n\t\t\t\tfont-weight: 500;\n\t\t\t\ttext-transform: uppercase;\n\t\t\t}\n\n\t\t\t.role-admin {\n\t\t\t\tbackground-color: gold;\n\t\t\t\tcolor: black;\n\t\t\t}\n\n\t\t\t.role-user {\n\t\t\t\tbackground-color: #f5f5f5;\n\t\t\t\tcolor: #616161;\n\t\t\t}\n\n\t\t\t.deactivate-button {\n\t\t\t\tbackground-color: #fee2e2;\n\t\t\t\tcolor: #991b1b;\n\t\t\t\tborder: 1px solid #f87171;\n\t\t\t\tborder-radius: 6px;\n\t\t\t\tcursor: pointer;\n\t\t\t}\n\n\t\t\t.deactivate-button:hover {\n\t\t\t\tbackground-color: #fecaca;\n\t\t\t}\n\n\t\t\t.activate-button {\n\t\t\t\tbackground-color: #dcfce7;\n\t\t\t\tcolor: #166534;\n\t\t\t\tborder: 1px solid #86efac;\n\t\t\t\tborder-radius: 6px;\n\t\t\t\tcursor: pointer;\n\t\t\t}\n\n\t\t\t.activate-button:hover {\n\t\t\t\tbackground: #dcfce7;\n\t\t\t}\n\n\t\t\t.role-button {\n\t\t\t\tbackground: #6366f1;\n\t\t\t\tcolor: white;\n\t\t\t\tborder: none;\n\t\t\t\tborder-radius: 4px;\n\t\t\t\tcursor: pointer;\n\t\t\t}\n\n\t\t\t.role-button:hover {\n\t\t\t\tbackground: #4f46e5;\n\t\t\t}\n\t\t</style>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</div><script>\n\t\t\tasync function toggleUserStatus(userId, currentIsEnabled) {\n\t\t\t\tconst newStatus = !currentIsEnabled;\n\t\t\t\tconst action = newStatus ? \"activate\" : \"deactivate\";\n\t\t\t\tif (!confirm(`Are you sure you want to ${action} this user?`)) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\ttry {\n\t\t\t\t\tconst response = await fetch(`/users/${userId}`, {\n\t\t\t\t\t\tmethod: \"PATCH\",\n\t\t\t\t\t\theaders: {\n\t\t\t\t\t\t\t\"Content-Type\": \"application/json\",\n\t\t\t\t\t\t},\n\t\t\t\t\t\tbody: JSON.stringify({ is_enabled: newStatus }),\n\t\t\t\t\t});\n\n\t\t\t\t\tif (response.ok) {\n\t\t\t\t\t\twindow.location.reload();\n\t\t\t\t\t} else {\n\t\t\t\t\t\tconst error = await response.text();\n\t\t\t\t\t\talert(`Failed to ${action} user: ${error}`);\n\t\t\t\t\t}\n\t\t\t\t} catch (err) {\n\t\t\t\t\tconsole.error(\"Update failed:\", err);\n\t\t\t\t\talert(`Failed to ${action} user due to a network error.`);\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tasync function toggleUserRole(userId, currentRole) {\n\t\t\t\tconst newRole = currentRole === \"admin\" ? \"member\" : \"admin\";\n\t\t\t\tconst action = newRole === \"admin\" ? \"promote\" : \"demote\";\n\t\t\t\tif (\n\t\t\t\t\t!confirm(\n\t\t\t\t\t\t`Are you sure you want to ${action} this user to ${newRole}?`,\n\t\t\t\t\t)\n\t\t\t\t) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\ttry {\n\t\t\t\t\tconst response = await fetch(`/users/${userId}`, {\n\t\t\t\t\t\tmethod: \"PATCH\",\n\t\t\t\t\t\theaders: {\n\t\t\t\t\t\t\t\"Content-Type\": \"application/json\",\n\t\t\t\t\t\t},\n\t\t\t\t\t\tbody: JSON.stringify({ role: newRole }),\n\t\t\t\t\t});\n\n\t\t\t\t\tif (response.ok) {\n\t\t\t\t\t\twindow.location.reload();\n\t\t\t\t\t} else {\n\t\t\t\t\t\tconst error = await response.text();\n\t\t\t\t\t\talert(`Failed to ${action} user: ${error}`);\n\t\t\t\t\t}\n\t\t\t\t} catch (err) {\n\t\t\t\t\tconsole.error(\"Update failed:\", err);\n\t\t\t\t\talert(`Failed to ${action} user due to a network error.`);\n\t\t\t\t}\n\t\t\t}\n\t\t</script> <style>\n\t\t\t.users-table {\n\t\t\t\twidth: 100%;\n\t\t\t\tborder-collapse: collapse;\n\t\t\t\tmargin-top: 1rem;\n\t\t\t}\n\n\t\t\t.users-table th,\n\t\t\t.users-table td {\n\t\t\t\ttext-align: left;\n\t\t\t\tborder-bottom: 1px solid #eee;\n\t\t\t\twhite-space: nowrap;\n\t\t\t\tdisplay: revert;\n\t\t\t}\n\n\t\t\t.users-table th {\n\t\t\t\tbackground-color: #f9f9f9;\n\t\t\t\tfont-weight: 600;\n\t\t\t\tborder-bottom: 2px solid #ddd;\n\t\t\t}\n\n\t\t\t.users-table tbody tr {\n\t\t\t\theight: 1rem;\n\t\t\t}\n\n\t\t\t.users-table tbody tr:hover {\n\t\t\t\tbackground-color: #f5f5f5;\n\t\t\t}\n\n\t\t\t.user-actions {\n\t\t\t\tdisplay: flex;\n\t\t\t\tgap: 0.5rem;\n\t\t\t}\n\n\t\t\t.role-badge {\n\t\t\t\tdisplay: inline-block;\n\t\t\t\tpadding: 0.125rem 0.5rem;\n\t\t\t\tborder-radius: 4px;\n\t\t\t\tfont-size: 0.875rem;\n\t\t\t\tfont-weight: 500;\n\t\t\t\ttext-transform: uppercase;\n\t\t\t}\n\n\t\t\t.role-admin {\n\t\t\t\tbackground-color: gold;\n\t\t\t\tcolor: black;\n\t\t\t}\n\n\t\t\t.role-user {\n\t\t\t\tbackground-color: #f5f5f5;\n\t\t\t\tcolor: #616161;\n\t\t\t}\n\n\t\t\t.deactivate-button {\n\t\t\t\tbackground-color: #fee2e2;\n\t\t\t\tcolor: #991b1b;\n\t\t\t\tborder: 1px solid #f87171;\n\t\t\t\tborder-radius: 6px;\n\t\t\t\tcursor: pointer;\n\t\t\t}\n\n\t\t\t.deactivate-button:hover {\n\t\t\t\tbackground-color: #fecaca;\n\t\t\t}\n\n\t\t\t.activate-button {\n\t\t\t\tbackground-color: #dcfce7;\n\t\t\t\tcolor: #166534;\n\t\t\t\tborder: 1px solid #86efac;\n\t\t\t\tborder-radius: 6px;\n\t\t\t\tcursor: pointer;\n\t\t\t}\n\n\t\t\t.activate-button:hover {\n\t\t\t\tbackground: #dcfce7;\n\t\t\t}\n\n\t\t\t.role-button {\n\t\t\t\tbackground: #6366f1;\n\t\t\t\tcolor: white;\n\t\t\t\tborder: none;\n\t\t\t\tborder-radius: 4px;\n\t\t\t\tcursor: pointer;\n\t\t\t}\n\n\t\t\t.role-button:hover {\n\t\t\t\tbackground: #4f46e5;\n\t\t\t}\n\t\t</style>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

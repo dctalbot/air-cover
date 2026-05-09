@@ -5,8 +5,8 @@ import "strconv"
 templ Admin(users []UserView, email string) {
 	@Layout("Admin Dashboard - Air Cover") {
 		@BaseStyles()
+		<a href="/app" style="display: inline-block; margin-bottom: 0.5rem; color: #2563eb; text-decoration: none">&larr; Go to sub board</a>
 		@PageHeader("Admin Dashboard") {
-			<a href="/app">Back to App</a>
 			@UserMenu(email)
 		}
 
