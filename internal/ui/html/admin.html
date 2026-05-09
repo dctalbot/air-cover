@@ -88,36 +88,45 @@
     <div id="users-list">
       {{if not .Users}}
       <p>No users found.</p>
-      {{else}} {{range .Users}}
-      <div class="user-card" id="user-card-{{.ID}}">
-        <div class="user-info">
-          <h3>{{.Email}}</h3>
-          <p>
-            <strong>Role:</strong>
-            <span class="role-badge role-{{.Role}}">{{.Role}}</span><br />
-            <strong>Added:</strong> {{.CreatedAt}}
-          </p>
-        </div>
-        <div class="user-actions">
-          {{if .CanDeactivate}}
-          <button
-            class="{{if .IsEnabled}}deactivate-button{{else}}activate-button{{end}}"
-            onclick="toggleUserStatus({{.ID}}, {{.IsEnabled}})"
-          >
-            {{if .IsEnabled}}Deactivate{{else}}Activate{{end}}
-          </button>
-          {{if .IsEnabled}}
-          <button
-            class="role-button"
-            onclick="toggleUserRole({{.ID}}, '{{.Role}}')"
-          >
-            {{if eq .Role "admin"}}Demote to Member{{else}}Promote to
-            Admin{{end}}
-          </button>
-          {{end}} {{end}}
-        </div>
-      </div>
-      {{end}} {{end}}
+      {{else}}
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Added</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Users}}
+          <tr id="user-row-{{.ID}}">
+            <td>{{.Email}}</td>
+            <td><span class="role-badge role-{{.Role}}">{{.Role}}</span></td>
+            <td>{{.CreatedAt}}</td>
+            <td class="user-actions">
+              {{if .CanDeactivate}}
+              <button
+                class="{{if .IsEnabled}}deactivate-button{{else}}activate-button{{end}}"
+                onclick="toggleUserStatus({{.ID}}, {{.IsEnabled}})"
+              >
+                {{if .IsEnabled}}Deactivate{{else}}Activate{{end}}
+              </button>
+              {{if .IsEnabled}}
+              <button
+                class="role-button"
+                onclick="toggleUserRole({{.ID}}, '{{.Role}}')"
+              >
+                {{if eq .Role "admin"}}Demote to Member{{else}}Promote to
+                Admin{{end}}
+              </button>
+              {{end}} {{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+      {{end}}
     </div>
 
     <script>
@@ -193,22 +202,28 @@
         margin: 0 auto;
         padding: 2rem;
       }
-      .user-card {
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        background: #f9f9f9;
+      .users-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+      }
+      .users-table th,
+      .users-table td {
+        padding: 0.75rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid #eee;
+      }
+      .users-table th {
+        background-color: #f9f9f9;
+        font-weight: 600;
+        border-bottom: 2px solid #ddd;
+      }
+      .users-table tbody tr:hover {
+        background-color: #f5f5f5;
+      }
+      .user-actions {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-      .user-info h3 {
-        margin: 0 0 0.5rem 0;
-      }
-      .user-info p {
-        margin: 0;
-        color: #666;
+        gap: 0.5rem;
       }
       .role-badge {
         display: inline-block;
@@ -230,11 +245,8 @@
         background-color: #fee2e2;
         color: #991b1b;
         border: 1px solid #f87171;
-        padding: 0.5rem 1rem;
         border-radius: 6px;
         cursor: pointer;
-        font-weight: 500;
-        transition: background-color 0.2s;
       }
       .deactivate-button:hover {
         background-color: #fecaca;
@@ -243,11 +255,8 @@
         background-color: #dcfce7;
         color: #166534;
         border: 1px solid #86efac;
-        padding: 0.5rem 1rem;
         border-radius: 6px;
         cursor: pointer;
-        font-weight: 500;
-        transition: background-color 0.2s;
       }
       .activate-button:hover {
         background: #dcfce7;
@@ -256,10 +265,8 @@
         background: #6366f1;
         color: white;
         border: none;
-        padding: 0.5rem 1rem;
         border-radius: 4px;
         cursor: pointer;
-        font-size: 0.875rem;
       }
       .role-button:hover {
         background: #4f46e5;
