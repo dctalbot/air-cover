@@ -97,7 +97,7 @@ func TestIndexHandler(t *testing.T) {
 			name:       "valid path unauthenticated",
 			path:       "/",
 			wantStatus: http.StatusOK,
-			wantBody:   "Send magic link",
+			wantBody:   "Submit",
 		},
 		{
 			name:       "valid path authenticated",
