@@ -1169,3 +1169,159 @@ func TestAppHandler_UnknownShowTitle(t *testing.T) {
 		t.Errorf("expected body to contain 'Unknown Show' fallback")
 	}
 }
+
+func TestServer_GetAdmin_DBError(t *testing.T) {
+	dbConn, err := db.InitDB("file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := db.NewRepository(dbConn)
+	dbConn.Close() // Force ListUsers to fail
+
+	s := NewServer(repo, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	ctx := context.WithValue(req.Context(), UserIDKey, 1)
+	ctx = context.WithValue(ctx, UserEmailKey, "admin@example.com")
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	s.GetAdmin(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for DB error in GetAdmin, got %d", rr.Code)
+	}
+}
+
+func TestServer_GetAdmin_RenderError(t *testing.T) {
+	repo := setupTestDB(t)
+	s := NewServer(repo, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	ctx := context.WithValue(req.Context(), UserIDKey, 1)
+	ctx = context.WithValue(ctx, UserEmailKey, "admin@example.com")
+	req = req.WithContext(ctx)
+	ew := &errorResponseWriter{}
+	s.GetAdmin(ew, req)
+	// No panic means the error was handled gracefully (logged)
+}
+
+func TestServer_Get_RenderError(t *testing.T) {
+	repo := setupTestDB(t)
+	s := NewServer(repo, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	ew := &errorResponseWriter{}
+	s.Get(ew, req)
+	// No panic means the error was handled gracefully (logged)
+}
+
+func TestServer_GetApp_RenderError(t *testing.T) {
+	repo := setupTestDB(t)
+	s := NewServer(repo, nil, &MockShowsService{})
+
+	req := httptest.NewRequest(http.MethodGet, "/app", nil)
+	ctx := context.WithValue(req.Context(), UserEmailKey, "test@example.com")
+	ctx = context.WithValue(ctx, UserIDKey, 1)
+	req = req.WithContext(ctx)
+	ew := &errorResponseWriter{}
+	s.GetApp(ew, req)
+	// No panic means the error was handled gracefully (logged)
+}
+
+func TestServer_PatchUsersId_NoUserInContext(t *testing.T) {
+	repo := setupTestDB(t)
+	s := NewServer(repo, nil, nil)
+
+	req := httptest.NewRequest(http.MethodPatch, "/users/1", strings.NewReader(`{"is_enabled":false}`))
+	rr := httptest.NewRecorder()
+	s.PatchUsersId(rr, req, 1)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for no user in context, got %d", rr.Code)
+	}
+}
+
+func TestServer_PatchUsersId_InvalidRole(t *testing.T) {
+	repo := setupTestDB(t)
+	s := NewServer(repo, nil, nil)
+
+	req := httptest.NewRequest(http.MethodPatch, "/users/1", strings.NewReader(`{"role":"superadmin"}`))
+	ctx := context.WithValue(req.Context(), UserIDKey, 999)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	s.PatchUsersId(rr, req, 1)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid role, got %d", rr.Code)
+	}
+}
+
+func TestServer_PatchUsersId_NotFound(t *testing.T) {
+	repo := setupTestDB(t)
+	s := NewServer(repo, nil, nil)
+
+	req := httptest.NewRequest(http.MethodPatch, "/users/99999", strings.NewReader(`{"role":"admin"}`))
+	ctx := context.WithValue(req.Context(), UserIDKey, 1)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	s.PatchUsersId(rr, req, 99999)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for non-existent user, got %d", rr.Code)
+	}
+}
+
+func TestServer_PostUsers_CreateError(t *testing.T) {
+	dbConn, err := db.InitDB("file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := db.NewRepository(dbConn)
+	_, _ = repo.CreateUser(context.Background(), "dup@example.com", "member")
+
+	s := NewServer(repo, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/users", nil)
+	req.PostForm = url.Values{
+		"email": {"dup@example.com"},
+	}
+	rr := httptest.NewRecorder()
+	s.PostUsers(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for duplicate user creation, got %d", rr.Code)
+	}
+}
+
+func TestServer_PostUsers_EmptyEmail(t *testing.T) {
+	s := NewServer(nil, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/users", nil)
+	req.PostForm = url.Values{
+		"email": {""},
+	}
+	rr := httptest.NewRecorder()
+	s.PostUsers(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for empty email, got %d", rr.Code)
+	}
+}
+
+func TestServer_PostUsers_InvalidRole(t *testing.T) {
+	s := NewServer(nil, nil, nil)
+	req := httptest.NewRequest(http.MethodPost, "/users", nil)
+	req.PostForm = url.Values{
+		"email": {"test@example.com"},
+		"role":  {"superadmin"},
+	}
+	rr := httptest.NewRecorder()
+	s.PostUsers(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid role, got %d", rr.Code)
+	}
+}
+
+func TestServer_PostUsers_ParseFormError(t *testing.T) {
+	s := NewServer(nil, nil, nil)
+	largeBody := "email=test@example.com&" + strings.Repeat("a", 1024*1024+100)
+	req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(largeBody))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	s.PostUsers(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for large body, got %d", rr.Code)
+	}
+}

@@ -516,3 +516,52 @@ func TestAuthHandler_Login_Form_ParseError(t *testing.T) {
 		t.Errorf("expected 400 for invalid form data, got %v", rr.Code)
 	}
 }
+
+func TestAuthHandler_Login_CreateMagicLink_Error(t *testing.T) {
+	dbConn, err := db.InitDB("file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := db.NewRepository(dbConn)
+	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
+
+	// Drop magic_links table to force CreateMagicLink to fail
+	_, _ = dbConn.Exec("DROP TABLE magic_links")
+
+	handler := NewAuthHandler(repo, &MockSender{})
+	body := `{"email": "test@example.com"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	rr := httptest.NewRecorder()
+	handler.HandleLogin(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for CreateMagicLink error, got %v", rr.Code)
+	}
+}
+
+func TestAuthHandler_Verify_CreateSession_Error(t *testing.T) {
+	dbConn, err := db.InitDB("file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := db.NewRepository(dbConn)
+	u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
+
+	// Create a magic link
+	_ = repo.CreateMagicLink(context.Background(), u.ID, hashToken("test-token"), time.Now().Add(1*time.Hour))
+
+	// Drop sessions table to force CreateSession to fail
+	_, _ = dbConn.Exec("DROP TABLE sessions")
+
+	handler := NewAuthHandler(repo, &MockSender{})
+	req := httptest.NewRequest(http.MethodGet, "/auth/verify?token=test-token", nil)
+
+	rr := httptest.NewRecorder()
+	handler.HandleVerify(rr, req, "test-token")
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for CreateSession error, got %v", rr.Code)
+	}
+}
