@@ -34,256 +34,291 @@ func Authenticated(shows []spinitron.Show, email string, subRequests []SubReques
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Air Cover</title></head><body><div style=\"display: flex; justify-content: space-between; align-items: center\"><h1>Welcome to Air Cover</h1><div style=\"display: flex; align-items: center; gap: 1rem\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		if isAdmin {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<a href=\"/admin\">Admin</a>")
+		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+			if !templ_7745c5c3_IsBuffer {
+				defer func() {
+					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err == nil {
+						templ_7745c5c3_Err = templ_7745c5c3_BufErr
+					}
+				}()
+			}
+			ctx = templ.InitializeContext(ctx)
+			templ_7745c5c3_Err = BaseStyles().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div style=\"display: flex; flex-direction: column; align-items: flex-end\"><span style=\"font-size: 0.8rem; color: #666\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var2 string
-		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(email)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 28, Col: 57}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</span><form action=\"/auth/logout\" method=\"POST\" style=\"margin: 0\"><button type=\"submit\">Log Out</button></form></div></div></div><form action=\"/sub-requests\" method=\"POST\"><label for=\"show-select\">Show</label> <select id=\"show-select\" name=\"show\" required>")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		if len(shows) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<option value=\"\">No shows available</option>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<option value=\"\">Select a show</option> ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			for _, show := range shows {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<option value=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
+			templ_7745c5c3_Var3 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+				if !templ_7745c5c3_IsBuffer {
+					defer func() {
+						templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+						if templ_7745c5c3_Err == nil {
+							templ_7745c5c3_Err = templ_7745c5c3_BufErr
+						}
+					}()
 				}
-				var templ_7745c5c3_Var3 string
-				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(show.ID)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 43, Col: 26}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				if show.Title != "" {
-					var templ_7745c5c3_Var4 string
-					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(show.Title)
+				ctx = templ.InitializeContext(ctx)
+				if isAdmin {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<a href=\"/admin\">Admin</a>")
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 45, Col: 16}
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = UserMenu(email).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				return nil
+			})
+			templ_7745c5c3_Err = PageHeader("Welcome to Air Cover").Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " <form action=\"/sub-requests\" method=\"POST\"><label for=\"show-select\">Show</label> <select id=\"show-select\" name=\"show\" required>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if len(shows) == 0 {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<option value=\"\">No shows available</option>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			} else {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<option value=\"\">Select a show</option> ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				for _, show := range shows {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<option value=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var4 string
+					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(show.ID)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 25, Col: 27}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-				} else {
-					var templ_7745c5c3_Var5 string
-					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(show.ID)
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\">")
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 47, Col: 13}
+						return templ_7745c5c3_Err
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+					if show.Title != "" {
+						var templ_7745c5c3_Var5 string
+						templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(show.Title)
+						if templ_7745c5c3_Err != nil {
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 27, Col: 17}
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+					} else {
+						var templ_7745c5c3_Var6 string
+						templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(show.ID)
+						if templ_7745c5c3_Err != nil {
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 29, Col: 14}
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</option>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</option>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
 			}
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</select><br><label for=\"start-time\">Start Time (station time zone)</label> <input type=\"datetime-local\" id=\"start-time\" name=\"start_time\" required><br><label for=\"end-time\">End Time (station time zone)</label> <input type=\"datetime-local\" id=\"end-time\" name=\"end_time\" required><br><blockquote id=\"blockquote-preview\"><p><b>")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var6 string
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(email)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 62, Col: 15}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</b> is requesting a sub<span id=\"selected-show\"></span><span id=\"preview-date\"></span><span id=\"total-duration\"></span></p></blockquote><label for=\"notes\">Other info</label><br><textarea id=\"notes\" name=\"notes\" rows=\"4\" cols=\"80\" placeholder=\"I can offer baked cookies, beer, or some new music recs :)\"></textarea><br><button type=\"submit\">Submit Request</button></form><hr><h2>Sub Requests</h2><div id=\"sub-requests-list\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		if len(subRequests) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<p>No sub requests yet.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</select><br><label for=\"start-time\">Start Time (station time zone)</label> <input type=\"datetime-local\" id=\"start-time\" name=\"start_time\" required><br><label for=\"end-time\">End Time (station time zone)</label> <input type=\"datetime-local\" id=\"end-time\" name=\"end_time\" required><br><blockquote id=\"blockquote-preview\"><p><b>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		} else {
-			for _, req := range subRequests {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"sub-request-card\"><h3>")
+			var templ_7745c5c3_Var7 string
+			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(email)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 44, Col: 15}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</b> is requesting a sub<span id=\"selected-show\"></span><span id=\"preview-date\"></span><span id=\"total-duration\"></span></p></blockquote><label for=\"notes\">Other info</label><br><textarea id=\"notes\" name=\"notes\" rows=\"4\" cols=\"80\" placeholder=\"I can offer baked cookies, beer, or some new music recs :)\"></textarea><br><button type=\"submit\">Submit Request</button></form><hr><h2>Sub Requests</h2><div id=\"sub-requests-list\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if len(subRequests) == 0 {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<p>No sub requests yet.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var7 string
-				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(req.ShowTitle)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 87, Col: 22}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</h3><div class=\"meta\"><p><strong>Requested by:</strong> ")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var8 string
-				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(req.RequesterEmail)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 90, Col: 55}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<br><strong>When:</strong> ")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var9 string
-				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(req.StartTime)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 91, Col: 42}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, " to ")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var10 string
-				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(req.EndTime)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 91, Col: 61}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<br><strong>Status:</strong> ")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var11 = []any{"status-" + req.Status}
-				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var11...)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<span class=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var12 string
-				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var11).String())
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 1, Col: 0}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var13 string
-				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(req.Status)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 93, Col: 55}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</span></p></div>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				if req.Notes != "" {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div class=\"notes\"><strong>Notes:</strong><p>")
+			} else {
+				for _, req := range subRequests {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"sub-request-card\"><h3>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var8 string
+					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(req.ShowTitle)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 69, Col: 22}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</h3><div class=\"meta\"><p><strong>Requested by:</strong> ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var9 string
+					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(req.RequesterEmail)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 72, Col: 55}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<br><strong>When:</strong> ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var10 string
+					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(req.StartTime)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 73, Col: 42}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, " to ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var11 string
+					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(req.EndTime)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 73, Col: 61}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<br><strong>Status:</strong> ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var12 = []any{"status-" + req.Status}
+					templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var12...)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<span class=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var13 string
+					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var12).String())
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 1, Col: 0}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var14 string
-					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(req.Notes)
+					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(req.Status)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 99, Col: 19}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 75, Col: 55}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</p></div>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</span></p></div>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-				}
-				if req.CanDelete {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div class=\"actions\" style=\"margin-top: 1rem\">")
+					if req.Notes != "" {
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div class=\"notes\"><strong>Notes:</strong><p>")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						var templ_7745c5c3_Var15 string
+						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(req.Notes)
+						if templ_7745c5c3_Err != nil {
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 81, Col: 19}
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</p></div>")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+					}
+					if req.CanDelete {
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div class=\"actions\" style=\"margin-top: 1rem\">")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templ.RenderScriptItems(ctx, templ_7745c5c3_Buffer, templ.ComponentScript{
+							Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
+						})
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<button class=\"delete-btn\" onclick=\"")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						var templ_7745c5c3_Var16 templ.ComponentScript = templ.ComponentScript{
+							Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16.Call)
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\">Delete Request</button></div>")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</div>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templ.RenderScriptItems(ctx, templ_7745c5c3_Buffer, templ.ComponentScript{
-						Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
-					})
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<button class=\"delete-btn\" onclick=\"")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var15 templ.ComponentScript = templ.ComponentScript{
-						Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15.Call)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\">Delete Request</button></div>")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</div>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
 				}
 			}
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div><style>\n\t\t  body {\n\t\t\tfont-family:\n\t\t\t  system-ui,\n\t\t\t  -apple-system,\n\t\t\t  sans-serif;\n\t\t\tline-height: 1.5;\n\t\t\tmax-width: 800px;\n\t\t\tmargin: 0 auto;\n\t\t\tpadding: 2rem;\n\t\t  }\n\t\t  .sub-request-card {\n\t\t\tborder: 1px solid #ddd;\n\t\t\tborder-radius: 8px;\n\t\t\tpadding: 1rem;\n\t\t\tmargin-bottom: 1rem;\n\t\t\tbackground: #f9f9f9;\n\t\t  }\n\t\t  .sub-request-card h3 {\n\t\t\tmargin: 0 0 0.5rem 0;\n\t\t  }\n\t\t  .meta p {\n\t\t\tmargin: 0.25rem 0;\n\t\t  }\n\t\t  .notes {\n\t\t\tmargin-top: 1rem;\n\t\t\tpadding-top: 0.5rem;\n\t\t\tborder-top: 1px solid #eee;\n\t\t  }\n\t\t  .notes p {\n\t\t\tmargin: 0.5rem 0 0 0;\n\t\t  }\n\t\t  .status-open {\n\t\t\tcolor: #2e7d32;\n\t\t\ttext-transform: capitalize;\n\t\t  }\n\t\t  .status-filled {\n\t\t\tcolor: #1565c0;\n\t\t\ttext-transform: capitalize;\n\t\t  }\n\t\t  .status-cancelled {\n\t\t\tcolor: #c62828;\n\t\t\ttext-transform: capitalize;\n\t\t  }\n\t\t  blockquote {\n\t\t\tmargin: 1rem 0;\n\t\t\tpadding: 0.5rem 1rem;\n\t\t\tborder-left: 4px solid #eee;\n\t\t\tbackground: #fcfcfc;\n\t\t  }\n\t\t  .delete-btn {\n\t\t\tbackground-color: #c62828;\n\t\t\tcolor: white;\n\t\t\tborder: none;\n\t\t\tpadding: 0.5rem 1rem;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\tfont-size: 0.875rem;\n\t\t  }\n\t\t  .delete-btn:hover {\n\t\t\tbackground-color: #b71c1c;\n\t\t  }\n\t\t</style><script>\n\t\t  const showSelect = document.getElementById(\"show-select\");\n\t\t  const previewShow = document.getElementById(\"selected-show\");\n\t\t  const startTimeInput = document.getElementById(\"start-time\");\n\t\t  const previewDate = document.getElementById(\"preview-date\");\n\t\t  const endTimeInput = document.getElementById(\"end-time\");\n\t\t  const previewDuration = document.getElementById(\"total-duration\");\n\n\t\t  function updatePreview() {\n\t\t\t// Show\n\t\t\tconst selectedOption = showSelect.options[showSelect.selectedIndex];\n\t\t\tif (selectedOption && selectedOption.value) {\n\t\t\t  previewShow.innerHTML = ` for <i>${selectedOption.textContent.trim()}</i>`;\n\t\t\t} else {\n\t\t\t  previewShow.textContent = \"\";\n\t\t\t}\n\n\t\t\t// Date\n\t\t\tconst startValue = startTimeInput.value;\n\t\t\tif (startValue) {\n\t\t\t  const start = new Date(startValue);\n\t\t\t  if (!isNaN(start)) {\n\t\t\t\tconst options = {\n\t\t\t\t  weekday: \"long\",\n\t\t\t\t  month: \"short\",\n\t\t\t\t  day: \"numeric\",\n\t\t\t\t  hour: \"numeric\",\n\t\t\t\t  minute: \"numeric\",\n\t\t\t\t};\n\t\t\t\tpreviewDate.textContent = ` on ${start.toLocaleString(undefined, options)}`;\n\t\t\t  } else {\n\t\t\t\tpreviewDate.textContent = \"\";\n\t\t\t  }\n\t\t\t} else {\n\t\t\t  previewDate.textContent = \"\";\n\t\t\t}\n\n\t\t\t// Duration\n\t\t\tconst endValue = endTimeInput.value;\n\t\t\tif (startValue && endValue) {\n\t\t\t  const start = new Date(startValue);\n\t\t\t  const end = new Date(endValue);\n\t\t\t  if (!isNaN(start) && !isNaN(end)) {\n\t\t\t\tconst diff = end - start;\n\t\t\t\tif (diff >= 0) {\n\t\t\t\t  const minutes = Math.floor((diff / (1000 * 60)) % 60);\n\t\t\t\t  const hours = Math.floor(diff / (1000 * 60 * 60));\n\t\t\t\t  previewDuration.textContent = ` (${hours}h ${minutes}m)`;\n\t\t\t\t} else {\n\t\t\t\t  previewDuration.textContent = \"\";\n\t\t\t\t}\n\t\t\t  } else {\n\t\t\t\tpreviewDuration.textContent = \"\";\n\t\t\t  }\n\t\t\t} else {\n\t\t\t  previewDuration.textContent = \"\";\n\t\t\t}\n\t\t  }\n\n\t\t  // Initial min for start-time\n\t\t  const now = new Date();\n\t\t  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);\n\t\t  const pad = (num) => String(num).padStart(2, \"0\");\n\t\t  const minStartStr = `${yesterday.getFullYear()}-${pad(\n\t\t\tyesterday.getMonth() + 1,\n\t\t  )}-${pad(yesterday.getDate())}T${pad(yesterday.getHours())}:${pad(\n\t\t\tyesterday.getMinutes(),\n\t\t  )}`;\n\t\t  startTimeInput.min = minStartStr;\n\n\t\t  showSelect.addEventListener(\"change\", updatePreview);\n\t\t  startTimeInput.addEventListener(\"input\", () => {\n\t\t\tendTimeInput.min = startTimeInput.value;\n\t\t\tupdatePreview();\n\t\t  });\n\t\t  endTimeInput.addEventListener(\"input\", updatePreview);\n\n\t\t  // Run once on load in case browser remembers values\n\t\t  updatePreview();\n\n\t\t  async function deleteRequest(id) {\n\t\t\tif (!confirm(\"Are you sure you want to delete this sub request?\")) {\n\t\t\t  return;\n\t\t\t}\n\n\t\t\ttry {\n\t\t\t  const response = await fetch(`/sub-requests/${id}`, {\n\t\t\t\tmethod: \"DELETE\",\n\t\t\t  });\n\n\t\t\t  if (response.ok) {\n\t\t\t\twindow.location.reload();\n\t\t\t  } else {\n\t\t\t\tconst text = await response.text();\n\t\t\t\talert(`Failed to delete request: ${text || response.statusText}`);\n\t\t\t  }\n\t\t\t} catch (error) {\n\t\t\t  console.error(\"Error deleting request:\", error);\n\t\t\t  alert(\"An error occurred while deleting the request.\");\n\t\t\t}\n\t\t  }\n\t\t</script></body></html>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div><style>\n\t\t  .sub-request-card {\n\t\t\tborder: 1px solid #ddd;\n\t\t\tborder-radius: 8px;\n\t\t\tpadding: 1rem;\n\t\t\tmargin-bottom: 1rem;\n\t\t\tbackground: #f9f9f9;\n\t\t  }\n\t\t  .sub-request-card h3 {\n\t\t\tmargin: 0 0 0.5rem 0;\n\t\t  }\n\t\t  .meta p {\n\t\t\tmargin: 0.25rem 0;\n\t\t  }\n\t\t  .notes {\n\t\t\tmargin-top: 1rem;\n\t\t\tpadding-top: 0.5rem;\n\t\t\tborder-top: 1px solid #eee;\n\t\t  }\n\t\t  .notes p {\n\t\t\tmargin: 0.5rem 0 0 0;\n\t\t  }\n\t\t  .status-open {\n\t\t\tcolor: #2e7d32;\n\t\t\ttext-transform: capitalize;\n\t\t  }\n\t\t  .status-filled {\n\t\t\tcolor: #1565c0;\n\t\t\ttext-transform: capitalize;\n\t\t  }\n\t\t  .status-cancelled {\n\t\t\tcolor: #c62828;\n\t\t\ttext-transform: capitalize;\n\t\t  }\n\t\t  blockquote {\n\t\t\tmargin: 1rem 0;\n\t\t\tpadding: 0.5rem 1rem;\n\t\t\tborder-left: 4px solid #eee;\n\t\t\tbackground: #fcfcfc;\n\t\t  }\n\t\t  .delete-btn {\n\t\t\tbackground-color: #c62828;\n\t\t\tcolor: white;\n\t\t\tborder: none;\n\t\t\tpadding: 0.5rem 1rem;\n\t\t\tborder-radius: 4px;\n\t\t\tcursor: pointer;\n\t\t\tfont-size: 0.875rem;\n\t\t  }\n\t\t  .delete-btn:hover {\n\t\t\tbackground-color: #b71c1c;\n\t\t  }\n\t\t</style> <script>\n\t\t  const showSelect = document.getElementById(\"show-select\");\n\t\t  const previewShow = document.getElementById(\"selected-show\");\n\t\t  const startTimeInput = document.getElementById(\"start-time\");\n\t\t  const previewDate = document.getElementById(\"preview-date\");\n\t\t  const endTimeInput = document.getElementById(\"end-time\");\n\t\t  const previewDuration = document.getElementById(\"total-duration\");\n\n\t\t  function updatePreview() {\n\t\t\t// Show\n\t\t\tconst selectedOption = showSelect.options[showSelect.selectedIndex];\n\t\t\tif (selectedOption && selectedOption.value) {\n\t\t\t  previewShow.innerHTML = ` for <i>${selectedOption.textContent.trim()}</i>`;\n\t\t\t} else {\n\t\t\t  previewShow.textContent = \"\";\n\t\t\t}\n\n\t\t\t// Date\n\t\t\tconst startValue = startTimeInput.value;\n\t\t\tif (startValue) {\n\t\t\t  const start = new Date(startValue);\n\t\t\t  if (!isNaN(start)) {\n\t\t\t\tconst options = {\n\t\t\t\t  weekday: \"long\",\n\t\t\t\t  month: \"short\",\n\t\t\t\t  day: \"numeric\",\n\t\t\t\t  hour: \"numeric\",\n\t\t\t\t  minute: \"numeric\",\n\t\t\t\t};\n\t\t\t\tpreviewDate.textContent = ` on ${start.toLocaleString(undefined, options)}`;\n\t\t\t  } else {\n\t\t\t\tpreviewDate.textContent = \"\";\n\t\t\t  }\n\t\t\t} else {\n\t\t\t  previewDate.textContent = \"\";\n\t\t\t}\n\n\t\t\t// Duration\n\t\t\tconst endValue = endTimeInput.value;\n\t\t\tif (startValue && endValue) {\n\t\t\t  const start = new Date(startValue);\n\t\t\t  const end = new Date(endValue);\n\t\t\t  if (!isNaN(start) && !isNaN(end)) {\n\t\t\t\tconst diff = end - start;\n\t\t\t\tif (diff >= 0) {\n\t\t\t\t  const minutes = Math.floor((diff / (1000 * 60)) % 60);\n\t\t\t\t  const hours = Math.floor(diff / (1000 * 60 * 60));\n\t\t\t\t  previewDuration.textContent = ` (${hours}h ${minutes}m)`;\n\t\t\t\t} else {\n\t\t\t\t  previewDuration.textContent = \"\";\n\t\t\t\t}\n\t\t\t  } else {\n\t\t\t\tpreviewDuration.textContent = \"\";\n\t\t\t  }\n\t\t\t} else {\n\t\t\t  previewDuration.textContent = \"\";\n\t\t\t}\n\t\t  }\n\n\t\t  // Initial min for start-time\n\t\t  const now = new Date();\n\t\t  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);\n\t\t  const pad = (num) => String(num).padStart(2, \"0\");\n\t\t  const minStartStr = `${yesterday.getFullYear()}-${pad(\n\t\t\tyesterday.getMonth() + 1,\n\t\t  )}-${pad(yesterday.getDate())}T${pad(yesterday.getHours())}:${pad(\n\t\t\tyesterday.getMinutes(),\n\t\t  )}`;\n\t\t  startTimeInput.min = minStartStr;\n\n\t\t  showSelect.addEventListener(\"change\", updatePreview);\n\t\t  startTimeInput.addEventListener(\"input\", () => {\n\t\t\tendTimeInput.min = startTimeInput.value;\n\t\t\tupdatePreview();\n\t\t  });\n\t\t  endTimeInput.addEventListener(\"input\", updatePreview);\n\n\t\t  // Run once on load in case browser remembers values\n\t\t  updatePreview();\n\n\t\t  async function deleteRequest(id) {\n\t\t\tif (!confirm(\"Are you sure you want to delete this sub request?\")) {\n\t\t\t  return;\n\t\t\t}\n\n\t\t\ttry {\n\t\t\t  const response = await fetch(`/sub-requests/${id}`, {\n\t\t\t\tmethod: \"DELETE\",\n\t\t\t  });\n\n\t\t\t  if (response.ok) {\n\t\t\t\twindow.location.reload();\n\t\t\t  } else {\n\t\t\t\tconst text = await response.text();\n\t\t\t\talert(`Failed to delete request: ${text || response.statusText}`);\n\t\t\t  }\n\t\t\t} catch (error) {\n\t\t\t  console.error(\"Error deleting request:\", error);\n\t\t\t  alert(\"An error occurred while deleting the request.\");\n\t\t\t}\n\t\t  }\n\t\t</script>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			return nil
+		})
+		templ_7745c5c3_Err = Layout("Air Cover").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

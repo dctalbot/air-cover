@@ -8,6 +8,69 @@ import (
 	"air-cover/internal/spinitron"
 )
 
+func TestLayout(t *testing.T) {
+	buf := new(bytes.Buffer)
+	component := Layout("Test Title")
+	err := component.Render(context.Background(), buf)
+	if err != nil {
+		t.Fatalf("failed to render: %v", err)
+	}
+
+	output := buf.String()
+	if !bytes.Contains(buf.Bytes(), []byte("<title>Test Title</title>")) {
+		t.Errorf("expected title tag not found in rendered output: %s", output)
+	}
+	if !bytes.Contains(buf.Bytes(), []byte("<!doctype html>")) {
+		t.Errorf("expected doctype not found in rendered output: %s", output)
+	}
+}
+
+func TestUserMenu(t *testing.T) {
+	buf := new(bytes.Buffer)
+	component := UserMenu("user@example.com")
+	err := component.Render(context.Background(), buf)
+	if err != nil {
+		t.Fatalf("failed to render: %v", err)
+	}
+
+	output := buf.Bytes()
+	if !bytes.Contains(output, []byte("user@example.com")) {
+		t.Error("expected email not found in rendered output")
+	}
+	if !bytes.Contains(output, []byte("/auth/logout")) {
+		t.Error("expected logout form action not found in rendered output")
+	}
+	if !bytes.Contains(output, []byte("Log Out")) {
+		t.Error("expected logout button text not found in rendered output")
+	}
+}
+
+func TestBaseStyles(t *testing.T) {
+	buf := new(bytes.Buffer)
+	component := BaseStyles()
+	err := component.Render(context.Background(), buf)
+	if err != nil {
+		t.Fatalf("failed to render: %v", err)
+	}
+
+	if !bytes.Contains(buf.Bytes(), []byte("system-ui")) {
+		t.Error("expected body font-family not found in rendered output")
+	}
+}
+
+func TestPageHeader(t *testing.T) {
+	buf := new(bytes.Buffer)
+	component := PageHeader("Test Header")
+	err := component.Render(context.Background(), buf)
+	if err != nil {
+		t.Fatalf("failed to render: %v", err)
+	}
+
+	if !bytes.Contains(buf.Bytes(), []byte("Test Header")) {
+		t.Error("expected header title not found in rendered output")
+	}
+}
+
 func TestUnauthenticated(t *testing.T) {
 	buf := new(bytes.Buffer)
 	component := Unauthenticated(true)

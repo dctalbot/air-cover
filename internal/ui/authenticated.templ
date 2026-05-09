@@ -6,64 +6,46 @@ import (
 )
 
 templ Authenticated(shows []spinitron.Show, email string, subRequests []SubRequestView, isAdmin bool) {
-	<!doctype html>
-	<html lang="en">
-	  <head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Air Cover</title>
-	  </head>
-	  <body>
-		<div
-		  style="display: flex; justify-content: space-between; align-items: center"
-		>
-		  <h1>Welcome to Air Cover</h1>
-		  <div style="display: flex; align-items: center; gap: 1rem">
+	@Layout("Air Cover") {
+		@BaseStyles()
+		@PageHeader("Welcome to Air Cover") {
 			if isAdmin {
-			<a href="/admin">Admin</a>
+				<a href="/admin">Admin</a>
 			}
-			<div
-			  style="display: flex; flex-direction: column; align-items: flex-end"
-			>
-			  <span style="font-size: 0.8rem; color: #666">{ email }</span>
-			  <form action="/auth/logout" method="POST" style="margin: 0">
-				<button type="submit">Log Out</button>
-			  </form>
-			</div>
-		  </div>
-		</div>
+			@UserMenu(email)
+		}
 		<form action="/sub-requests" method="POST">
 		  <label for="show-select">Show</label>
 		  <select id="show-select" name="show" required>
 			if len(shows) == 0 {
-			<option value="">No shows available</option>
+				<option value="">No shows available</option>
 			} else {
-			<option value="">Select a show</option>
+				<option value="">Select a show</option>
 			for _, show := range shows {
-			<option value={ show.ID }>
-			  if show.Title != "" {
-				{ show.Title }
-			  } else {
-				{ show.ID }
-			  }
-			</option>
+				<option value={ show.ID }>
+				  if show.Title != "" {
+					{ show.Title }
+				  } else {
+					{ show.ID }
+				  }
+				</option>
 			}
 			}
 		  </select>
-		  <br />
+		  <br/>
 		  <label for="start-time">Start Time (station time zone)</label>
-		  <input type="datetime-local" id="start-time" name="start_time" required />
-		  <br />
+		  <input type="datetime-local" id="start-time" name="start_time" required/>
+		  <br/>
 		  <label for="end-time">End Time (station time zone)</label>
-		  <input type="datetime-local" id="end-time" name="end_time" required />
-		  <br />
+		  <input type="datetime-local" id="end-time" name="end_time" required/>
+		  <br/>
 		  <blockquote id="blockquote-preview">
 			<p>
 			  <b>{ email }</b> is requesting a sub<span id="selected-show"></span><span id="preview-date"></span><span id="total-duration"></span>
 			</p>
 		  </blockquote>
 		  <label for="notes">Other info</label>
-		  <br />
+		  <br/>
 		  <textarea
 			id="notes"
 			name="notes"
@@ -71,11 +53,11 @@ templ Authenticated(shows []spinitron.Show, email string, subRequests []SubReque
 			cols="80"
 			placeholder="I can offer baked cookies, beer, or some new music recs :)"
 		  ></textarea>
-		  <br />
+		  <br/>
 		  <button type="submit">Submit Request</button>
 		</form>
 
-		<hr />
+		<hr/>
 
 		<h2>Sub Requests</h2>
 		<div id="sub-requests-list">
@@ -87,8 +69,8 @@ templ Authenticated(shows []spinitron.Show, email string, subRequests []SubReque
 			<h3>{ req.ShowTitle }</h3>
 			<div class="meta">
 			  <p>
-				<strong>Requested by:</strong> { req.RequesterEmail }<br />
-				<strong>When:</strong> { req.StartTime } to { req.EndTime }<br />
+				<strong>Requested by:</strong> { req.RequesterEmail }<br/>
+				<strong>When:</strong> { req.StartTime } to { req.EndTime }<br/>
 				<strong>Status:</strong>
 				<span class={ "status-" + req.Status }>{ req.Status }</span>
 			  </p>
@@ -113,16 +95,6 @@ templ Authenticated(shows []spinitron.Show, email string, subRequests []SubReque
 		</div>
 
 		<style>
-		  body {
-			font-family:
-			  system-ui,
-			  -apple-system,
-			  sans-serif;
-			line-height: 1.5;
-			max-width: 800px;
-			margin: 0 auto;
-			padding: 2rem;
-		  }
 		  .sub-request-card {
 			border: 1px solid #ddd;
 			border-radius: 8px;
@@ -278,6 +250,5 @@ templ Authenticated(shows []spinitron.Show, email string, subRequests []SubReque
 			}
 		  }
 		</script>
-	  </body>
-	</html>
+	}
 }
