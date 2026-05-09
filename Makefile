@@ -14,6 +14,7 @@ generate:
 	@mkdir -p docs
 	@go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 -package api -generate chi-server,types,spec api/openapi.yaml > internal/api/api.gen.go
 	@go run cmd/aircover/main.go doc > docs/routes.json
+	@go run github.com/a-h/templ/cmd/templ@latest generate
 
 db-reset:
 	go run cmd/aircover/main.go migrate reset
@@ -38,7 +39,7 @@ lint:
 
 test:
 	@go test -coverprofile=coverage.out ./...
-	@grep -v ".gen.go" coverage.out > coverage.filtered.out
+	@grep -v ".gen.go" coverage.out | grep -v "_templ.go" > coverage.filtered.out
 	@coverage=$$(go tool cover -func=coverage.filtered.out | grep total: | awk '{print $$3}' | sed 's/%//'); \
 	if [ "$$coverage" != "100.0" ]; then \
 		echo "Test coverage is $$coverage%, expected 100.0%"; \

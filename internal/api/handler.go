@@ -56,9 +56,9 @@ func (s *Server) Get(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	ui.RenderUnauthenticated(w, map[string]any{
-		"Submitted": r.URL.Query().Get("submitted") == "true",
-	})
+	if err := ui.Unauthenticated(r.URL.Query().Get("submitted") == "true").Render(r.Context(), w); err != nil {
+		slog.Error("Failed to write response", "error", err)
+	}
 }
 
 // Authenticated application page
@@ -107,25 +107,14 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 		showMap[id] = show.Title
 	}
 
-	type subRequestView struct {
-		ID             int
-		ShowTitle      string
-		RequesterEmail string
-		StartTime      string
-		EndTime        string
-		Notes          string
-		Status         string
-		CanDelete      bool
-	}
-
 	userID, _ := r.Context().Value(UserIDKey).(int)
-	var views []subRequestView
+	var views []ui.SubRequestView
 	for _, sr := range subRequests {
 		title := showMap[sr.ShowID]
 		if title == "" {
 			title = "Unknown Show"
 		}
-		views = append(views, subRequestView{
+		views = append(views, ui.SubRequestView{
 			ID:             sr.ID,
 			ShowTitle:      title,
 			RequesterEmail: sr.RequesterEmail,
@@ -139,12 +128,9 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 
 	role, _ := r.Context().Value(UserRoleKey).(string)
 
-	ui.RenderAuthenticated(w, map[string]any{
-		"Shows":       allShows,
-		"Email":       email,
-		"SubRequests": views,
-		"IsAdmin":     role == "admin",
-	})
+	if err := ui.Authenticated(allShows, email, views, role == "admin").Render(r.Context(), w); err != nil {
+		slog.Error("Failed to write response", "error", err)
+	}
 }
 
 // Admin dashboard
@@ -157,19 +143,10 @@ func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type userView struct {
-		ID            int
-		Email         string
-		Role          string
-		CreatedAt     string
-		IsEnabled     bool
-		CanDeactivate bool
-	}
-
 	currentUserID, _ := r.Context().Value(UserIDKey).(int)
-	var views []userView
+	var views []ui.UserView
 	for _, u := range users {
-		views = append(views, userView{
+		views = append(views, ui.UserView{
 			ID:            u.ID,
 			Email:         u.Email,
 			Role:          u.Role,
@@ -191,10 +168,9 @@ func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
 
 	email, _ := r.Context().Value(UserEmailKey).(string)
 
-	ui.RenderAdmin(w, map[string]any{
-		"Users": views,
-		"Email": email,
-	})
+	if err := ui.Admin(views, email).Render(r.Context(), w); err != nil {
+		slog.Error("Failed to write response", "error", err)
+	}
 }
 
 // Create a new user
