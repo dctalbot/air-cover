@@ -101,7 +101,11 @@
           {{range .Users}}
           <tr id="user-row-{{.ID}}">
             <td>{{.Email}}</td>
-            <td><span class="role-badge role-{{.Role}}">{{.Role}}</span></td>
+            <td>
+              <span class="role-badge role-{{.Role}}"
+                >{{if .IsEnabled}}{{.Role}}{{end}}</span
+              >
+            </td>
             <td class="user-actions">
               {{if .CanDeactivate}}
               <button
@@ -232,8 +236,8 @@
         text-transform: uppercase;
       }
       .role-admin {
-        background-color: #e3f2fd;
-        color: #1565c0;
+        background-color: gold;
+        color: black;
       }
       .role-user {
         background-color: #f5f5f5;
