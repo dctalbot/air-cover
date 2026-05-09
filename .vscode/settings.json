@@ -1,5 +1,15 @@
 {
   "[templ]": {
     "editor.formatOnSave": false
+  },
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true,
+    "**/CVS": true,
+    "**/.ruby-lsp": true,
+    "**/*_templ.go": true
   }
 }
