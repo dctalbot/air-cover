@@ -102,9 +102,9 @@
           <tr id="user-row-{{.ID}}">
             <td>{{.Email}}</td>
             <td>
-              <span class="role-badge role-{{.Role}}"
-                >{{if .IsEnabled}}{{.Role}}{{end}}</span
-              >
+              {{if .IsEnabled}}
+              <span class="role-badge role-{{.Role}}">{{.Role}}</span>
+              {{end}}
             </td>
             <td class="user-actions">
               {{if .CanDeactivate}}
