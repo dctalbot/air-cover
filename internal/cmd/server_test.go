@@ -40,6 +40,10 @@ func (f *fakeShowsService) GetShowsPage(ctx context.Context, page int) (spinitro
 	return f.page, nil
 }
 
+func (f *fakeShowsService) GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error) {
+	return spinitron.PersonasPage{}, f.err
+}
+
 type mockSender struct{}
 
 func (m *mockSender) SendMagicLink(toEmail, magicLink string) error {

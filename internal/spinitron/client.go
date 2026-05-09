@@ -35,6 +35,17 @@ type ShowsPage struct {
 	NextPage *int   `json:"next_page,omitempty"`
 }
 
+type Persona struct {
+	ID    int    `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+type PersonasPage struct {
+	Items    []Persona `json:"items"`
+	NextPage *int      `json:"next_page,omitempty"`
+}
+
 // NewClient creates a new Spinitron API client.
 func NewClient(apiKey, baseURL string) *Client {
 	baseURL = strings.TrimSpace(baseURL)
@@ -70,6 +81,23 @@ func (c *Client) GetShowsPage(ctx context.Context, page int) (ShowsPage, error) 
 	}
 
 	return parseShowsPage(body, headers)
+}
+
+func (c *Client) GetPersonasPage(ctx context.Context, page int) (PersonasPage, error) {
+	if page < 1 {
+		page = 1
+	}
+
+	query := url.Values{}
+	query.Set("page", strconv.Itoa(page))
+	query.Set("count", strconv.Itoa(defaultShowsPageSize))
+
+	body, headers, err := c.get(ctx, "/personas", query)
+	if err != nil {
+		return PersonasPage{}, err
+	}
+
+	return parsePersonasPage(body, headers)
 }
 
 func (c *Client) get(ctx context.Context, route string, query url.Values) ([]byte, http.Header, error) {
@@ -141,6 +169,58 @@ func parseShowsPage(body []byte, headers http.Header) (ShowsPage, error) {
 	}
 
 	return ShowsPage{
+		Items:    items,
+		NextPage: findNextPage(payload, headers),
+	}, nil
+}
+
+func parsePersonasPage(body []byte, headers http.Header) (PersonasPage, error) {
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return PersonasPage{}, fmt.Errorf("failed to decode personas response: %w", err)
+	}
+
+	itemsRaw, ok := payload["items"]
+	if !ok {
+		itemsRaw = payload["data"]
+	}
+	if len(itemsRaw) == 0 {
+		return PersonasPage{}, nil
+	}
+
+	var rawItems []map[string]interface{}
+	if err := json.Unmarshal(itemsRaw, &rawItems); err != nil {
+		return PersonasPage{}, fmt.Errorf("failed to decode persona list: %w", err)
+	}
+
+	items := make([]Persona, 0, len(rawItems))
+	for _, item := range rawItems {
+		idStr := normalizeID(item["id"])
+		if idStr == "" {
+			continue
+		}
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			continue
+		}
+
+		name := normalizeTitle(item)
+
+		var email string
+		if rawEmail, ok := item["email"]; ok {
+			if e, ok := rawEmail.(string); ok {
+				email = e
+			}
+		}
+
+		items = append(items, Persona{
+			ID:    id,
+			Name:  name,
+			Email: email,
+		})
+	}
+
+	return PersonasPage{
 		Items:    items,
 		NextPage: findNextPage(payload, headers),
 	}, nil

@@ -255,3 +255,32 @@ func (r *Repository) UpdateUser(ctx context.Context, id int, role *string, isEna
 	}
 	return nil
 }
+
+func (r *Repository) ImportUsers(ctx context.Context, emails []string) error {
+	if len(emails) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	stmt, err := tx.PrepareContext(ctx, "INSERT INTO users (email, role) VALUES (?, 'member') ON CONFLICT (email) DO NOTHING")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, email := range emails {
+		_, err := stmt.ExecContext(ctx, email)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}

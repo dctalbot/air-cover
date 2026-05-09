@@ -75,6 +75,7 @@ func newRouter(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
 		r.Use(authHandler.RequireAdmin)
 		r.Get("/admin", wrapper.GetAdmin)
 		r.Post("/users", wrapper.PostUsers)
+		r.Post("/users/import/spinitron", wrapper.PostUsersImportSpinitron)
 		r.Patch("/users/{id}", wrapper.PatchUsersId)
 	})
 

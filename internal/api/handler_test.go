@@ -28,6 +28,10 @@ func (m *MockShowsService) GetShowsPage(ctx context.Context, page int) (spinitro
 	}, nil
 }
 
+func (m *MockShowsService) GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error) {
+	return spinitron.PersonasPage{}, nil
+}
+
 type badShowsService struct{}
 
 func (b *badShowsService) GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error) {
@@ -35,6 +39,10 @@ func (b *badShowsService) GetShowsPage(ctx context.Context, page int) (spinitron
 		Items:    []spinitron.Show{{ID: "not-a-number", Title: "Bad ID Show"}},
 		NextPage: nil,
 	}, nil
+}
+
+func (b *badShowsService) GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error) {
+	return spinitron.PersonasPage{}, nil
 }
 
 func TestServer_PostSubRequests(t *testing.T) {
@@ -704,6 +712,10 @@ func (m *multiPageShowsService) GetShowsPage(ctx context.Context, page int) (spi
 	}, nil
 }
 
+func (m *multiPageShowsService) GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error) {
+	return spinitron.PersonasPage{}, nil
+}
+
 // TestServer_GetApp_MultiPage covers the pagination loop in GetApp.
 func TestServer_GetApp_MultiPage(t *testing.T) {
 	repo := setupTestDB(t)
@@ -906,6 +918,10 @@ func (f *faultyShowsService) GetShowsPage(ctx context.Context, page int) (spinit
 	return spinitron.ShowsPage{}, errors.New("spinitron down")
 }
 
+func (f *faultyShowsService) GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error) {
+	return spinitron.PersonasPage{}, nil
+}
+
 func TestServer_PostSubRequests_LargeBody(t *testing.T) {
 	s := NewServer(nil, nil, nil)
 	largeBody := "show=1&start_time=2026-05-01T10:00&end_time=2026-05-01T12:00&notes=" + strings.Repeat("a", 1024*1024+100)
@@ -989,5 +1005,167 @@ func TestServer_DeleteSubRequestsId_NoUserInContext(t *testing.T) {
 
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401 for no user in context, got %d", rr.Code)
+	}
+}
+
+type importMockShowsService struct {
+	fail bool
+}
+
+func (m *importMockShowsService) GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error) {
+	return spinitron.ShowsPage{}, nil
+}
+
+func (m *importMockShowsService) GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error) {
+	if m.fail {
+		return spinitron.PersonasPage{}, errors.New("spinitron error")
+	}
+	if page == 1 {
+		next := 2
+		return spinitron.PersonasPage{
+			Items: []spinitron.Persona{
+				{ID: 1, Name: "DJ One", Email: "one@example.com"},
+				{ID: 2, Name: "DJ Empty", Email: "  "}, // should be skipped
+			},
+			NextPage: &next,
+		}, nil
+	}
+	return spinitron.PersonasPage{
+		Items: []spinitron.Persona{
+			{ID: 3, Name: "DJ Two", Email: "two@example.com"},
+		},
+		NextPage: nil,
+	}, nil
+}
+
+func TestServer_PostUsersImportSpinitron(t *testing.T) {
+	dbConn, err := db.InitDB("file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := db.NewRepository(dbConn)
+
+	t.Run("success", func(t *testing.T) {
+		s := NewServer(repo, nil, &importMockShowsService{fail: false})
+		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
+		rr := httptest.NewRecorder()
+		s.PostUsersImportSpinitron(rr, req)
+
+		if rr.Code != http.StatusSeeOther {
+			t.Errorf("expected redirect 303, got %d", rr.Code)
+		}
+
+		users, _ := repo.ListUsers(context.Background())
+		if len(users) != 2 {
+			t.Errorf("expected 2 users imported, got %d", len(users))
+		}
+	})
+
+	t.Run("spinitron error handled gracefully", func(t *testing.T) {
+		s := NewServer(repo, nil, &importMockShowsService{fail: true})
+		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
+		rr := httptest.NewRecorder()
+		s.PostUsersImportSpinitron(rr, req)
+
+		if rr.Code != http.StatusSeeOther {
+			t.Errorf("expected redirect 303 even on spinitron error, got %d", rr.Code)
+		}
+	})
+
+	t.Run("db import error", func(t *testing.T) {
+		// Drop users table to force repo.ImportUsers to fail
+		_, _ = dbConn.Exec("DROP TABLE users")
+		s := NewServer(repo, nil, &importMockShowsService{fail: false})
+		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
+		rr := httptest.NewRecorder()
+		s.PostUsersImportSpinitron(rr, req)
+
+		if rr.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500 for db error, got %d", rr.Code)
+		}
+	})
+}
+
+func TestServer_GetAdmin_Sorting(t *testing.T) {
+	repo := setupTestDB(t)
+	s := NewServer(repo, nil, nil)
+
+	_, _ = repo.CreateUser(context.Background(), "a@example.com", "member")
+	_, _ = repo.CreateUser(context.Background(), "b@example.com", "admin")
+
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	ctx := context.WithValue(req.Context(), UserIDKey, 1)
+	ctx = context.WithValue(ctx, UserEmailKey, "a@example.com")
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	s.GetAdmin(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestServer_PatchUsersId_Errors(t *testing.T) {
+	repo := setupTestDB(t)
+	s := NewServer(repo, nil, nil)
+
+	u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
+
+	t.Run("invalid json", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/users/1", strings.NewReader(`{invalid json`))
+		rr := httptest.NewRecorder()
+		s.PatchUsersId(rr, req, 1)
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 for invalid json, got %d", rr.Code)
+		}
+	})
+
+	t.Run("self deactivation", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/users/1", strings.NewReader(`{"is_enabled":false}`))
+		ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PatchUsersId(rr, req, u.ID)
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("expected 403 for self deactivation, got %d", rr.Code)
+		}
+	})
+
+	t.Run("db error", func(t *testing.T) {
+		_, _ = repo.DB().Exec("DROP TABLE users")
+		req := httptest.NewRequest(http.MethodPatch, "/users/1", strings.NewReader(`{"role":"admin"}`))
+		ctx := context.WithValue(req.Context(), UserIDKey, 999) // not self
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PatchUsersId(rr, req, u.ID)
+		if rr.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500 for db error, got %d", rr.Code)
+		}
+	})
+}
+
+func TestAppHandler_UnknownShowTitle(t *testing.T) {
+	repo := setupTestDB(t)
+	server := NewServer(repo, nil, &MockShowsService{})
+
+	// Create a sub request with a show ID not in the spinitron response
+	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
+	_ = repo.CreateSubRequest(context.Background(), &models.SubRequest{
+		ShowID:         999, // Doesn't match 1
+		PostedByUserID: 1,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(time.Hour),
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/app", nil)
+	ctx := context.WithValue(req.Context(), UserEmailKey, "test@example.com")
+	ctx = context.WithValue(ctx, UserIDKey, 1)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	server.GetApp(rr, req)
+
+	if !strings.Contains(rr.Body.String(), "Unknown Show") {
+		t.Errorf("expected body to contain 'Unknown Show' fallback")
 	}
 }

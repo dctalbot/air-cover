@@ -783,3 +783,174 @@ func TestParsePageString_ControlChar(t *testing.T) {
 		t.Error("expected ok=false for control char in URL")
 	}
 }
+
+func TestGetPersonasPage(t *testing.T) {
+	client := NewClient("token-123", "https://proxy.example.test/api")
+	client.HTTPClient = &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if r.URL.Path != "/api/personas" {
+				t.Fatalf("expected /api/personas route, got %s", r.URL.Path)
+			}
+			if got := r.URL.Query().Get("page"); got != "1" {
+				t.Fatalf("expected page=1, got %s", got)
+			}
+			if got := r.URL.Query().Get("count"); got != "200" {
+				t.Fatalf("expected count=200, got %s", got)
+			}
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body: io.NopCloser(strings.NewReader(`{
+			"items":[{"id":1,"name":"DJ Awesome","email":"dj@example.com"},{"id":"2","name":"DJ Empty","email":""}],
+			"_links":{"next":{"href":"https://proxy.example.test/personas?page=2"}}
+		}`)),
+			}, nil
+		}),
+	}
+
+	page, err := client.GetPersonasPage(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(page.Items) != 2 {
+		t.Fatalf("expected 2 personas, got %d", len(page.Items))
+	}
+	if page.Items[0].ID != 1 || page.Items[0].Name != "DJ Awesome" || page.Items[0].Email != "dj@example.com" {
+		t.Fatalf("unexpected first persona: %+v", page.Items[0])
+	}
+	if page.Items[1].ID != 2 || page.Items[1].Name != "DJ Empty" || page.Items[1].Email != "" {
+		t.Fatalf("unexpected second persona: %+v", page.Items[1])
+	}
+	if page.NextPage == nil || *page.NextPage != 2 {
+		t.Fatalf("expected next page 2, got %+v", page.NextPage)
+	}
+}
+
+func TestGetPersonasPage_RequestError(t *testing.T) {
+	client := NewClient("", "https://proxy.example.test/api")
+	client.HTTPClient = &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			return nil, fmt.Errorf("connection refused")
+		}),
+	}
+	_, err := client.GetPersonasPage(context.Background(), 1)
+	if err == nil {
+		t.Fatal("expected error for connection failure")
+	}
+}
+
+func TestGetPersonasPage_InvalidJSON(t *testing.T) {
+	client := NewClient("", "https://proxy.example.test/api")
+	client.HTTPClient = &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`not-json`)),
+			}, nil
+		}),
+	}
+	_, err := client.GetPersonasPage(context.Background(), 1)
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestGetPersonasPage_MissingItemsKey(t *testing.T) {
+	client := NewClient("", "https://proxy.example.test/api")
+	client.HTTPClient = &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`{"other":"stuff"}`)),
+			}, nil
+		}),
+	}
+	page, err := client.GetPersonasPage(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(page.Items) != 0 {
+		t.Fatalf("expected empty page, got %+v", page.Items)
+	}
+}
+
+func TestGetPersonasPage_InvalidItemsJSON(t *testing.T) {
+	client := NewClient("", "https://proxy.example.test/api")
+	client.HTTPClient = &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`{"items":"not-an-array"}`)),
+			}, nil
+		}),
+	}
+	_, err := client.GetPersonasPage(context.Background(), 1)
+	if err == nil {
+		t.Fatal("expected error for invalid items JSON")
+	}
+}
+
+func TestGetPersonasPage_DataKey(t *testing.T) {
+	client := NewClient("", "https://proxy.example.test/api")
+	client.HTTPClient = &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`{"data":[{"id":5,"name":"Data DJ"}]}`)),
+			}, nil
+		}),
+	}
+	page, err := client.GetPersonasPage(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Name != "Data DJ" {
+		t.Fatalf("unexpected items: %+v", page.Items)
+	}
+}
+
+func TestGetPersonasPage_PersonaWithInvalidID(t *testing.T) {
+	client := NewClient("", "https://proxy.example.test/api")
+	client.HTTPClient = &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`{"items":[{"id":null,"name":"Ghost DJ"},{"id":"abc","name":"Bad ID"},{"id":1,"name":"Real DJ"}]}`)),
+			}, nil
+		}),
+	}
+	page, err := client.GetPersonasPage(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Name != "Real DJ" {
+		t.Fatalf("expected only Real DJ, got %+v", page.Items)
+	}
+}
+
+func TestGetPersonasPage_PageZeroNormalized(t *testing.T) {
+	client := NewClient("", "https://proxy.example.test/api")
+	client.HTTPClient = &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if got := r.URL.Query().Get("page"); got != "1" {
+				t.Fatalf("expected page=1 for input 0, got %s", got)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`{"items":[]}`)),
+			}, nil
+		}),
+	}
+	_, err := client.GetPersonasPage(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}

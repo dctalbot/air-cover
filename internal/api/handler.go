@@ -19,6 +19,7 @@ import (
 
 type ShowsService interface {
 	GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error)
+	GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error)
 }
 
 type Server struct {
@@ -405,4 +406,41 @@ func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("Failed to write response", "error", err)
 	}
+}
+
+// Import users from Spinitron
+// (POST /users/import/spinitron)
+func (s *Server) PostUsersImportSpinitron(w http.ResponseWriter, r *http.Request) {
+	var emails []string
+	page := 1
+
+	for page > 0 {
+		personasPage, err := s.spinitronClient.GetPersonasPage(r.Context(), page)
+		if err != nil {
+			slog.Error("Failed to load personas from spinitron", "error", err)
+			break // Stop fetching, but proceed with what we have
+		}
+
+		for _, p := range personasPage.Items {
+			if strings.TrimSpace(p.Email) != "" {
+				emails = append(emails, p.Email)
+			}
+		}
+
+		if personasPage.NextPage != nil {
+			page = *personasPage.NextPage
+		} else {
+			break
+		}
+	}
+
+	if len(emails) > 0 {
+		if err := s.repo.ImportUsers(r.Context(), emails); err != nil {
+			slog.Error("Failed to import users", "error", err)
+			http.Error(w, "Failed to import users", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }

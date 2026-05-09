@@ -521,3 +521,67 @@ func TestRunMigrationError(t *testing.T) {
 		t.Fatal("expected error for up with closed db")
 	}
 }
+
+func TestImportUsers(t *testing.T) {
+	dbConn, err := InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dbConn.Close()
+
+	repo := NewRepository(dbConn)
+	ctx := context.Background()
+
+	// Empty list
+	err = repo.ImportUsers(ctx, []string{})
+	if err != nil {
+		t.Fatalf("expected no error for empty list, got %v", err)
+	}
+
+	// Normal import
+	err = repo.ImportUsers(ctx, []string{"user1@example.com", "user2@example.com"})
+	if err != nil {
+		t.Fatalf("expected no error for import, got %v", err)
+	}
+
+	users, _ := repo.ListUsers(ctx)
+	if len(users) != 2 {
+		t.Fatalf("expected 2 users, got %d", len(users))
+	}
+
+	// Idempotent import
+	err = repo.ImportUsers(ctx, []string{"user1@example.com", "user3@example.com"})
+	if err != nil {
+		t.Fatalf("expected no error for idempotent import, got %v", err)
+	}
+
+	users, _ = repo.ListUsers(ctx)
+	if len(users) != 3 {
+		t.Fatalf("expected 3 users after idempotent import, got %d", len(users))
+	}
+}
+
+func TestImportUsers_Errors(t *testing.T) {
+	dbConn, err := InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := NewRepository(dbConn)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel context
+
+	err = repo.ImportUsers(ctx, []string{"user@example.com"})
+	if err == nil {
+		t.Fatal("expected error with cancelled context")
+	}
+
+	// Test PrepareContext error by dropping table
+	dbConn2, _ := InitDB("file::memory:?cache=shared")
+	repo2 := NewRepository(dbConn2)
+	_, _ = dbConn2.Exec("DROP TABLE users")
+	err = repo2.ImportUsers(context.Background(), []string{"user@example.com"})
+	if err == nil {
+		t.Fatal("expected error with dropped table")
+	}
+	dbConn2.Close()
+}
