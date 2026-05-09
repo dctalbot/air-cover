@@ -163,7 +163,7 @@ func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
 		if views[i].Role != views[j].Role {
 			return views[i].Role == "admin"
 		}
-		return views[i].ID < views[j].ID
+		return strings.ToLower(views[i].Email) < strings.ToLower(views[j].Email)
 	})
 
 	email, _ := r.Context().Value(UserEmailKey).(string)

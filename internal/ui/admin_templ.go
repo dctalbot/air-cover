@@ -172,7 +172,7 @@ func Admin(users []UserView, email string) templ.Component {
 							return templ_7745c5c3_Err
 						}
 					} else {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "Activate")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "Reinstate")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}

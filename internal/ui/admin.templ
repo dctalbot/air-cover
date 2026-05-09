@@ -89,7 +89,7 @@ templ Admin(users []UserView, email string) {
 							if user.IsEnabled {
 							Deactivate
 							} else {
-							Activate
+							Reinstate
 							}
 						</button>
 						if user.IsEnabled {
