@@ -576,7 +576,7 @@ func TestImportUsers_Errors(t *testing.T) {
 	}
 
 	// Test PrepareContext error by dropping table
-	dbConn2, _ := InitDB("file::memory:?cache=shared")
+	dbConn2, _ := InitDB("file::memory:")
 	repo2 := NewRepository(dbConn2)
 	_, _ = dbConn2.Exec("DROP TABLE users")
 	err = repo2.ImportUsers(context.Background(), []string{"user@example.com"})

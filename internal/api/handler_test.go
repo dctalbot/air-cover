@@ -496,7 +496,7 @@ func TestHandlerViaHTTP(t *testing.T) {
 	req, _ = http.NewRequest(http.MethodDelete, ts.URL+"/sub-requests/123", nil)
 	resp, err = client.Do(req)
 	if err != nil {
-		t.Fatalf("DELETE /sub-requests/some-id: %v", err)
+		_ = repo.DB().Close()
 	}
 	resp.Body.Close()
 	if resp.StatusCode == http.StatusNotImplemented {
@@ -1074,7 +1074,7 @@ func TestServer_PostUsersImportSpinitron(t *testing.T) {
 
 	t.Run("db import error", func(t *testing.T) {
 		// Drop users table to force repo.ImportUsers to fail
-		_, _ = dbConn.Exec("DROP TABLE users")
+		_ = dbConn.Close()
 		s := NewServer(repo, nil, &importMockShowsService{fail: false})
 		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
 		rr := httptest.NewRecorder()
@@ -1132,7 +1132,7 @@ func TestServer_PatchUsersId_Errors(t *testing.T) {
 	})
 
 	t.Run("db error", func(t *testing.T) {
-		_, _ = repo.DB().Exec("DROP TABLE users")
+		_ = repo.DB().Close()
 		req := httptest.NewRequest(http.MethodPatch, "/users/1", strings.NewReader(`{"role":"admin"}`))
 		ctx := context.WithValue(req.Context(), UserIDKey, 999) // not self
 		req = req.WithContext(ctx)
