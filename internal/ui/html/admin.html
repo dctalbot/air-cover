@@ -119,8 +119,7 @@
                 class="role-button"
                 onclick="toggleUserRole({{.ID}}, '{{.Role}}')"
               >
-                {{if eq .Role "admin"}}Demote to Member{{else}}Promote to
-                Admin{{end}}
+                Make {{if eq .Role "admin"}}Member{{else}}Admin{{end}}
               </button>
               {{end}} {{end}}
             </td>
