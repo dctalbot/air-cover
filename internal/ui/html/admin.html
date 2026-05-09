@@ -94,7 +94,6 @@
           <tr>
             <th>Email</th>
             <th>Role</th>
-            <th>Added</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -103,7 +102,6 @@
           <tr id="user-row-{{.ID}}">
             <td>{{.Email}}</td>
             <td><span class="role-badge role-{{.Role}}">{{.Role}}</span></td>
-            <td>{{.CreatedAt}}</td>
             <td class="user-actions">
               {{if .CanDeactivate}}
               <button
