@@ -179,10 +179,13 @@ func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sort.Slice(views, func(i, j int) bool {
-		if views[i].IsEnabled == views[j].IsEnabled {
-			return views[i].ID < views[j].ID
+		if views[i].IsEnabled != views[j].IsEnabled {
+			return views[i].IsEnabled
 		}
-		return views[i].IsEnabled
+		if views[i].Role != views[j].Role {
+			return views[i].Role == "admin"
+		}
+		return views[i].ID < views[j].ID
 	})
 
 	email, _ := r.Context().Value(UserEmailKey).(string)
