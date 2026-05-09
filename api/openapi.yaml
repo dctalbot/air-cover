@@ -152,7 +152,6 @@ paths:
                   enum: [member, admin]
               required:
                 - email
-                - role
       responses:
         '302':
           description: Redirect back to admin dashboard

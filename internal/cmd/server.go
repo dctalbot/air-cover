@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
@@ -140,6 +141,8 @@ var serverCmd = &cobra.Command{
 }
 
 func init() {
+	openapi3filter.RegisterBodyDecoder("application/x-www-form-urlencoded", openapi3filter.UrlencodedBodyDecoder)
+
 	rootCmd.AddCommand(serverCmd)
 
 	serverCmd.Flags().IntP("port", "p", 8080, "Port to listen on")

@@ -72,25 +72,6 @@ templ Admin(users []UserView, email string) {
 				"
 			  />
 			</div>
-			<div style="margin-bottom: 0.5rem">
-			  <label for="role">Role</label>
-			  <div>
-				<select
-				  id="role"
-				  name="role"
-				  required
-				  style="
-					padding: 0.5rem;
-					border: 1px solid #ccc;
-					border-radius: 4px;
-					background: white;
-				  "
-				>
-				  <option value="member">Member</option>
-				  <option value="admin">Admin</option>
-				</select>
-			  </div>
-			</div>
 			<button type="submit">Add user</button>
 		  </form>
 		</section>

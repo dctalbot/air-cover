@@ -44,7 +44,7 @@ func Admin(users []UserView, email string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</span><form action=\"/auth/logout\" method=\"POST\" style=\"margin: 0\"><button type=\"submit\">Log Out</button></form></div></div></div><hr><div style=\"display: flex; justify-content: flex-end; margin-bottom: 1rem\"><form action=\"/users/import/spinitron\" method=\"POST\" style=\"margin: 0\"><button type=\"submit\" style=\"\n\t\t\t\tbackground: #2563eb;\n\t\t\t\tcolor: white;\n\t\t\t\tborder: none;\n\t\t\t\tpadding: 0.5rem 1rem;\n\t\t\t\tborder-radius: 4px;\n\t\t\t\tcursor: pointer;\n\t\t\t  \">Import all Spinitron DJs</button></form></div><section style=\"\n\t\t\tmargin-bottom: 2rem;\n\t\t\tbackground: #f0f9ff;\n\t\t\tborder: 1px solid #bae6fd;\n\t\t\tborder-radius: 8px;\n\t\t\tpadding: 0.5rem;\n\t\t  \"><form action=\"/users\" method=\"POST\"><div style=\"flex: 1; min-width: 200px; margin-bottom: 0.5rem\"><label for=\"email\">New user email address</label> <input type=\"email\" id=\"email\" name=\"email\" required placeholder=\"dj@example.com\" style=\"\n\t\t\t\t  width: 100%;\n\t\t\t\t  padding: 0.5rem;\n\t\t\t\t  border: 1px solid #ccc;\n\t\t\t\t  box-sizing: border-box;\n\t\t\t\t\"></div><div style=\"margin-bottom: 0.5rem\"><label for=\"role\">Role</label><div><select id=\"role\" name=\"role\" required style=\"\n\t\t\t\t\tpadding: 0.5rem;\n\t\t\t\t\tborder: 1px solid #ccc;\n\t\t\t\t\tborder-radius: 4px;\n\t\t\t\t\tbackground: white;\n\t\t\t\t  \"><option value=\"member\">Member</option> <option value=\"admin\">Admin</option></select></div></div><button type=\"submit\">Add user</button></form></section><div id=\"users-list\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</span><form action=\"/auth/logout\" method=\"POST\" style=\"margin: 0\"><button type=\"submit\">Log Out</button></form></div></div></div><hr><div style=\"display: flex; justify-content: flex-end; margin-bottom: 1rem\"><form action=\"/users/import/spinitron\" method=\"POST\" style=\"margin: 0\"><button type=\"submit\" style=\"\n\t\t\t\tbackground: #2563eb;\n\t\t\t\tcolor: white;\n\t\t\t\tborder: none;\n\t\t\t\tpadding: 0.5rem 1rem;\n\t\t\t\tborder-radius: 4px;\n\t\t\t\tcursor: pointer;\n\t\t\t  \">Import all Spinitron DJs</button></form></div><section style=\"\n\t\t\tmargin-bottom: 2rem;\n\t\t\tbackground: #f0f9ff;\n\t\t\tborder: 1px solid #bae6fd;\n\t\t\tborder-radius: 8px;\n\t\t\tpadding: 0.5rem;\n\t\t  \"><form action=\"/users\" method=\"POST\"><div style=\"flex: 1; min-width: 200px; margin-bottom: 0.5rem\"><label for=\"email\">New user email address</label> <input type=\"email\" id=\"email\" name=\"email\" required placeholder=\"dj@example.com\" style=\"\n\t\t\t\t  width: 100%;\n\t\t\t\t  padding: 0.5rem;\n\t\t\t\t  border: 1px solid #ccc;\n\t\t\t\t  box-sizing: border-box;\n\t\t\t\t\"></div><button type=\"submit\">Add user</button></form></section><div id=\"users-list\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -66,7 +66,7 @@ func Admin(users []UserView, email string) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs("user-row-" + strconv.Itoa(user.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/admin.templ`, Line: 112, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/admin.templ`, Line: 93, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -79,7 +79,7 @@ func Admin(users []UserView, email string) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(user.Email)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/admin.templ`, Line: 113, Col: 20}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/admin.templ`, Line: 94, Col: 20}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -115,7 +115,7 @@ func Admin(users []UserView, email string) templ.Component {
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(user.Role)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/admin.templ`, Line: 116, Col: 64}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/admin.templ`, Line: 97, Col: 64}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {
@@ -211,7 +211,7 @@ func Admin(users []UserView, email string) templ.Component {
 							var templ_7745c5c3_Var12 string
 							templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs("Make Member")
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/admin.templ`, Line: 141, Col: 21}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/admin.templ`, Line: 122, Col: 21}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 							if templ_7745c5c3_Err != nil {
@@ -221,7 +221,7 @@ func Admin(users []UserView, email string) templ.Component {
 							var templ_7745c5c3_Var13 string
 							templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs("Make Admin")
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/admin.templ`, Line: 143, Col: 20}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/admin.templ`, Line: 124, Col: 20}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 							if templ_7745c5c3_Err != nil {

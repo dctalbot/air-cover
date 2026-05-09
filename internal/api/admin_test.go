@@ -153,10 +153,10 @@ func TestServer_PostUsers(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "missing role",
+			name:       "missing role defaults to member",
 			email:      "norole@example.com",
 			role:       "",
-			wantStatus: http.StatusBadRequest,
+			wantStatus: http.StatusSeeOther,
 		},
 		{
 			name:       "invalid role",
@@ -188,8 +188,12 @@ func TestServer_PostUsers(t *testing.T) {
 				if err != nil {
 					t.Errorf("expected user %s to be created, got error %v", tt.email, err)
 				}
-				if user.Role != tt.role {
-					t.Errorf("expected role %s, got %s", tt.role, user.Role)
+				expectedRole := tt.role
+				if expectedRole == "" {
+					expectedRole = "member"
+				}
+				if user.Role != expectedRole {
+					t.Errorf("expected role %s, got %s", expectedRole, user.Role)
 				}
 			}
 		})

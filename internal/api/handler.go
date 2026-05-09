@@ -193,8 +193,7 @@ func (s *Server) PostUsers(w http.ResponseWriter, r *http.Request) {
 
 	role := r.FormValue("role")
 	if role == "" {
-		http.Error(w, "Role is required", http.StatusBadRequest)
-		return
+		role = "member"
 	}
 
 	if role != "admin" && role != "member" {
