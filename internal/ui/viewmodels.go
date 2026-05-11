@@ -16,6 +16,7 @@ type SubRequestView struct {
 	TakerEmail     string
 	StartTime      string
 	EndTime        string
+	Duration       string
 	Notes          string
 	Status         string
 	CanDelete      bool

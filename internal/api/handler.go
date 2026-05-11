@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -118,6 +119,8 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 			title = "Unknown Show"
 		}
 		isTaker := sr.TakenByUserID != nil && *sr.TakenByUserID == userID
+		durationStr := formatDuration(sr.EndTime.Sub(sr.StartTime))
+
 		views = append(views, ui.SubRequestView{
 			ID:             sr.ID,
 			ShowTitle:      title,
@@ -125,6 +128,7 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 			TakerEmail:     sr.TakerEmail,
 			StartTime:      sr.StartTime.Format(time.RFC3339),
 			EndTime:        sr.EndTime.Format(time.RFC3339),
+			Duration:       durationStr,
 			Notes:          sr.Notes,
 			Status:         sr.GetStatus(),
 			CanDelete:      sr.PostedByUserID == userID || isAdmin,
@@ -511,4 +515,16 @@ func (s *Server) PostUsersImportSpinitron(w http.ResponseWriter, r *http.Request
 	}
 
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+}
+
+func formatDuration(duration time.Duration) string {
+	if duration < time.Hour {
+		return fmt.Sprintf("%d min", int(duration.Minutes()))
+	}
+	hours := duration.Hours()
+	durationStr := fmt.Sprintf("%.2f", hours)
+	durationStr = strings.TrimSuffix(durationStr, "0")
+	durationStr = strings.TrimSuffix(durationStr, "0")
+	durationStr = strings.TrimSuffix(durationStr, ".")
+	return durationStr + " hours"
 }
