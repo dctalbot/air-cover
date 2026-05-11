@@ -1551,6 +1551,18 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 		}
 	})
 
+	t.Run("untake untaken", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
+			strings.NewReader(`{"action":"untake"}`))
+		ctx := context.WithValue(req.Context(), UserIDKey, u2.ID)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PatchSubRequestsId(rr, req, sr.ID)
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("expected 403, got %d", rr.Code)
+		}
+	})
+
 	t.Run("invalid action", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
 			strings.NewReader(`{"action":"invalid"}`))
@@ -1620,7 +1632,7 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 		}
 	})
 
-	t.Run("admin can take already taken request", func(t *testing.T) {
+	t.Run("admin cannot take already taken request", func(t *testing.T) {
 		admin, _ := repo.CreateUser(context.Background(), "admin-taker@example.com", "admin")
 		// sr is already taken by u2 in previous test case if it hasn't been reset,
 		// but let's make a clean one just in case.
@@ -1641,8 +1653,8 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 		rr := httptest.NewRecorder()
 		s.PatchSubRequestsId(rr, req, srTaken.ID)
 
-		if rr.Code != http.StatusNoContent {
-			t.Errorf("expected 204 for admin taking taken request, got %d", rr.Code)
+		if rr.Code != http.StatusConflict {
+			t.Errorf("expected 409 for admin taking taken request, got %d", rr.Code)
 		}
 	})
 }
