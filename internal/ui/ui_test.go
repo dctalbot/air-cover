@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"air-cover/internal/spinitron"
@@ -104,12 +105,14 @@ func TestAuthenticated(t *testing.T) {
 	shows := []spinitron.Show{
 		{ID: "1", Title: "Test Show"},
 	}
-	subRequests := []SubRequestView{
-		{ID: 1, ShowTitle: "Test Show", RequesterEmail: "user@example.com", TakerEmail: "taker@example.com", Status: "filled", CanDelete: true, CanUntake: true},
+	upcoming := []SubRequestView{
 		{ID: 2, ShowTitle: "Another Show", RequesterEmail: "other@example.com", Status: "open", CanTake: true},
 	}
+	past := []SubRequestView{
+		{ID: 1, ShowTitle: "Test Show", RequesterEmail: "user@example.com", TakerEmail: "taker@example.com", Status: "filled", CanDelete: true, CanUntake: true, IsPast: true},
+	}
 	buf := new(bytes.Buffer)
-	component := Authenticated(shows, "user@example.com", subRequests, false)
+	component := Authenticated(shows, "user@example.com", upcoming, past, false)
 	err := component.Render(context.Background(), buf)
 	if err != nil {
 		t.Fatalf("failed to render: %v", err)
@@ -123,6 +126,23 @@ func TestAuthenticated(t *testing.T) {
 	}
 	if !bytes.Contains(buf.Bytes(), []byte("row-available")) {
 		t.Error("expected row-available class not found in rendered output")
+	}
+}
+
+func TestAuthenticated_Empty(t *testing.T) {
+	buf := new(bytes.Buffer)
+	component := Authenticated(nil, "user@example.com", nil, nil, false)
+	err := component.Render(context.Background(), buf)
+	if err != nil {
+		t.Fatalf("failed to render: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "No upcoming sub requests yet.") {
+		t.Error("expected empty message not found")
+	}
+	if strings.Contains(output, "Recent history") {
+		t.Error("Recent history header should not be present when past is empty")
 	}
 }
 

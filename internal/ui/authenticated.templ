@@ -5,7 +5,7 @@ import (
 	"air-cover/internal/spinitron"
 )
 
-templ Authenticated(shows []spinitron.Show, email string, subRequests []SubRequestView, isAdmin bool) {
+templ Authenticated(shows []spinitron.Show, email string, upcoming []SubRequestView, past []SubRequestView, isAdmin bool) {
 	@Layout("Air Cover") {
 		@BaseStyles()
 		@TableStyles()
@@ -60,65 +60,21 @@ templ Authenticated(shows []spinitron.Show, email string, subRequests []SubReque
 
 		<hr/>
 
-		<h2>Sub Requests</h2>
+		<h2>Upcoming Sub Requests</h2>
 		<div id="sub-requests-list">
-		  if len(subRequests) == 0 {
-		  <p>No sub requests yet.</p>
+		  if len(upcoming) == 0 {
+		  <p>No upcoming sub requests yet.</p>
 		  } else {
-		<table class="data-table">
-			<thead>
-				<tr>
-					<th>When</th>
-					<th>Duration</th>
-					<th>Show</th>
-					<th>Posted By</th>
-					<th>Taken By</th>
-					<th>Actions</th>
-				</tr>
-			</thead>
-			<tbody>
-			for _, req := range subRequests {
-				<tr id={ "sub-request-row-" + strconv.Itoa(req.ID) } class={ templ.KV("row-available", req.TakerEmail == ""), templ.KV("row-taken", req.TakerEmail != "") }>
-					<td>{ req.StartTime }</td>
-					<td>{ req.Duration }</td>
-					<td>{ req.ShowTitle }</td>
-					<td>{ req.RequesterEmail }</td>
-					<td>
-						if req.TakerEmail != "" {
-						{ req.TakerEmail }
-						} else {
-						—
-						}
-					</td>
-					<td class="actions-cell">
-						if req.CanTake {
-						<button class="btn-action btn-action-primary" onclick={ templ.ComponentScript{
-							Call: "takeRequest('" + strconv.Itoa(req.ID) + "')",
-						} }>
-							Take
-						</button>
-						}
-						if req.CanUntake {
-						<button class="btn-action btn-action-warning" onclick={ templ.ComponentScript{
-							Call: "untakeRequest('" + strconv.Itoa(req.ID) + "')",
-						} }>
-							Untake
-						</button>
-						}
-						if req.CanDelete {
-						<button class="btn-action btn-action-danger" onclick={ templ.ComponentScript{
-							Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
-						} }>
-							Delete
-						</button>
-						}
-					</td>
-				</tr>
-			}
-			</tbody>
-		</table>
+		    @SubRequestTable(upcoming)
 		  }
 		</div>
+
+		if len(past) > 0 {
+			<h2>Recent history</h2>
+			<div id="past-sub-requests-list">
+				@SubRequestTable(past)
+			</div>
+		}
 
 		<style>
 		  blockquote {
@@ -272,4 +228,59 @@ templ Authenticated(shows []spinitron.Show, email string, subRequests []SubReque
 		  }
 		</script>
 	}
+}
+
+templ SubRequestTable(subRequests []SubRequestView) {
+	<table class="data-table">
+		<thead>
+			<tr>
+				<th>When</th>
+				<th>Duration</th>
+				<th>Show</th>
+				<th>Posted By</th>
+				<th>Taken By</th>
+				<th>Actions</th>
+			</tr>
+		</thead>
+		<tbody>
+		for _, req := range subRequests {
+			<tr id={ "sub-request-row-" + strconv.Itoa(req.ID) } class={ templ.KV("row-available", req.TakerEmail == ""), templ.KV("row-taken", req.TakerEmail != "") }>
+				<td>{ req.StartTime }</td>
+				<td>{ req.Duration }</td>
+				<td>{ req.ShowTitle }</td>
+				<td>{ req.RequesterEmail }</td>
+				<td>
+					if req.TakerEmail != "" {
+					{ req.TakerEmail }
+					} else {
+					—
+					}
+				</td>
+				<td class="actions-cell">
+					if req.CanTake {
+					<button class="btn-action btn-action-primary" onclick={ templ.ComponentScript{
+						Call: "takeRequest('" + strconv.Itoa(req.ID) + "')",
+					} }>
+						Take
+					</button>
+					}
+					if req.CanUntake {
+					<button class="btn-action btn-action-warning" onclick={ templ.ComponentScript{
+						Call: "untakeRequest('" + strconv.Itoa(req.ID) + "')",
+					} }>
+						Untake
+					</button>
+					}
+					if req.CanDelete {
+					<button class="btn-action btn-action-danger" onclick={ templ.ComponentScript{
+						Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
+					} }>
+						Delete
+					</button>
+					}
+				</td>
+			</tr>
+		}
+		</tbody>
+	</table>
 }

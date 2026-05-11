@@ -13,7 +13,7 @@ import (
 	"strconv"
 )
 
-func Authenticated(shows []spinitron.Show, email string, subRequests []SubRequestView, isAdmin bool) templ.Component {
+func Authenticated(shows []spinitron.Show, email string, upcoming []SubRequestView, past []SubRequestView, isAdmin bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -166,214 +166,261 @@ func Authenticated(shows []spinitron.Show, email string, subRequests []SubReques
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</b> is requesting a sub<span id=\"selected-show\"></span><span id=\"preview-date\"></span><span id=\"total-duration\"></span></p></blockquote><label for=\"notes\">Other info</label><br><textarea id=\"notes\" name=\"notes\" rows=\"4\" cols=\"80\" placeholder=\"I can offer baked cookies, beer, or some new music recs :)\"></textarea><br><button type=\"submit\">Submit Request</button></form><hr><h2>Sub Requests</h2><div id=\"sub-requests-list\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</b> is requesting a sub<span id=\"selected-show\"></span><span id=\"preview-date\"></span><span id=\"total-duration\"></span></p></blockquote><label for=\"notes\">Other info</label><br><textarea id=\"notes\" name=\"notes\" rows=\"4\" cols=\"80\" placeholder=\"I can offer baked cookies, beer, or some new music recs :)\"></textarea><br><button type=\"submit\">Submit Request</button></form><hr><h2>Upcoming Sub Requests</h2><div id=\"sub-requests-list\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if len(subRequests) == 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<p>No sub requests yet.</p>")
+			if len(upcoming) == 0 {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<p>No upcoming sub requests yet.</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<table class=\"data-table\"><thead><tr><th>When</th><th>Duration</th><th>Show</th><th>Posted By</th><th>Taken By</th><th>Actions</th></tr></thead> <tbody>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				for _, req := range subRequests {
-					var templ_7745c5c3_Var8 = []any{templ.KV("row-available", req.TakerEmail == ""), templ.KV("row-taken", req.TakerEmail != "")}
-					templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var8...)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<tr id=\"")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var9 string
-					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue("sub-request-row-" + strconv.Itoa(req.ID))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 81, Col: 54}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" class=\"")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var10 string
-					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var8).String())
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 1, Col: 0}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\"><td>")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var11 string
-					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(req.StartTime)
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 82, Col: 24}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</td><td>")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var12 string
-					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(req.Duration)
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 83, Col: 23}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</td><td>")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var13 string
-					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(req.ShowTitle)
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 84, Col: 24}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</td><td>")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					var templ_7745c5c3_Var14 string
-					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(req.RequesterEmail)
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 85, Col: 29}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</td><td>")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					if req.TakerEmail != "" {
-						var templ_7745c5c3_Var15 string
-						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(req.TakerEmail)
-						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 88, Col: 22}
-						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-					} else {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "—")
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</td><td class=\"actions-cell\">")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					if req.CanTake {
-						templ_7745c5c3_Err = templ.RenderScriptItems(ctx, templ_7745c5c3_Buffer, templ.ComponentScript{
-							Call: "takeRequest('" + strconv.Itoa(req.ID) + "')",
-						})
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<button class=\"btn-action btn-action-primary\" onclick=\"")
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						var templ_7745c5c3_Var16 templ.ComponentScript = templ.ComponentScript{
-							Call: "takeRequest('" + strconv.Itoa(req.ID) + "')",
-						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16.Call)
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "\">Take</button> ")
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-					}
-					if req.CanUntake {
-						templ_7745c5c3_Err = templ.RenderScriptItems(ctx, templ_7745c5c3_Buffer, templ.ComponentScript{
-							Call: "untakeRequest('" + strconv.Itoa(req.ID) + "')",
-						})
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<button class=\"btn-action btn-action-warning\" onclick=\"")
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						var templ_7745c5c3_Var17 templ.ComponentScript = templ.ComponentScript{
-							Call: "untakeRequest('" + strconv.Itoa(req.ID) + "')",
-						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17.Call)
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\">Untake</button> ")
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-					}
-					if req.CanDelete {
-						templ_7745c5c3_Err = templ.RenderScriptItems(ctx, templ_7745c5c3_Buffer, templ.ComponentScript{
-							Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
-						})
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<button class=\"btn-action btn-action-danger\" onclick=\"")
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						var templ_7745c5c3_Var18 templ.ComponentScript = templ.ComponentScript{
-							Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
-						}
-						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18.Call)
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\">Delete</button>")
-						if templ_7745c5c3_Err != nil {
-							return templ_7745c5c3_Err
-						}
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</td></tr>")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</tbody></table>")
+				templ_7745c5c3_Err = SubRequestTable(upcoming).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</div><style>\n\t\t  blockquote {\n\t\t\tmargin: 1rem 0;\n\t\t\tpadding: 0.5rem 1rem;\n\t\t\tborder-left: 4px solid #eee;\n\t\t\tbackground: #fcfcfc;\n\t\t  }\n\t\t</style> <script>\n\t\t  const showSelect = document.getElementById(\"show-select\");\n\t\t  const previewShow = document.getElementById(\"selected-show\");\n\t\t  const startTimeInput = document.getElementById(\"start-time\");\n\t\t  const previewDate = document.getElementById(\"preview-date\");\n\t\t  const endTimeInput = document.getElementById(\"end-time\");\n\t\t  const previewDuration = document.getElementById(\"total-duration\");\n\n\t\t  function updatePreview() {\n\t\t\t// Show\n\t\t\tconst selectedOption = showSelect.options[showSelect.selectedIndex];\n\t\t\tif (selectedOption && selectedOption.value) {\n\t\t\t  previewShow.innerHTML = ` for <i>${selectedOption.textContent.trim()}</i>`;\n\t\t\t} else {\n\t\t\t  previewShow.textContent = \"\";\n\t\t\t}\n\n\t\t\t// Date\n\t\t\tconst startValue = startTimeInput.value;\n\t\t\tif (startValue) {\n\t\t\t  const start = new Date(startValue);\n\t\t\t  if (!isNaN(start)) {\n\t\t\t\tconst options = {\n\t\t\t\t  weekday: \"long\",\n\t\t\t\t  month: \"short\",\n\t\t\t\t  day: \"numeric\",\n\t\t\t\t  hour: \"numeric\",\n\t\t\t\t  minute: \"numeric\",\n\t\t\t\t};\n\t\t\t\tpreviewDate.textContent = ` on ${start.toLocaleString(undefined, options)}`;\n\t\t\t  } else {\n\t\t\t\tpreviewDate.textContent = \"\";\n\t\t\t  }\n\t\t\t} else {\n\t\t\t  previewDate.textContent = \"\";\n\t\t\t}\n\n\t\t\t// Duration\n\t\t\tconst endValue = endTimeInput.value;\n\t\t\tif (startValue && endValue) {\n\t\t\t  const start = new Date(startValue);\n\t\t\t  const end = new Date(endValue);\n\t\t\t  if (!isNaN(start) && !isNaN(end)) {\n\t\t\t\tconst diff = end - start;\n\t\t\t\tif (diff >= 0) {\n\t\t\t\t  const minutes = Math.floor((diff / (1000 * 60)) % 60);\n\t\t\t\t  const hours = Math.floor(diff / (1000 * 60 * 60));\n\t\t\t\t  previewDuration.textContent = ` (${hours}h ${minutes}m)`;\n\t\t\t\t} else {\n\t\t\t\t  previewDuration.textContent = \"\";\n\t\t\t\t}\n\t\t\t  } else {\n\t\t\t\tpreviewDuration.textContent = \"\";\n\t\t\t  }\n\t\t\t} else {\n\t\t\t  previewDuration.textContent = \"\";\n\t\t\t}\n\t\t  }\n\n\t\t  // Initial min for start-time\n\t\t  const now = new Date();\n\t\t  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);\n\t\t  const pad = (num) => String(num).padStart(2, \"0\");\n\t\t  const minStartStr = `${yesterday.getFullYear()}-${pad(\n\t\t\tyesterday.getMonth() + 1,\n\t\t  )}-${pad(yesterday.getDate())}T${pad(yesterday.getHours())}:${pad(\n\t\t\tyesterday.getMinutes(),\n\t\t  )}`;\n\t\t  startTimeInput.min = minStartStr;\n\n\t\t  showSelect.addEventListener(\"change\", updatePreview);\n\t\t  startTimeInput.addEventListener(\"input\", () => {\n\t\t\tendTimeInput.min = startTimeInput.value;\n\t\t\tupdatePreview();\n\t\t  });\n\t\t  endTimeInput.addEventListener(\"input\", updatePreview);\n\n\t\t  // Run once on load in case browser remembers values\n\t\t  updatePreview();\n\n\t\t  async function deleteRequest(id) {\n\t\t\tif (!confirm(\"Are you sure you want to delete this sub request?\")) {\n\t\t\t  return;\n\t\t\t}\n\n\t\t\ttry {\n\t\t\t  const response = await fetch(`/sub-requests/${id}`, {\n\t\t\t\tmethod: \"DELETE\",\n\t\t\t  });\n\n\t\t\t  if (response.ok) {\n\t\t\t\twindow.location.reload();\n\t\t\t  } else {\n\t\t\t\tconst text = await response.text();\n\t\t\t\talert(`Failed to delete request: ${text || response.statusText}`);\n\t\t\t  }\n\t\t\t} catch (error) {\n\t\t\t  console.error(\"Error deleting request:\", error);\n\t\t\t  alert(\"An error occurred while deleting the request.\");\n\t\t\t}\n\t\t  }\n\n\t\t  async function takeRequest(id) {\n\t\t\ttry {\n\t\t\t  const response = await fetch(`/sub-requests/${id}`, {\n\t\t\t\tmethod: \"PATCH\",\n\t\t\t\theaders: { \"Content-Type\": \"application/json\" },\n\t\t\t\tbody: JSON.stringify({ action: \"take\" }),\n\t\t\t  });\n\n\t\t\t  if (response.ok) {\n\t\t\t\twindow.location.reload();\n\t\t\t  } else {\n\t\t\t\tconst text = await response.text();\n\t\t\t\talert(`Failed to take request: ${text || response.statusText}`);\n\t\t\t  }\n\t\t\t} catch (error) {\n\t\t\t  console.error(\"Error taking request:\", error);\n\t\t\t  alert(\"An error occurred while taking the request.\");\n\t\t\t}\n\t\t  }\n\n\t\t  async function untakeRequest(id) {\n\t\t\ttry {\n\t\t\t  const response = await fetch(`/sub-requests/${id}`, {\n\t\t\t\tmethod: \"PATCH\",\n\t\t\t\theaders: { \"Content-Type\": \"application/json\" },\n\t\t\t\tbody: JSON.stringify({ action: \"untake\" }),\n\t\t\t  });\n\n\t\t\t  if (response.ok) {\n\t\t\t\twindow.location.reload();\n\t\t\t  } else {\n\t\t\t\tconst text = await response.text();\n\t\t\t\talert(`Failed to untake request: ${text || response.statusText}`);\n\t\t\t  }\n\t\t\t} catch (error) {\n\t\t\t  console.error(\"Error untaking request:\", error);\n\t\t\t  alert(\"An error occurred while untaking the request.\");\n\t\t\t}\n\t\t  }\n\t\t</script>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if len(past) > 0 {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<h2>Recent history</h2><div id=\"past-sub-requests-list\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = SubRequestTable(past).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, " <style>\n\t\t  blockquote {\n\t\t\tmargin: 1rem 0;\n\t\t\tpadding: 0.5rem 1rem;\n\t\t\tborder-left: 4px solid #eee;\n\t\t\tbackground: #fcfcfc;\n\t\t  }\n\t\t</style> <script>\n\t\t  const showSelect = document.getElementById(\"show-select\");\n\t\t  const previewShow = document.getElementById(\"selected-show\");\n\t\t  const startTimeInput = document.getElementById(\"start-time\");\n\t\t  const previewDate = document.getElementById(\"preview-date\");\n\t\t  const endTimeInput = document.getElementById(\"end-time\");\n\t\t  const previewDuration = document.getElementById(\"total-duration\");\n\n\t\t  function updatePreview() {\n\t\t\t// Show\n\t\t\tconst selectedOption = showSelect.options[showSelect.selectedIndex];\n\t\t\tif (selectedOption && selectedOption.value) {\n\t\t\t  previewShow.innerHTML = ` for <i>${selectedOption.textContent.trim()}</i>`;\n\t\t\t} else {\n\t\t\t  previewShow.textContent = \"\";\n\t\t\t}\n\n\t\t\t// Date\n\t\t\tconst startValue = startTimeInput.value;\n\t\t\tif (startValue) {\n\t\t\t  const start = new Date(startValue);\n\t\t\t  if (!isNaN(start)) {\n\t\t\t\tconst options = {\n\t\t\t\t  weekday: \"long\",\n\t\t\t\t  month: \"short\",\n\t\t\t\t  day: \"numeric\",\n\t\t\t\t  hour: \"numeric\",\n\t\t\t\t  minute: \"numeric\",\n\t\t\t\t};\n\t\t\t\tpreviewDate.textContent = ` on ${start.toLocaleString(undefined, options)}`;\n\t\t\t  } else {\n\t\t\t\tpreviewDate.textContent = \"\";\n\t\t\t  }\n\t\t\t} else {\n\t\t\t  previewDate.textContent = \"\";\n\t\t\t}\n\n\t\t\t// Duration\n\t\t\tconst endValue = endTimeInput.value;\n\t\t\tif (startValue && endValue) {\n\t\t\t  const start = new Date(startValue);\n\t\t\t  const end = new Date(endValue);\n\t\t\t  if (!isNaN(start) && !isNaN(end)) {\n\t\t\t\tconst diff = end - start;\n\t\t\t\tif (diff >= 0) {\n\t\t\t\t  const minutes = Math.floor((diff / (1000 * 60)) % 60);\n\t\t\t\t  const hours = Math.floor(diff / (1000 * 60 * 60));\n\t\t\t\t  previewDuration.textContent = ` (${hours}h ${minutes}m)`;\n\t\t\t\t} else {\n\t\t\t\t  previewDuration.textContent = \"\";\n\t\t\t\t}\n\t\t\t  } else {\n\t\t\t\tpreviewDuration.textContent = \"\";\n\t\t\t  }\n\t\t\t} else {\n\t\t\t  previewDuration.textContent = \"\";\n\t\t\t}\n\t\t  }\n\n\t\t  // Initial min for start-time\n\t\t  const now = new Date();\n\t\t  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);\n\t\t  const pad = (num) => String(num).padStart(2, \"0\");\n\t\t  const minStartStr = `${yesterday.getFullYear()}-${pad(\n\t\t\tyesterday.getMonth() + 1,\n\t\t  )}-${pad(yesterday.getDate())}T${pad(yesterday.getHours())}:${pad(\n\t\t\tyesterday.getMinutes(),\n\t\t  )}`;\n\t\t  startTimeInput.min = minStartStr;\n\n\t\t  showSelect.addEventListener(\"change\", updatePreview);\n\t\t  startTimeInput.addEventListener(\"input\", () => {\n\t\t\tendTimeInput.min = startTimeInput.value;\n\t\t\tupdatePreview();\n\t\t  });\n\t\t  endTimeInput.addEventListener(\"input\", updatePreview);\n\n\t\t  // Run once on load in case browser remembers values\n\t\t  updatePreview();\n\n\t\t  async function deleteRequest(id) {\n\t\t\tif (!confirm(\"Are you sure you want to delete this sub request?\")) {\n\t\t\t  return;\n\t\t\t}\n\n\t\t\ttry {\n\t\t\t  const response = await fetch(`/sub-requests/${id}`, {\n\t\t\t\tmethod: \"DELETE\",\n\t\t\t  });\n\n\t\t\t  if (response.ok) {\n\t\t\t\twindow.location.reload();\n\t\t\t  } else {\n\t\t\t\tconst text = await response.text();\n\t\t\t\talert(`Failed to delete request: ${text || response.statusText}`);\n\t\t\t  }\n\t\t\t} catch (error) {\n\t\t\t  console.error(\"Error deleting request:\", error);\n\t\t\t  alert(\"An error occurred while deleting the request.\");\n\t\t\t}\n\t\t  }\n\n\t\t  async function takeRequest(id) {\n\t\t\ttry {\n\t\t\t  const response = await fetch(`/sub-requests/${id}`, {\n\t\t\t\tmethod: \"PATCH\",\n\t\t\t\theaders: { \"Content-Type\": \"application/json\" },\n\t\t\t\tbody: JSON.stringify({ action: \"take\" }),\n\t\t\t  });\n\n\t\t\t  if (response.ok) {\n\t\t\t\twindow.location.reload();\n\t\t\t  } else {\n\t\t\t\tconst text = await response.text();\n\t\t\t\talert(`Failed to take request: ${text || response.statusText}`);\n\t\t\t  }\n\t\t\t} catch (error) {\n\t\t\t  console.error(\"Error taking request:\", error);\n\t\t\t  alert(\"An error occurred while taking the request.\");\n\t\t\t}\n\t\t  }\n\n\t\t  async function untakeRequest(id) {\n\t\t\ttry {\n\t\t\t  const response = await fetch(`/sub-requests/${id}`, {\n\t\t\t\tmethod: \"PATCH\",\n\t\t\t\theaders: { \"Content-Type\": \"application/json\" },\n\t\t\t\tbody: JSON.stringify({ action: \"untake\" }),\n\t\t\t  });\n\n\t\t\t  if (response.ok) {\n\t\t\t\twindow.location.reload();\n\t\t\t  } else {\n\t\t\t\tconst text = await response.text();\n\t\t\t\talert(`Failed to untake request: ${text || response.statusText}`);\n\t\t\t  }\n\t\t\t} catch (error) {\n\t\t\t  console.error(\"Error untaking request:\", error);\n\t\t\t  alert(\"An error occurred while untaking the request.\");\n\t\t\t}\n\t\t  }\n\t\t</script>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return nil
 		})
 		templ_7745c5c3_Err = Layout("Air Cover").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func SubRequestTable(subRequests []SubRequestView) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var8 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var8 == nil {
+			templ_7745c5c3_Var8 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<table class=\"data-table\"><thead><tr><th>When</th><th>Duration</th><th>Show</th><th>Posted By</th><th>Taken By</th><th>Actions</th></tr></thead> <tbody>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		for _, req := range subRequests {
+			var templ_7745c5c3_Var9 = []any{templ.KV("row-available", req.TakerEmail == ""), templ.KV("row-taken", req.TakerEmail != "")}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var9...)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<tr id=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var10 string
+			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue("sub-request-row-" + strconv.Itoa(req.ID))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 247, Col: 53}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" class=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var11 string
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var9).String())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 1, Col: 0}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\"><td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var12 string
+			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(req.StartTime)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 248, Col: 23}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</td><td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var13 string
+			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(req.Duration)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 249, Col: 22}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</td><td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var14 string
+			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(req.ShowTitle)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 250, Col: 23}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</td><td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var15 string
+			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(req.RequesterEmail)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 251, Col: 28}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</td><td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if req.TakerEmail != "" {
+				var templ_7745c5c3_Var16 string
+				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(req.TakerEmail)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/authenticated.templ`, Line: 254, Col: 21}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			} else {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "—")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</td><td class=\"actions-cell\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if req.CanTake {
+				templ_7745c5c3_Err = templ.RenderScriptItems(ctx, templ_7745c5c3_Buffer, templ.ComponentScript{
+					Call: "takeRequest('" + strconv.Itoa(req.ID) + "')",
+				})
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<button class=\"btn-action btn-action-primary\" onclick=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var17 templ.ComponentScript = templ.ComponentScript{
+					Call: "takeRequest('" + strconv.Itoa(req.ID) + "')",
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17.Call)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\">Take</button> ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			if req.CanUntake {
+				templ_7745c5c3_Err = templ.RenderScriptItems(ctx, templ_7745c5c3_Buffer, templ.ComponentScript{
+					Call: "untakeRequest('" + strconv.Itoa(req.ID) + "')",
+				})
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<button class=\"btn-action btn-action-warning\" onclick=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var18 templ.ComponentScript = templ.ComponentScript{
+					Call: "untakeRequest('" + strconv.Itoa(req.ID) + "')",
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18.Call)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "\">Untake</button> ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			if req.CanDelete {
+				templ_7745c5c3_Err = templ.RenderScriptItems(ctx, templ_7745c5c3_Buffer, templ.ComponentScript{
+					Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
+				})
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<button class=\"btn-action btn-action-danger\" onclick=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var19 templ.ComponentScript = templ.ComponentScript{
+					Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19.Call)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\">Delete</button>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</td></tr>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</tbody></table>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

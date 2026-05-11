@@ -143,7 +143,7 @@ func (r *Repository) ListSubRequests(ctx context.Context) ([]*models.SubRequest,
 		FROM sub_requests sr
 		JOIN users u ON sr.posted_by_user_id = u.id
 		LEFT JOIN users u2 ON sr.taken_by_user_id = u2.id
-		ORDER BY sr.created_at DESC
+		ORDER BY sr.start_time ASC
 	`)
 	if err != nil {
 		return nil, err

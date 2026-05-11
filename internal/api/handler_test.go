@@ -176,17 +176,54 @@ func TestServer_Get(t *testing.T) {
 
 func TestServer_GetApp(t *testing.T) {
 	repo := setupTestDB(t)
+	u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
 	s := NewServer(repo, nil, &MockShowsService{})
+
+	// Create a future request
+	_ = repo.CreateSubRequest(context.Background(), &models.SubRequest{
+		ShowID:         1,
+		PostedByUserID: u.ID,
+		StartTime:      time.Now().Add(24 * time.Hour),
+		EndTime:        time.Now().Add(26 * time.Hour),
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	})
+
+	// Create a past request with an unknown show ID and taken by another user
+	u2, _ := repo.CreateUser(context.Background(), "taker@example.com", "member")
+	_ = repo.CreateSubRequest(context.Background(), &models.SubRequest{
+		ShowID:         999, // Unknown show
+		PostedByUserID: u.ID,
+		TakenByUserID:  &u2.ID,
+		StartTime:      time.Now().Add(-24 * time.Hour),
+		EndTime:        time.Now().Add(-22 * time.Hour),
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	})
 
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
 	ctx := context.WithValue(req.Context(), UserEmailKey, "test@example.com")
-	ctx = context.WithValue(ctx, UserIDKey, 1)
+	ctx = context.WithValue(ctx, UserIDKey, u.ID)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 	s.GetApp(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected OK, got %v", rr.Code)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "Upcoming Sub Requests") {
+		t.Error("expected 'Upcoming Sub Requests' header not found")
+	}
+	if !strings.Contains(body, "Recent history") {
+		t.Error("expected 'Recent history' header not found")
+	}
+	if !strings.Contains(body, "Unknown Show") {
+		t.Error("expected 'Unknown Show' not found in body")
+	}
+	if !strings.Contains(body, "taker@example.com") {
+		t.Error("expected taker email not found in body")
 	}
 }
 

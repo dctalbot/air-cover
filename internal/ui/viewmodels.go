@@ -22,4 +22,5 @@ type SubRequestView struct {
 	CanDelete      bool
 	CanTake        bool
 	CanUntake      bool
+	IsPast         bool
 }

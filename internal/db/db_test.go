@@ -756,3 +756,55 @@ func TestImportUsers_ExecError(t *testing.T) {
 		t.Fatal("expected error from exec in ImportUsers loop")
 	}
 }
+
+func TestListSubRequestsOrdering(t *testing.T) {
+	dbConn, err := InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dbConn.Close()
+
+	repo := NewRepository(dbConn)
+	ctx := context.Background()
+
+	u, _ := repo.CreateUser(ctx, "test@example.com", "member")
+
+	now := time.Now()
+	// Create sub requests in random order of start time
+	times := []time.Time{
+		now.Add(2 * time.Hour),
+		now.Add(1 * time.Hour),
+		now.Add(3 * time.Hour),
+	}
+
+	for _, st := range times {
+		sr := &models.SubRequest{
+			ShowID:         1,
+			PostedByUserID: u.ID,
+			StartTime:      st,
+			EndTime:        st.Add(1 * time.Hour),
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		}
+		if err := repo.CreateSubRequest(ctx, sr); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	list, err := repo.ListSubRequests(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(list) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(list))
+	}
+
+	// Verify they are ordered by start time ascending
+	if !list[0].StartTime.Before(list[1].StartTime) {
+		t.Errorf("expected %v before %v", list[0].StartTime, list[1].StartTime)
+	}
+	if !list[1].StartTime.Before(list[2].StartTime) {
+		t.Errorf("expected %v before %v", list[1].StartTime, list[2].StartTime)
+	}
+}

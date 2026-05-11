@@ -112,7 +112,10 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 	role, _ := r.Context().Value(UserRoleKey).(string)
 	isAdmin := role == "admin"
 
-	var views []ui.SubRequestView
+	var upcoming []ui.SubRequestView
+	var past []ui.SubRequestView
+	now := time.Now()
+
 	for _, sr := range subRequests {
 		title := showMap[sr.ShowID]
 		if title == "" {
@@ -121,12 +124,13 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 		isTaker := sr.TakenByUserID != nil && *sr.TakenByUserID == userID
 		durationStr := formatDuration(sr.EndTime.Sub(sr.StartTime))
 
-		views = append(views, ui.SubRequestView{
+		isPast := sr.StartTime.Before(now)
+		view := ui.SubRequestView{
 			ID:             sr.ID,
 			ShowTitle:      title,
 			RequesterEmail: sr.RequesterEmail,
 			TakerEmail:     sr.TakerEmail,
-			StartTime:      sr.StartTime.Format(time.RFC3339),
+			StartTime:      sr.StartTime.Format("Jan 2, 3:04pm"),
 			EndTime:        sr.EndTime.Format(time.RFC3339),
 			Duration:       durationStr,
 			Notes:          sr.Notes,
@@ -134,10 +138,24 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 			CanDelete:      sr.PostedByUserID == userID || isAdmin,
 			CanTake:        sr.TakenByUserID == nil && (sr.PostedByUserID != userID || isAdmin),
 			CanUntake:      isTaker,
-		})
+			IsPast:         isPast,
+		}
+
+		if isPast {
+			past = append(past, view)
+		} else {
+			upcoming = append(upcoming, view)
+		}
 	}
 
-	if err := ui.Authenticated(allShows, email, views, isAdmin).Render(r.Context(), w); err != nil {
+	// Sort past requests by StartTime DESC (most recent first)
+	// Since subRequests is already sorted ASC, 'past' is also currently sorted ASC.
+	// We reverse it to get DESC order.
+	for i, j := 0, len(past)-1; i < j; i, j = i+1, j-1 {
+		past[i], past[j] = past[j], past[i]
+	}
+
+	if err := ui.Authenticated(allShows, email, upcoming, past, isAdmin).Render(r.Context(), w); err != nil {
 		slog.Error("Failed to write response", "error", err)
 	}
 }
