@@ -55,18 +55,54 @@ func (e PostUsersFormdataBodyRole) Valid() bool {
 	}
 }
 
-// Defines values for PatchUsersIdJSONBodyRole.
+// Defines values for PostUsersIdJSONBodyRole.
 const (
-	PatchUsersIdJSONBodyRoleAdmin  PatchUsersIdJSONBodyRole = "admin"
-	PatchUsersIdJSONBodyRoleMember PatchUsersIdJSONBodyRole = "member"
+	PostUsersIdJSONBodyRoleAdmin  PostUsersIdJSONBodyRole = "admin"
+	PostUsersIdJSONBodyRoleMember PostUsersIdJSONBodyRole = "member"
 )
 
-// Valid indicates whether the value is a known member of the PatchUsersIdJSONBodyRole enum.
-func (e PatchUsersIdJSONBodyRole) Valid() bool {
+// Valid indicates whether the value is a known member of the PostUsersIdJSONBodyRole enum.
+func (e PostUsersIdJSONBodyRole) Valid() bool {
 	switch e {
-	case PatchUsersIdJSONBodyRoleAdmin:
+	case PostUsersIdJSONBodyRoleAdmin:
 		return true
-	case PatchUsersIdJSONBodyRoleMember:
+	case PostUsersIdJSONBodyRoleMember:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostUsersIdFormdataBodyIsEnabled.
+const (
+	False PostUsersIdFormdataBodyIsEnabled = "false"
+	True  PostUsersIdFormdataBodyIsEnabled = "true"
+)
+
+// Valid indicates whether the value is a known member of the PostUsersIdFormdataBodyIsEnabled enum.
+func (e PostUsersIdFormdataBodyIsEnabled) Valid() bool {
+	switch e {
+	case False:
+		return true
+	case True:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PostUsersIdFormdataBodyRole.
+const (
+	Admin  PostUsersIdFormdataBodyRole = "admin"
+	Member PostUsersIdFormdataBodyRole = "member"
+)
+
+// Valid indicates whether the value is a known member of the PostUsersIdFormdataBodyRole enum.
+func (e PostUsersIdFormdataBodyRole) Valid() bool {
+	switch e {
+	case Admin:
+		return true
+	case Member:
 		return true
 	default:
 		return false
@@ -113,14 +149,26 @@ type PostUsersFormdataBody struct {
 // PostUsersFormdataBodyRole defines parameters for PostUsers.
 type PostUsersFormdataBodyRole string
 
-// PatchUsersIdJSONBody defines parameters for PatchUsersId.
-type PatchUsersIdJSONBody struct {
-	IsEnabled *bool                     `json:"is_enabled,omitempty"`
-	Role      *PatchUsersIdJSONBodyRole `json:"role,omitempty"`
+// PostUsersIdJSONBody defines parameters for PostUsersId.
+type PostUsersIdJSONBody struct {
+	IsEnabled *bool                    `json:"is_enabled,omitempty"`
+	Role      *PostUsersIdJSONBodyRole `json:"role,omitempty"`
 }
 
-// PatchUsersIdJSONBodyRole defines parameters for PatchUsersId.
-type PatchUsersIdJSONBodyRole string
+// PostUsersIdFormdataBody defines parameters for PostUsersId.
+type PostUsersIdFormdataBody struct {
+	IsEnabled *PostUsersIdFormdataBodyIsEnabled `form:"is_enabled,omitempty" json:"is_enabled,omitempty"`
+	Role      *PostUsersIdFormdataBodyRole      `form:"role,omitempty" json:"role,omitempty"`
+}
+
+// PostUsersIdJSONBodyRole defines parameters for PostUsersId.
+type PostUsersIdJSONBodyRole string
+
+// PostUsersIdFormdataBodyIsEnabled defines parameters for PostUsersId.
+type PostUsersIdFormdataBodyIsEnabled string
+
+// PostUsersIdFormdataBodyRole defines parameters for PostUsersId.
+type PostUsersIdFormdataBodyRole string
 
 // PostAuthLoginJSONRequestBody defines body for PostAuthLogin for application/json ContentType.
 type PostAuthLoginJSONRequestBody = LoginRequest
@@ -137,8 +185,11 @@ type PatchSubRequestsIdJSONRequestBody PatchSubRequestsIdJSONBody
 // PostUsersFormdataRequestBody defines body for PostUsers for application/x-www-form-urlencoded ContentType.
 type PostUsersFormdataRequestBody PostUsersFormdataBody
 
-// PatchUsersIdJSONRequestBody defines body for PatchUsersId for application/json ContentType.
-type PatchUsersIdJSONRequestBody PatchUsersIdJSONBody
+// PostUsersIdJSONRequestBody defines body for PostUsersId for application/json ContentType.
+type PostUsersIdJSONRequestBody PostUsersIdJSONBody
+
+// PostUsersIdFormdataRequestBody defines body for PostUsersId for application/x-www-form-urlencoded ContentType.
+type PostUsersIdFormdataRequestBody PostUsersIdFormdataBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -179,8 +230,8 @@ type ServerInterface interface {
 	// (POST /users/import/spinitron)
 	PostUsersImportSpinitron(w http.ResponseWriter, r *http.Request)
 	// Update a user's status
-	// (PATCH /users/{id})
-	PatchUsersId(w http.ResponseWriter, r *http.Request, id int)
+	// (POST /users/{id})
+	PostUsersId(w http.ResponseWriter, r *http.Request, id int)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -260,8 +311,8 @@ func (_ Unimplemented) PostUsersImportSpinitron(w http.ResponseWriter, r *http.R
 }
 
 // Update a user's status
-// (PATCH /users/{id})
-func (_ Unimplemented) PatchUsersId(w http.ResponseWriter, r *http.Request, id int) {
+// (POST /users/{id})
+func (_ Unimplemented) PostUsersId(w http.ResponseWriter, r *http.Request, id int) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -484,8 +535,8 @@ func (siw *ServerInterfaceWrapper) PostUsersImportSpinitron(w http.ResponseWrite
 	handler.ServeHTTP(w, r)
 }
 
-// PatchUsersId operation middleware
-func (siw *ServerInterfaceWrapper) PatchUsersId(w http.ResponseWriter, r *http.Request) {
+// PostUsersId operation middleware
+func (siw *ServerInterfaceWrapper) PostUsersId(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 
@@ -499,7 +550,7 @@ func (siw *ServerInterfaceWrapper) PatchUsersId(w http.ResponseWriter, r *http.R
 	}
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PatchUsersId(w, r, id)
+		siw.Handler.PostUsersId(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -659,7 +710,7 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/users/import/spinitron", wrapper.PostUsersImportSpinitron)
 	})
 	r.Group(func(r chi.Router) {
-		r.Patch(options.BaseURL+"/users/{id}", wrapper.PatchUsersId)
+		r.Post(options.BaseURL+"/users/{id}", wrapper.PostUsersId)
 	})
 
 	return r
@@ -668,25 +719,26 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

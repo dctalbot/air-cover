@@ -209,7 +209,7 @@ paths:
 
 
   /users/{id}:
-    patch:
+    post:
       summary: Update a user's status
       parameters:
         - name: id
@@ -229,9 +229,21 @@ paths:
                 role:
                   type: string
                   enum: [member, admin]
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                is_enabled:
+                  type: string
+                  enum: ["true", "false"]
+                role:
+                  type: string
+                  enum: [member, admin]
       responses:
         '204':
-          description: User updated
+          description: User updated (JSON)
+        '302':
+          description: Redirect back to admin dashboard (Form)
         '400':
           description: Invalid request
         '401':

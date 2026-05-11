@@ -337,6 +337,29 @@ func TestServer_DeleteSubRequestsId(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("db error", func(t *testing.T) {
+		repo := setupTestDB(t)
+		u, _ := repo.CreateUser(context.Background(), "poster@example.com", "member")
+		sr := &models.SubRequest{
+			ShowID:         1,
+			PostedByUserID: u.ID,
+			StartTime:      time.Now(),
+			EndTime:        time.Now().Add(time.Hour),
+		}
+		_ = repo.CreateSubRequest(context.Background(), sr)
+		s := NewServer(repo, nil, nil)
+		_ = repo.DB().Close()
+
+		req := httptest.NewRequest(http.MethodDelete, "/sub-requests/1", nil)
+		ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.DeleteSubRequestsId(rr, req, sr.ID)
+		if rr.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500 for db error, got %d", rr.Code)
+		}
+	})
 }
 
 // TestUnimplemented exercises all the Unimplemented stub methods.
@@ -371,6 +394,10 @@ func TestUnimplemented(t *testing.T) {
 	check("GetAuthVerify", rr.Code)
 
 	rr = httptest.NewRecorder()
+	u.GetAdmin(rr, req)
+	check("GetAdmin", rr.Code)
+
+	rr = httptest.NewRecorder()
 	u.GetHealth(rr, req)
 	check("GetHealth", rr.Code)
 
@@ -385,6 +412,18 @@ func TestUnimplemented(t *testing.T) {
 	rr = httptest.NewRecorder()
 	u.PatchSubRequestsId(rr, req, 123)
 	check("PatchSubRequestsId", rr.Code)
+
+	rr = httptest.NewRecorder()
+	u.PostUsers(rr, req)
+	check("PostUsers", rr.Code)
+
+	rr = httptest.NewRecorder()
+	u.PostUsersImportSpinitron(rr, req)
+	check("PostUsersImportSpinitron", rr.Code)
+
+	rr = httptest.NewRecorder()
+	u.PostUsersId(rr, req, 123)
+	check("PostUsersId", rr.Code)
 }
 
 // TestHandlerWithOptions exercises the generated router setup and all wrapper functions.
@@ -532,6 +571,19 @@ func TestHandlerViaHTTP(t *testing.T) {
 	if resp.StatusCode == http.StatusNotImplemented {
 		t.Error("expected PATCH /sub-requests/{id} to not return 501")
 	}
+
+	// POST /users/{id} → exercises ServerInterfaceWrapper.PostUsersId
+	req, _ = http.NewRequest(http.MethodPost, ts.URL+"/users/123",
+		strings.NewReader(`{"role":"admin"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatalf("POST /users/{id}: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode == http.StatusNotImplemented {
+		t.Error("expected POST /users/{id} to not return 501")
+	}
 }
 
 // TestHandlerWithOptions_CustomErrorHandler tests that the custom error handler is called.
@@ -676,6 +728,7 @@ func TestHandlerWithMiddleware(t *testing.T) {
 		{http.MethodPost, "/sub-requests", "show=1&start_time=2026-01-01T10%3A00&end_time=2026-01-01T12%3A00", "application/x-www-form-urlencoded"},
 		{http.MethodDelete, "/sub-requests/123", "", ""},
 		{http.MethodPatch, "/sub-requests/123", `{"action":"take"}`, "application/json"},
+		{http.MethodPost, "/users/123", `{"role":"admin"}`, "application/json"},
 	}
 
 	for _, route := range routes {
@@ -1136,27 +1189,29 @@ func TestServer_GetAdmin_Sorting(t *testing.T) {
 	}
 }
 
-func TestServer_PatchUsersId_Errors(t *testing.T) {
+func TestServer_PostUsersId_Errors(t *testing.T) {
 	repo := setupTestDB(t)
 	s := NewServer(repo, nil, nil)
 
 	u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
 
 	t.Run("invalid json", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/users/1", strings.NewReader(`{invalid json`))
+		req := httptest.NewRequest(http.MethodPost, "/users/1", strings.NewReader(`{invalid json`))
+		req.Header.Set("Content-Type", "application/json")
 		rr := httptest.NewRecorder()
-		s.PatchUsersId(rr, req, 1)
+		s.PostUsersId(rr, req, 1)
 		if rr.Code != http.StatusBadRequest {
 			t.Errorf("expected 400 for invalid json, got %d", rr.Code)
 		}
 	})
 
 	t.Run("self deactivation", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/users/1", strings.NewReader(`{"is_enabled":false}`))
+		req := httptest.NewRequest(http.MethodPost, "/users/1", strings.NewReader(`{"is_enabled":false}`))
+		req.Header.Set("Content-Type", "application/json")
 		ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
-		s.PatchUsersId(rr, req, u.ID)
+		s.PostUsersId(rr, req, u.ID)
 		if rr.Code != http.StatusForbidden {
 			t.Errorf("expected 403 for self deactivation, got %d", rr.Code)
 		}
@@ -1164,13 +1219,56 @@ func TestServer_PatchUsersId_Errors(t *testing.T) {
 
 	t.Run("db error", func(t *testing.T) {
 		_ = repo.DB().Close()
-		req := httptest.NewRequest(http.MethodPatch, "/users/1", strings.NewReader(`{"role":"admin"}`))
+		req := httptest.NewRequest(http.MethodPost, "/users/1", strings.NewReader(`{"role":"admin"}`))
+		req.Header.Set("Content-Type", "application/json")
 		ctx := context.WithValue(req.Context(), UserIDKey, 999) // not self
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
-		s.PatchUsersId(rr, req, u.ID)
+		s.PostUsersId(rr, req, u.ID)
 		if rr.Code != http.StatusInternalServerError {
 			t.Errorf("expected 500 for db error, got %d", rr.Code)
+		}
+	})
+
+	t.Run("form success", func(t *testing.T) {
+		repo := setupTestDB(t) // fresh DB
+		s := NewServer(repo, nil, nil)
+		u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
+		target, _ := repo.CreateUser(context.Background(), "target@example.com", "member")
+
+		formData := url.Values{
+			"is_enabled": {"false"},
+			"role":       {"admin"},
+		}
+		req := httptest.NewRequest(http.MethodPost, "/users/"+strconv.Itoa(target.ID), strings.NewReader(formData.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PostUsersId(rr, req, target.ID)
+
+		if rr.Code != http.StatusSeeOther {
+			t.Errorf("expected 303 for form success, got %d", rr.Code)
+		}
+
+		updated, _ := repo.GetUserByID(context.Background(), target.ID)
+		if updated.IsEnabled {
+			t.Error("expected user to be disabled")
+		}
+		if updated.Role != "admin" {
+			t.Errorf("expected role admin, got %s", updated.Role)
+		}
+	})
+
+	t.Run("form parse error", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/users/1", strings.NewReader("invalid%2"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		ctx := context.WithValue(req.Context(), UserIDKey, 999)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PostUsersId(rr, req, 1)
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected 400 for invalid form, got %d", rr.Code)
 		}
 	})
 }
@@ -1258,41 +1356,44 @@ func TestServer_GetApp_RenderError(t *testing.T) {
 	// No panic means the error was handled gracefully (logged)
 }
 
-func TestServer_PatchUsersId_NoUserInContext(t *testing.T) {
+func TestServer_PostUsersId_NoUserInContext(t *testing.T) {
 	repo := setupTestDB(t)
 	s := NewServer(repo, nil, nil)
 
-	req := httptest.NewRequest(http.MethodPatch, "/users/1", strings.NewReader(`{"is_enabled":false}`))
+	req := httptest.NewRequest(http.MethodPost, "/users/1", strings.NewReader(`{"is_enabled":false}`))
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
-	s.PatchUsersId(rr, req, 1)
+	s.PostUsersId(rr, req, 1)
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401 for no user in context, got %d", rr.Code)
 	}
 }
 
-func TestServer_PatchUsersId_InvalidRole(t *testing.T) {
+func TestServer_PostUsersId_InvalidRole(t *testing.T) {
 	repo := setupTestDB(t)
 	s := NewServer(repo, nil, nil)
 
-	req := httptest.NewRequest(http.MethodPatch, "/users/1", strings.NewReader(`{"role":"superadmin"}`))
+	req := httptest.NewRequest(http.MethodPost, "/users/1", strings.NewReader(`{"role":"superadmin"}`))
+	req.Header.Set("Content-Type", "application/json")
 	ctx := context.WithValue(req.Context(), UserIDKey, 999)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
-	s.PatchUsersId(rr, req, 1)
+	s.PostUsersId(rr, req, 1)
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for invalid role, got %d", rr.Code)
 	}
 }
 
-func TestServer_PatchUsersId_NotFound(t *testing.T) {
+func TestServer_PostUsersId_NotFound(t *testing.T) {
 	repo := setupTestDB(t)
 	s := NewServer(repo, nil, nil)
 
-	req := httptest.NewRequest(http.MethodPatch, "/users/99999", strings.NewReader(`{"role":"admin"}`))
+	req := httptest.NewRequest(http.MethodPost, "/users/99999", strings.NewReader(`{"role":"admin"}`))
+	req.Header.Set("Content-Type", "application/json")
 	ctx := context.WithValue(req.Context(), UserIDKey, 1)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
-	s.PatchUsersId(rr, req, 99999)
+	s.PostUsersId(rr, req, 99999)
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected 404 for non-existent user, got %d", rr.Code)
 	}

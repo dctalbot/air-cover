@@ -245,7 +245,7 @@ func TestServer_PostUsers(t *testing.T) {
 	})
 }
 
-func TestServer_PatchUsersId(t *testing.T) {
+func TestServer_PostUsersId(t *testing.T) {
 	tests := []struct {
 		name           string
 		currentUser    string // email of current user
@@ -348,7 +348,7 @@ func TestServer_PatchUsersId(t *testing.T) {
 				targetID = member.ID
 			}
 
-			req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/users/%d", targetID), bytes.NewBufferString(tt.body))
+			req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/users/%d", targetID), bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			ctx := context.WithValue(req.Context(), UserIDKey, currentID)
 			req = req.WithContext(ctx)
@@ -376,7 +376,7 @@ func TestUnimplemented_Admin(t *testing.T) {
 	}
 
 	rr = httptest.NewRecorder()
-	u.PatchUsersId(rr, nil, 1)
+	u.PostUsersId(rr, nil, 1)
 	if rr.Code != http.StatusNotImplemented {
 		t.Errorf("expected NotImplemented, got %v", rr.Code)
 	}

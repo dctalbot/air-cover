@@ -70,21 +70,31 @@ templ Admin(users []UserView, email string) {
 						</td>
 						<td class="actions-cell">
 							if user.CanDeactivate {
-							<button class={ templ.KV("deactivate-button", user.IsEnabled), templ.KV("activate-button", !user.IsEnabled) } onclick={ templ.ComponentScript{Call: "toggleUserStatus(" + strconv.Itoa(user.ID) + ", " + strconv.FormatBool(user.IsEnabled) + ")"} }>
-								if user.IsEnabled {
-								Deactivate
-								} else {
-								Reinstate
-								}
-							</button>
+							<form action={ templ.SafeURL("/users/" + strconv.Itoa(user.ID)) } method="POST" style="display: inline">
+								<input type="hidden" name="is_enabled" value={ strconv.FormatBool(!user.IsEnabled) }/>
+								<button type="submit" class={ templ.KV("deactivate-button", user.IsEnabled), templ.KV("activate-button", !user.IsEnabled) }>
+									if user.IsEnabled {
+									Deactivate
+									} else {
+									Reinstate
+									}
+								</button>
+							</form>
 							if user.IsEnabled {
-							<button class="role-button" onclick={ templ.ComponentScript{Call: "toggleUserRole(" + strconv.Itoa(user.ID) + ", '" + user.Role + "')"} }>
+							<form action={ templ.SafeURL("/users/" + strconv.Itoa(user.ID)) } method="POST" style="display: inline">
 								if user.Role == "admin" {
-								{ "Make Member" }
+								<input type="hidden" name="role" value="member"/>
 								} else {
-								{ "Make Admin" }
+								<input type="hidden" name="role" value="admin"/>
 								}
-							</button>
+								<button type="submit" class="role-button">
+									if user.Role == "admin" {
+									{ "Make Member" }
+									} else {
+									{ "Make Admin" }
+									}
+								</button>
+							</form>
 							} }
 						</td>
 					</tr>
@@ -93,68 +103,6 @@ templ Admin(users []UserView, email string) {
 			</table>
 			}
 		</div>
-
-		<script>
-			async function toggleUserStatus(userId, currentIsEnabled) {
-				const newStatus = !currentIsEnabled;
-				const action = newStatus ? "activate" : "deactivate";
-				if (!confirm(`Are you sure you want to ${action} this user?`)) {
-					return;
-				}
-
-				try {
-					const response = await fetch(`/users/${userId}`, {
-						method: "PATCH",
-						headers: {
-							"Content-Type": "application/json",
-						},
-						body: JSON.stringify({ is_enabled: newStatus }),
-					});
-
-					if (response.ok) {
-						window.location.reload();
-					} else {
-						const error = await response.text();
-						alert(`Failed to ${action} user: ${error}`);
-					}
-				} catch (err) {
-					console.error("Update failed:", err);
-					alert(`Failed to ${action} user due to a network error.`);
-				}
-			}
-
-			async function toggleUserRole(userId, currentRole) {
-				const newRole = currentRole === "admin" ? "member" : "admin";
-				const action = newRole === "admin" ? "promote" : "demote";
-				if (
-					!confirm(
-						`Are you sure you want to ${action} this user to ${newRole}?`,
-					)
-				) {
-					return;
-				}
-
-				try {
-					const response = await fetch(`/users/${userId}`, {
-						method: "PATCH",
-						headers: {
-							"Content-Type": "application/json",
-						},
-						body: JSON.stringify({ role: newRole }),
-					});
-
-					if (response.ok) {
-						window.location.reload();
-					} else {
-						const error = await response.text();
-						alert(`Failed to ${action} user: ${error}`);
-					}
-				} catch (err) {
-					console.error("Update failed:", err);
-					alert(`Failed to ${action} user due to a network error.`);
-				}
-			}
-		</script>
 
 		<style>
 			.role-badge {

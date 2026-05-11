@@ -392,21 +392,45 @@ func (s *Server) PatchSubRequestsId(w http.ResponseWriter, r *http.Request, id i
 }
 
 // Update a user's status
-// (PATCH /users/{id})
-func (s *Server) PatchUsersId(w http.ResponseWriter, r *http.Request, id int) {
-	var req struct {
-		IsEnabled *bool   `json:"is_enabled"`
-		Role      *string `json:"role"`
+// (POST /users/{id})
+func (s *Server) PostUsersId(w http.ResponseWriter, r *http.Request, id int) {
+	var isEnabled *bool
+	var role *string
+
+	// Limit request body size to 1MB to prevent memory exhaustion
+	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
+
+	contentType := r.Header.Get("Content-Type")
+	isForm := strings.HasPrefix(contentType, "application/x-www-form-urlencoded")
+
+	if isForm {
+		if err := r.ParseForm(); err != nil {
+			slog.Error("Failed to parse form", "error", err)
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
+			return
+		}
+		if val := r.FormValue("is_enabled"); val != "" {
+			b := val == "true"
+			isEnabled = &b
+		}
+		if val := r.FormValue("role"); val != "" {
+			role = &val
+		}
+	} else {
+		var req struct {
+			IsEnabled *bool   `json:"is_enabled"`
+			Role      *string `json:"role"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		isEnabled = req.IsEnabled
+		role = req.Role
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	if req.Role != nil {
-		role := *req.Role
-		if role != "admin" && role != "member" {
+	if role != nil {
+		if *role != "admin" && *role != "member" {
 			http.Error(w, "Invalid role", http.StatusBadRequest)
 			return
 		}
@@ -419,18 +443,23 @@ func (s *Server) PatchUsersId(w http.ResponseWriter, r *http.Request, id int) {
 	}
 
 	// Only check self-deactivation if is_enabled is provided and false
-	if req.IsEnabled != nil && !*req.IsEnabled && currentUserID == id {
+	if isEnabled != nil && !*isEnabled && currentUserID == id {
 		http.Error(w, "Cannot deactivate your own account", http.StatusForbidden)
 		return
 	}
 
-	if err := s.repo.UpdateUser(r.Context(), id, req.Role, req.IsEnabled); err != nil {
+	if err := s.repo.UpdateUser(r.Context(), id, role, isEnabled); err != nil {
 		if errors.Is(err, db.ErrNotFound) {
 			http.Error(w, "User not found", http.StatusNotFound)
 			return
 		}
 		slog.Error("Failed to update user", "id", id, "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if isForm {
+		http.Redirect(w, r, "/admin", http.StatusSeeOther)
 		return
 	}
 
