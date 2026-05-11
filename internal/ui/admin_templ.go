@@ -198,7 +198,7 @@ func Admin(users []UserView, email string) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						var templ_7745c5c3_Var11 = []any{templ.KV("deactivate-button", user.IsEnabled), templ.KV("activate-button", !user.IsEnabled)}
+						var templ_7745c5c3_Var11 = []any{"btn-action", templ.KV("btn-action-danger", user.IsEnabled), templ.KV("btn-action-success", !user.IsEnabled)}
 						templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var11...)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -264,7 +264,7 @@ func Admin(users []UserView, email string) templ.Component {
 									return templ_7745c5c3_Err
 								}
 							}
-							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<button type=\"submit\" class=\"role-button\">")
+							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<button type=\"submit\" class=\"btn-action btn-action-primary\">")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -305,7 +305,7 @@ func Admin(users []UserView, email string) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</div><style>\n\t\t\t.role-badge {\n\t\t\t\tdisplay: inline-block;\n\t\t\t\tpadding: 0.125rem 0.5rem;\n\t\t\t\tborder-radius: 4px;\n\t\t\t\tfont-size: 0.875rem;\n\t\t\t\tfont-weight: 500;\n\t\t\t\ttext-transform: uppercase;\n\t\t\t}\n\n\t\t\t.role-admin {\n\t\t\t\tbackground-color: gold;\n\t\t\t\tcolor: black;\n\t\t\t}\n\n\t\t\t.role-user {\n\t\t\t\tbackground-color: #f5f5f5;\n\t\t\t\tcolor: #616161;\n\t\t\t}\n\n\t\t\t.deactivate-button {\n\t\t\t\tbackground-color: #fee2e2;\n\t\t\t\tcolor: #991b1b;\n\t\t\t\tborder: 1px solid #f87171;\n\t\t\t\tborder-radius: 6px;\n\t\t\t\tcursor: pointer;\n\t\t\t}\n\n\t\t\t.deactivate-button:hover {\n\t\t\t\tbackground-color: #fecaca;\n\t\t\t}\n\n\t\t\t.activate-button {\n\t\t\t\tbackground-color: #dcfce7;\n\t\t\t\tcolor: #166534;\n\t\t\t\tborder: 1px solid #86efac;\n\t\t\t\tborder-radius: 6px;\n\t\t\t\tcursor: pointer;\n\t\t\t}\n\n\t\t\t.activate-button:hover {\n\t\t\t\tbackground: #dcfce7;\n\t\t\t}\n\n\t\t\t.role-button {\n\t\t\t\tbackground: #6366f1;\n\t\t\t\tcolor: white;\n\t\t\t\tborder: none;\n\t\t\t\tborder-radius: 4px;\n\t\t\t\tcursor: pointer;\n\t\t\t}\n\n\t\t\t.role-button:hover {\n\t\t\t\tbackground: #4f46e5;\n\t\t\t}\n\t\t</style>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</div><style>\n\t\t\t.role-badge {\n\t\t\t\tdisplay: inline-block;\n\t\t\t\tpadding: 0.125rem 0.5rem;\n\t\t\t\tborder-radius: 4px;\n\t\t\t\tfont-size: 0.875rem;\n\t\t\t\tfont-weight: 500;\n\t\t\t\ttext-transform: uppercase;\n\t\t\t}\n\n\t\t\t.role-admin {\n\t\t\t\tbackground-color: gold;\n\t\t\t\tcolor: black;\n\t\t\t}\n\n\t\t\t.role-user {\n\t\t\t\tbackground-color: #f5f5f5;\n\t\t\t\tcolor: #616161;\n\t\t\t}\n\t\t</style>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -90,21 +90,21 @@ templ Authenticated(shows []spinitron.Show, email string, subRequests []SubReque
 					</td>
 					<td class="actions-cell">
 						if req.CanTake {
-						<button class="take-btn" onclick={ templ.ComponentScript{
+						<button class="btn-action btn-action-primary" onclick={ templ.ComponentScript{
 							Call: "takeRequest('" + strconv.Itoa(req.ID) + "')",
 						} }>
 							Take
 						</button>
 						}
 						if req.CanUntake {
-						<button class="untake-btn" onclick={ templ.ComponentScript{
+						<button class="btn-action btn-action-warning" onclick={ templ.ComponentScript{
 							Call: "untakeRequest('" + strconv.Itoa(req.ID) + "')",
 						} }>
 							Untake
 						</button>
 						}
 						if req.CanDelete {
-						<button class="delete-btn" onclick={ templ.ComponentScript{
+						<button class="btn-action btn-action-danger" onclick={ templ.ComponentScript{
 							Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
 						} }>
 							Delete
@@ -124,42 +124,6 @@ templ Authenticated(shows []spinitron.Show, email string, subRequests []SubReque
 			padding: 0.5rem 1rem;
 			border-left: 4px solid #eee;
 			background: #fcfcfc;
-		  }
-		  .delete-btn {
-			background-color: #c62828;
-			color: white;
-			border: none;
-			padding: 0.25rem 0.75rem;
-			border-radius: 4px;
-			cursor: pointer;
-			font-size: 0.875rem;
-		  }
-		  .delete-btn:hover {
-			background-color: #b71c1c;
-		  }
-		  .take-btn {
-			background-color: #2563eb;
-			color: white;
-			border: none;
-			padding: 0.25rem 0.75rem;
-			border-radius: 4px;
-			cursor: pointer;
-			font-size: 0.875rem;
-		  }
-		  .take-btn:hover {
-			background-color: #1d4ed8;
-		  }
-		  .untake-btn {
-			background-color: #d97706;
-			color: white;
-			border: none;
-			padding: 0.25rem 0.75rem;
-			border-radius: 4px;
-			cursor: pointer;
-			font-size: 0.875rem;
-		  }
-		  .untake-btn:hover {
-			background-color: #b45309;
 		  }
 		</style>
 

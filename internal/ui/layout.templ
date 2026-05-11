@@ -77,8 +77,53 @@ templ TableStyles() {
 		}
 
 		.data-table .actions-cell {
-			display: revert;
+			display: flex;
 			gap: 0.5rem;
+			align-items: center;
+		}
+
+		.btn-action {
+			padding: 0.125rem 0.5rem;
+			border-radius: 4px;
+			cursor: pointer;
+			display: inline-block;
+			text-decoration: none;
+			border: 1px solid transparent;
+		}
+
+		.btn-action-primary {
+			background-color: #6366f1;
+			color: white;
+		}
+		.btn-action-primary:hover {
+			background-color: #4f46e5;
+		}
+
+		.btn-action-danger {
+			background-color: #fee2e2;
+			color: #991b1b;
+			border-color: #f87171;
+		}
+		.btn-action-danger:hover {
+			background-color: #fecaca;
+		}
+
+		.btn-action-success {
+			background-color: #dcfce7;
+			color: #166534;
+			border-color: #86efac;
+		}
+		.btn-action-success:hover {
+			background-color: #bbf7d0;
+		}
+
+		.btn-action-warning {
+			background-color: #fef3c7;
+			color: #92400e;
+			border-color: #fbbf24;
+		}
+		.btn-action-warning:hover {
+			background-color: #fde68a;
 		}
 	</style>
 }
