@@ -118,6 +118,12 @@ func TestAuthenticated(t *testing.T) {
 	if !bytes.Contains(buf.Bytes(), []byte("Test Show")) {
 		t.Error("expected show title not found in rendered output")
 	}
+	if !bytes.Contains(buf.Bytes(), []byte("row-taken")) {
+		t.Error("expected row-taken class not found in rendered output")
+	}
+	if !bytes.Contains(buf.Bytes(), []byte("row-available")) {
+		t.Error("expected row-available class not found in rendered output")
+	}
 }
 
 func TestTableStyles(t *testing.T) {
@@ -130,5 +136,11 @@ func TestTableStyles(t *testing.T) {
 
 	if !bytes.Contains(buf.Bytes(), []byte("data-table")) {
 		t.Error("expected data-table class not found in rendered output")
+	}
+	if !bytes.Contains(buf.Bytes(), []byte(".row-taken")) {
+		t.Error("expected .row-taken style not found in rendered output")
+	}
+	if !bytes.Contains(buf.Bytes(), []byte(".row-available")) {
+		t.Error("expected .row-available style not found in rendered output")
 	}
 }

@@ -77,7 +77,7 @@ templ Authenticated(shows []spinitron.Show, email string, subRequests []SubReque
 			</thead>
 			<tbody>
 			for _, req := range subRequests {
-				<tr id={ "sub-request-row-" + strconv.Itoa(req.ID) }>
+				<tr id={ "sub-request-row-" + strconv.Itoa(req.ID) } class={ templ.KV("row-available", req.TakerEmail == ""), templ.KV("row-taken", req.TakerEmail != "") }>
 					<td>{ req.StartTime }</td>
 					<td>{ req.ShowTitle }</td>
 					<td>{ req.RequesterEmail }</td>
