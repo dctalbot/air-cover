@@ -8,6 +8,7 @@ import (
 templ Authenticated(shows []spinitron.Show, email string, subRequests []SubRequestView, isAdmin bool) {
 	@Layout("Air Cover") {
 		@BaseStyles()
+		@TableStyles()
 		@PageHeader("Welcome to Air Cover") {
 			if isAdmin {
 				<a href="/admin">Admin</a>
@@ -64,70 +65,60 @@ templ Authenticated(shows []spinitron.Show, email string, subRequests []SubReque
 		  if len(subRequests) == 0 {
 		  <p>No sub requests yet.</p>
 		  } else {
+		<table class="data-table">
+			<thead>
+				<tr>
+					<th>When</th>
+					<th>Show</th>
+					<th>Posted By</th>
+					<th>Taken By</th>
+					<th>Actions</th>
+				</tr>
+			</thead>
+			<tbody>
 			for _, req := range subRequests {
-		  <div class="sub-request-card">
-			<h3>{ req.ShowTitle }</h3>
-			<div class="meta">
-			  <p>
-				<strong>Requested by:</strong> { req.RequesterEmail }<br/>
-				<strong>When:</strong> { req.StartTime } to { req.EndTime }<br/>
-				<strong>Status:</strong>
-				<span class={ "status-" + req.Status }>{ req.Status }</span>
-			  </p>
-			</div>
-			if req.Notes != "" {
-			<div class="notes">
-			  <strong>Notes:</strong>
-			  <p>{ req.Notes }</p>
-			</div>
+				<tr id={ "sub-request-row-" + strconv.Itoa(req.ID) }>
+					<td>{ req.StartTime }</td>
+					<td>{ req.ShowTitle }</td>
+					<td>{ req.RequesterEmail }</td>
+					<td>
+						if req.TakerEmail != "" {
+						{ req.TakerEmail }
+						} else {
+						—
+						}
+					</td>
+					<td class="actions-cell">
+						if req.CanTake {
+						<button class="take-btn" onclick={ templ.ComponentScript{
+							Call: "takeRequest('" + strconv.Itoa(req.ID) + "')",
+						} }>
+							Take
+						</button>
+						}
+						if req.CanUntake {
+						<button class="untake-btn" onclick={ templ.ComponentScript{
+							Call: "untakeRequest('" + strconv.Itoa(req.ID) + "')",
+						} }>
+							Untake
+						</button>
+						}
+						if req.CanDelete {
+						<button class="delete-btn" onclick={ templ.ComponentScript{
+							Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
+						} }>
+							Delete
+						</button>
+						}
+					</td>
+				</tr>
 			}
-			if req.CanDelete {
-			<div class="actions" style="margin-top: 1rem">
-			  <button class="delete-btn" onclick={ templ.ComponentScript{
-				Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
-			  } }>
-				Delete Request
-			  </button>
-			</div>
-			}
-		  </div>
-		  } }
+			</tbody>
+		</table>
+		  }
 		</div>
 
 		<style>
-		  .sub-request-card {
-			border: 1px solid #ddd;
-			border-radius: 8px;
-			padding: 1rem;
-			margin-bottom: 1rem;
-			background: #f9f9f9;
-		  }
-		  .sub-request-card h3 {
-			margin: 0 0 0.5rem 0;
-		  }
-		  .meta p {
-			margin: 0.25rem 0;
-		  }
-		  .notes {
-			margin-top: 1rem;
-			padding-top: 0.5rem;
-			border-top: 1px solid #eee;
-		  }
-		  .notes p {
-			margin: 0.5rem 0 0 0;
-		  }
-		  .status-open {
-			color: #2e7d32;
-			text-transform: capitalize;
-		  }
-		  .status-filled {
-			color: #1565c0;
-			text-transform: capitalize;
-		  }
-		  .status-cancelled {
-			color: #c62828;
-			text-transform: capitalize;
-		  }
 		  blockquote {
 			margin: 1rem 0;
 			padding: 0.5rem 1rem;
@@ -138,13 +129,37 @@ templ Authenticated(shows []spinitron.Show, email string, subRequests []SubReque
 			background-color: #c62828;
 			color: white;
 			border: none;
-			padding: 0.5rem 1rem;
+			padding: 0.25rem 0.75rem;
 			border-radius: 4px;
 			cursor: pointer;
 			font-size: 0.875rem;
 		  }
 		  .delete-btn:hover {
 			background-color: #b71c1c;
+		  }
+		  .take-btn {
+			background-color: #2563eb;
+			color: white;
+			border: none;
+			padding: 0.25rem 0.75rem;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 0.875rem;
+		  }
+		  .take-btn:hover {
+			background-color: #1d4ed8;
+		  }
+		  .untake-btn {
+			background-color: #d97706;
+			color: white;
+			border: none;
+			padding: 0.25rem 0.75rem;
+			border-radius: 4px;
+			cursor: pointer;
+			font-size: 0.875rem;
+		  }
+		  .untake-btn:hover {
+			background-color: #b45309;
 		  }
 		</style>
 
@@ -247,6 +262,46 @@ templ Authenticated(shows []spinitron.Show, email string, subRequests []SubReque
 			} catch (error) {
 			  console.error("Error deleting request:", error);
 			  alert("An error occurred while deleting the request.");
+			}
+		  }
+
+		  async function takeRequest(id) {
+			try {
+			  const response = await fetch(`/sub-requests/${id}`, {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action: "take" }),
+			  });
+
+			  if (response.ok) {
+				window.location.reload();
+			  } else {
+				const text = await response.text();
+				alert(`Failed to take request: ${text || response.statusText}`);
+			  }
+			} catch (error) {
+			  console.error("Error taking request:", error);
+			  alert("An error occurred while taking the request.");
+			}
+		  }
+
+		  async function untakeRequest(id) {
+			try {
+			  const response = await fetch(`/sub-requests/${id}`, {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action: "untake" }),
+			  });
+
+			  if (response.ok) {
+				window.location.reload();
+			  } else {
+				const text = await response.text();
+				alert(`Failed to untake request: ${text || response.statusText}`);
+			  }
+			} catch (error) {
+			  console.error("Error untaking request:", error);
+			  alert("An error occurred while untaking the request.");
 			}
 		  }
 		</script>

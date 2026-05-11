@@ -179,4 +179,33 @@ func BaseStyles() templ.Component {
 	})
 }
 
+func TableStyles() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var8 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var8 == nil {
+			templ_7745c5c3_Var8 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<style>\n\t\t.data-table {\n\t\t\twidth: 100%;\n\t\t\tborder-collapse: collapse;\n\t\t\tmargin-top: 1rem;\n\t\t}\n\n\t\t.data-table th,\n\t\t.data-table td {\n\t\t\ttext-align: left;\n\t\t\tborder-bottom: 1px solid #eee;\n\t\t\twhite-space: nowrap;\n\t\t\tdisplay: revert;\n\t\t}\n\n\t\t.data-table th {\n\t\t\tbackground-color: #f9f9f9;\n\t\t\tfont-weight: 600;\n\t\t\tborder-bottom: 2px solid #ddd;\n\t\t}\n\n\t\t.data-table tbody tr {\n\t\t\theight: 1rem;\n\t\t}\n\n\t\t.data-table tbody tr:hover {\n\t\t\tbackground-color: #f5f5f5;\n\t\t}\n\n\t\t.data-table .actions-cell {\n\t\t\tdisplay: flex;\n\t\t\tgap: 0.5rem;\n\t\t}\n\t</style>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
 var _ = templruntime.GeneratedTemplate

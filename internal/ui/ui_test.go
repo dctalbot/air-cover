@@ -105,7 +105,8 @@ func TestAuthenticated(t *testing.T) {
 		{ID: "1", Title: "Test Show"},
 	}
 	subRequests := []SubRequestView{
-		{ID: 1, ShowTitle: "Test Show", RequesterEmail: "user@example.com", Status: "open"},
+		{ID: 1, ShowTitle: "Test Show", RequesterEmail: "user@example.com", TakerEmail: "taker@example.com", Status: "filled", CanDelete: true, CanUntake: true},
+		{ID: 2, ShowTitle: "Another Show", RequesterEmail: "other@example.com", Status: "open", CanTake: true},
 	}
 	buf := new(bytes.Buffer)
 	component := Authenticated(shows, "user@example.com", subRequests, false)
@@ -116,5 +117,18 @@ func TestAuthenticated(t *testing.T) {
 
 	if !bytes.Contains(buf.Bytes(), []byte("Test Show")) {
 		t.Error("expected show title not found in rendered output")
+	}
+}
+
+func TestTableStyles(t *testing.T) {
+	buf := new(bytes.Buffer)
+	component := TableStyles()
+	err := component.Render(context.Background(), buf)
+	if err != nil {
+		t.Fatalf("failed to render: %v", err)
+	}
+
+	if !bytes.Contains(buf.Bytes(), []byte("data-table")) {
+		t.Error("expected data-table class not found in rendered output")
 	}
 }

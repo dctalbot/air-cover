@@ -13,9 +13,12 @@ type SubRequestView struct {
 	ID             int
 	ShowTitle      string
 	RequesterEmail string
+	TakerEmail     string
 	StartTime      string
 	EndTime        string
 	Notes          string
 	Status         string
 	CanDelete      bool
+	CanTake        bool
+	CanUntake      bool
 }

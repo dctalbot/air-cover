@@ -68,6 +68,7 @@ func newRouter(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
 		r.Post("/auth/logout", wrapper.PostAuthLogout)
 		r.Post("/sub-requests", wrapper.PostSubRequests)
 		r.Delete("/sub-requests/{id}", wrapper.DeleteSubRequestsId)
+		r.Patch("/sub-requests/{id}", wrapper.PatchSubRequestsId)
 	})
 
 	// Admin endpoints

@@ -258,6 +258,7 @@ func TestServer_DeleteSubRequestsId(t *testing.T) {
 	repo := setupTestDB(t)
 	u1, _ := repo.CreateUser(context.Background(), "user1@example.com", "member")
 	u2, _ := repo.CreateUser(context.Background(), "user2@example.com", "member")
+	admin, _ := repo.CreateUser(context.Background(), "admin@example.com", "admin")
 	s := NewServer(repo, nil, nil)
 
 	sr := &models.SubRequest{
@@ -272,24 +273,35 @@ func TestServer_DeleteSubRequestsId(t *testing.T) {
 		name       string
 		id         int
 		userID     any
+		userRole   string
 		wantStatus int
 	}{
 		{
 			name:       "delete own request",
 			id:         sr.ID,
 			userID:     u1.ID,
+			userRole:   "member",
 			wantStatus: http.StatusNoContent,
 		},
 		{
 			name:       "delete other request",
 			id:         sr.ID,
 			userID:     u2.ID,
+			userRole:   "member",
 			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "admin delete other request",
+			id:         sr.ID,
+			userID:     admin.ID,
+			userRole:   "admin",
+			wantStatus: http.StatusNoContent,
 		},
 		{
 			name:       "delete non-existent",
 			id:         99999,
 			userID:     u1.ID,
+			userRole:   "member",
 			wantStatus: http.StatusNotFound,
 		},
 		{
@@ -310,6 +322,7 @@ func TestServer_DeleteSubRequestsId(t *testing.T) {
 			req := httptest.NewRequest(http.MethodDelete, "/sub-requests/"+strconv.Itoa(sr.ID), nil)
 			if tt.userID != nil {
 				ctx := context.WithValue(req.Context(), UserIDKey, tt.userID)
+				ctx = context.WithValue(ctx, UserRoleKey, tt.userRole)
 				req = req.WithContext(ctx)
 			}
 			rr := httptest.NewRecorder()
@@ -368,6 +381,10 @@ func TestUnimplemented(t *testing.T) {
 	rr = httptest.NewRecorder()
 	u.DeleteSubRequestsId(rr, req, 123)
 	check("DeleteSubRequestsId", rr.Code)
+
+	rr = httptest.NewRecorder()
+	u.PatchSubRequestsId(rr, req, 123)
+	check("PatchSubRequestsId", rr.Code)
 }
 
 // TestHandlerWithOptions exercises the generated router setup and all wrapper functions.
@@ -501,6 +518,19 @@ func TestHandlerViaHTTP(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode == http.StatusNotImplemented {
 		t.Error("expected DELETE /sub-requests/{id} to not return 501")
+	}
+
+	// PATCH /sub-requests/{id} → exercises ServerInterfaceWrapper.PatchSubRequestsId
+	req, _ = http.NewRequest(http.MethodPatch, ts.URL+"/sub-requests/123",
+		strings.NewReader(`{"action":"take"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH /sub-requests/{id}: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode == http.StatusNotImplemented {
+		t.Error("expected PATCH /sub-requests/{id} to not return 501")
 	}
 }
 
@@ -645,6 +675,7 @@ func TestHandlerWithMiddleware(t *testing.T) {
 		{http.MethodGet, "/auth/verify", "", ""}, // Missing token → 400 but middleware still runs
 		{http.MethodPost, "/sub-requests", "show=1&start_time=2026-01-01T10%3A00&end_time=2026-01-01T12%3A00", "application/x-www-form-urlencoded"},
 		{http.MethodDelete, "/sub-requests/123", "", ""},
+		{http.MethodPatch, "/sub-requests/123", `{"action":"take"}`, "application/json"},
 	}
 
 	for _, route := range routes {
@@ -1323,5 +1354,214 @@ func TestServer_PostUsers_ParseFormError(t *testing.T) {
 	s.PostUsers(rr, req)
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for large body, got %d", rr.Code)
+	}
+}
+
+func TestServer_PatchSubRequestsId(t *testing.T) {
+	repo := setupTestDB(t)
+	u1, _ := repo.CreateUser(context.Background(), "poster@example.com", "member")
+	u2, _ := repo.CreateUser(context.Background(), "taker@example.com", "member")
+	u3, _ := repo.CreateUser(context.Background(), "other@example.com", "member")
+	s := NewServer(repo, nil, nil)
+
+	sr := &models.SubRequest{
+		ShowID:         1,
+		PostedByUserID: u1.ID,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(time.Hour),
+	}
+	_ = repo.CreateSubRequest(context.Background(), sr)
+
+	t.Run("take success", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
+			strings.NewReader(`{"action":"take"}`))
+		ctx := context.WithValue(req.Context(), UserIDKey, u2.ID)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PatchSubRequestsId(rr, req, sr.ID)
+		if rr.Code != http.StatusNoContent {
+			t.Errorf("expected 204, got %d", rr.Code)
+		}
+	})
+
+	t.Run("take already taken", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
+			strings.NewReader(`{"action":"take"}`))
+		ctx := context.WithValue(req.Context(), UserIDKey, u3.ID)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PatchSubRequestsId(rr, req, sr.ID)
+		if rr.Code != http.StatusConflict {
+			t.Errorf("expected 409, got %d", rr.Code)
+		}
+	})
+
+	t.Run("untake by wrong user", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
+			strings.NewReader(`{"action":"untake"}`))
+		ctx := context.WithValue(req.Context(), UserIDKey, u3.ID)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PatchSubRequestsId(rr, req, sr.ID)
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("expected 403, got %d", rr.Code)
+		}
+	})
+
+	t.Run("untake success", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
+			strings.NewReader(`{"action":"untake"}`))
+		ctx := context.WithValue(req.Context(), UserIDKey, u2.ID)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PatchSubRequestsId(rr, req, sr.ID)
+		if rr.Code != http.StatusNoContent {
+			t.Errorf("expected 204, got %d", rr.Code)
+		}
+	})
+
+	t.Run("invalid action", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
+			strings.NewReader(`{"action":"invalid"}`))
+		ctx := context.WithValue(req.Context(), UserIDKey, u2.ID)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PatchSubRequestsId(rr, req, sr.ID)
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", rr.Code)
+		}
+	})
+
+	t.Run("invalid json", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
+			strings.NewReader(`{invalid}`))
+		ctx := context.WithValue(req.Context(), UserIDKey, u2.ID)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PatchSubRequestsId(rr, req, sr.ID)
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", rr.Code)
+		}
+	})
+
+	t.Run("no user in context", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
+			strings.NewReader(`{"action":"take"}`))
+		rr := httptest.NewRecorder()
+		s.PatchSubRequestsId(rr, req, sr.ID)
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", rr.Code)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/99999",
+			strings.NewReader(`{"action":"take"}`))
+		ctx := context.WithValue(req.Context(), UserIDKey, u2.ID)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PatchSubRequestsId(rr, req, 99999)
+		if rr.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", rr.Code)
+		}
+	})
+}
+
+func TestServer_PatchSubRequestsId_DBError(t *testing.T) {
+	dbConn, err := db.InitDB("file::memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := db.NewRepository(dbConn)
+	u, _ := repo.CreateUser(context.Background(), "dberr@example.com", "member")
+	sr := &models.SubRequest{
+		ShowID:         1,
+		PostedByUserID: u.ID,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(time.Hour),
+	}
+	_ = repo.CreateSubRequest(context.Background(), sr)
+	dbConn.Close()
+
+	s := NewServer(repo, nil, nil)
+	req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
+		strings.NewReader(`{"action":"take"}`))
+	ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	s.PatchSubRequestsId(rr, req, sr.ID)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for DB error, got %d", rr.Code)
+	}
+}
+
+func TestServer_PatchSubRequestsId_TakeDBError(t *testing.T) {
+	repo := setupTestDB(t)
+	u1, _ := repo.CreateUser(context.Background(), "poster@example.com", "member")
+	u2, _ := repo.CreateUser(context.Background(), "taker@example.com", "member")
+
+	sr := &models.SubRequest{
+		ShowID:         1,
+		PostedByUserID: u1.ID,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(time.Hour),
+	}
+	_ = repo.CreateSubRequest(context.Background(), sr)
+
+	// Close the DB after creating the sub request to force TakeSubRequest to fail
+	_ = repo.DB().Close()
+
+	s := NewServer(repo, nil, nil)
+	req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
+		strings.NewReader(`{"action":"take"}`))
+	ctx := context.WithValue(req.Context(), UserIDKey, u2.ID)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	s.PatchSubRequestsId(rr, req, sr.ID)
+	// The GetSubRequestByID call will fail first
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestServer_PatchSubRequestsId_UntakeDBError(t *testing.T) {
+	repo := setupTestDB(t)
+	u1, _ := repo.CreateUser(context.Background(), "poster@example.com", "member")
+	u2, _ := repo.CreateUser(context.Background(), "taker@example.com", "member")
+
+	sr := &models.SubRequest{
+		ShowID:         1,
+		PostedByUserID: u1.ID,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(time.Hour),
+	}
+	_ = repo.CreateSubRequest(context.Background(), sr)
+	_ = repo.TakeSubRequest(context.Background(), sr.ID, u2.ID)
+
+	// Close the DB after taking the sub request
+	_ = repo.DB().Close()
+
+	s := NewServer(repo, nil, nil)
+	req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
+		strings.NewReader(`{"action":"untake"}`))
+	ctx := context.WithValue(req.Context(), UserIDKey, u2.ID)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	s.PatchSubRequestsId(rr, req, sr.ID)
+	// The GetSubRequestByID call will fail first
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestPatchSubRequestsIdJSONBodyAction_Valid(t *testing.T) {
+	if !Take.Valid() {
+		t.Error("expected Take to be valid")
+	}
+	if !Untake.Valid() {
+		t.Error("expected Untake to be valid")
+	}
+	if PatchSubRequestsIdJSONBodyAction("invalid").Valid() {
+		t.Error("expected invalid action to not be valid")
 	}
 }

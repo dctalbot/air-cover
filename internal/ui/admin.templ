@@ -5,6 +5,7 @@ import "strconv"
 templ Admin(users []UserView, email string) {
 	@Layout("Admin Dashboard - Air Cover") {
 		@BaseStyles()
+		@TableStyles()
 		<a href="/app" style="display: inline-block; margin-bottom: 0.5rem; color: #2563eb; text-decoration: none">&larr; Go to sub board</a>
 		@PageHeader("Admin Dashboard") {
 			@UserMenu(email)
@@ -50,7 +51,7 @@ templ Admin(users []UserView, email string) {
 			if len(users) == 0 {
 			<p>No users found.</p>
 			} else {
-			<table class="users-table">
+			<table class="data-table">
 				<thead>
 					<tr>
 						<th>Email</th>
@@ -67,7 +68,7 @@ templ Admin(users []UserView, email string) {
 							<span class={ "role-badge role-" + user.Role }>{ user.Role }</span>
 							}
 						</td>
-						<td class="user-actions">
+						<td class="actions-cell">
 							if user.CanDeactivate {
 							<button class={ templ.KV("deactivate-button", user.IsEnabled), templ.KV("activate-button", !user.IsEnabled) } onclick={ templ.ComponentScript{Call: "toggleUserStatus(" + strconv.Itoa(user.ID) + ", " + strconv.FormatBool(user.IsEnabled) + ")"} }>
 								if user.IsEnabled {
@@ -156,39 +157,6 @@ templ Admin(users []UserView, email string) {
 		</script>
 
 		<style>
-			.users-table {
-				width: 100%;
-				border-collapse: collapse;
-				margin-top: 1rem;
-			}
-
-			.users-table th,
-			.users-table td {
-				text-align: left;
-				border-bottom: 1px solid #eee;
-				white-space: nowrap;
-				display: revert;
-			}
-
-			.users-table th {
-				background-color: #f9f9f9;
-				font-weight: 600;
-				border-bottom: 2px solid #ddd;
-			}
-
-			.users-table tbody tr {
-				height: 1rem;
-			}
-
-			.users-table tbody tr:hover {
-				background-color: #f5f5f5;
-			}
-
-			.user-actions {
-				display: flex;
-				gap: 0.5rem;
-			}
-
 			.role-badge {
 				display: inline-block;
 				padding: 0.125rem 0.5rem;

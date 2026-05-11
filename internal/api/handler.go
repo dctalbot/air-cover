@@ -108,27 +108,32 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID, _ := r.Context().Value(UserIDKey).(int)
+	role, _ := r.Context().Value(UserRoleKey).(string)
+	isAdmin := role == "admin"
+
 	var views []ui.SubRequestView
 	for _, sr := range subRequests {
 		title := showMap[sr.ShowID]
 		if title == "" {
 			title = "Unknown Show"
 		}
+		isTaker := sr.TakenByUserID != nil && *sr.TakenByUserID == userID
 		views = append(views, ui.SubRequestView{
 			ID:             sr.ID,
 			ShowTitle:      title,
 			RequesterEmail: sr.RequesterEmail,
-			StartTime:      sr.StartTime.Format("Mon, Jan 02 at 3:04 PM"),
-			EndTime:        sr.EndTime.Format("Mon, Jan 02 at 3:04 PM"),
+			TakerEmail:     sr.TakerEmail,
+			StartTime:      sr.StartTime.Format(time.RFC3339),
+			EndTime:        sr.EndTime.Format(time.RFC3339),
 			Notes:          sr.Notes,
 			Status:         sr.GetStatus(),
-			CanDelete:      sr.PostedByUserID == userID,
+			CanDelete:      sr.PostedByUserID == userID || isAdmin,
+			CanTake:        sr.TakenByUserID == nil && sr.PostedByUserID != userID,
+			CanUntake:      isTaker,
 		})
 	}
 
-	role, _ := r.Context().Value(UserRoleKey).(string)
-
-	if err := ui.Authenticated(allShows, email, views, role == "admin").Render(r.Context(), w); err != nil {
+	if err := ui.Authenticated(allShows, email, views, isAdmin).Render(r.Context(), w); err != nil {
 		slog.Error("Failed to write response", "error", err)
 	}
 }
@@ -313,7 +318,8 @@ func (s *Server) DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id 
 		return
 	}
 
-	if sr.PostedByUserID != userID {
+	role, _ := r.Context().Value(UserRoleKey).(string)
+	if sr.PostedByUserID != userID && role != "admin" {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -321,6 +327,64 @@ func (s *Server) DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id 
 	if err := s.repo.DeleteSubRequest(r.Context(), id); err != nil {
 		slog.Error("Failed to delete sub request", "id", id, "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Take or untake a sub request
+// (PATCH /sub-requests/{id})
+func (s *Server) PatchSubRequestsId(w http.ResponseWriter, r *http.Request, id int) {
+	var req struct {
+		Action string `json:"action"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := r.Context().Value(UserIDKey).(int)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	sr, err := s.repo.GetSubRequestByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			http.Error(w, "Sub request not found", http.StatusNotFound)
+			return
+		}
+		slog.Error("Failed to get sub request", "id", id, "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	switch req.Action {
+	case "take":
+		if sr.TakenByUserID != nil {
+			http.Error(w, "Sub request already taken", http.StatusConflict)
+			return
+		}
+		if err := s.repo.TakeSubRequest(r.Context(), id, userID); err != nil {
+			slog.Error("Failed to take sub request", "id", id, "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+	case "untake":
+		if sr.TakenByUserID == nil || *sr.TakenByUserID != userID {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		if err := s.repo.UntakeSubRequest(r.Context(), id); err != nil {
+			slog.Error("Failed to untake sub request", "id", id, "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+	default:
+		http.Error(w, "Invalid action", http.StatusBadRequest)
 		return
 	}
 

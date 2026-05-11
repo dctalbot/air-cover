@@ -139,9 +139,10 @@ func (r *Repository) CreateSubRequest(ctx context.Context, sr *models.SubRequest
 }
 func (r *Repository) ListSubRequests(ctx context.Context) ([]*models.SubRequest, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT sr.id, sr.show_id, sr.posted_by_user_id, sr.taken_by_user_id, u.email, sr.start_time, sr.end_time, sr.notes, sr.created_at, sr.updated_at
+		SELECT sr.id, sr.show_id, sr.posted_by_user_id, sr.taken_by_user_id, u.email, COALESCE(u2.email, ''), sr.start_time, sr.end_time, sr.notes, sr.created_at, sr.updated_at
 		FROM sub_requests sr
 		JOIN users u ON sr.posted_by_user_id = u.id
+		LEFT JOIN users u2 ON sr.taken_by_user_id = u2.id
 		ORDER BY sr.created_at DESC
 	`)
 	if err != nil {
@@ -154,7 +155,7 @@ func (r *Repository) ListSubRequests(ctx context.Context) ([]*models.SubRequest,
 		var sr models.SubRequest
 		err := rows.Scan(
 			&sr.ID, &sr.ShowID, &sr.PostedByUserID, &sr.TakenByUserID, &sr.RequesterEmail,
-			&sr.StartTime, &sr.EndTime, &sr.Notes, &sr.CreatedAt, &sr.UpdatedAt,
+			&sr.TakerEmail, &sr.StartTime, &sr.EndTime, &sr.Notes, &sr.CreatedAt, &sr.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -187,6 +188,40 @@ func (r *Repository) GetSubRequestByID(ctx context.Context, id int) (*models.Sub
 
 func (r *Repository) DeleteSubRequest(ctx context.Context, id int) error {
 	res, err := r.db.ExecContext(ctx, "DELETE FROM sub_requests WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *Repository) TakeSubRequest(ctx context.Context, id int, userID int) error {
+	res, err := r.db.ExecContext(ctx,
+		"UPDATE sub_requests SET taken_by_user_id = ?, updated_at = ? WHERE id = ?",
+		userID, time.Now(), id)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *Repository) UntakeSubRequest(ctx context.Context, id int) error {
+	res, err := r.db.ExecContext(ctx,
+		"UPDATE sub_requests SET taken_by_user_id = NULL, updated_at = ? WHERE id = ?",
+		time.Now(), id)
 	if err != nil {
 		return err
 	}

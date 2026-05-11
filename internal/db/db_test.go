@@ -224,6 +224,71 @@ func TestRepository(t *testing.T) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 
+	// TakeSubRequest
+	sr3 := &models.SubRequest{
+		ShowID:         456,
+		PostedByUserID: u.ID,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(1 * time.Hour),
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}
+	err = repo.CreateSubRequest(ctx, sr3)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	u4, _ := repo.CreateUser(ctx, "taker@example.com", "member")
+	err = repo.TakeSubRequest(ctx, sr3.ID, u4.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify TakerEmail in ListSubRequests
+	list2, err := repo.ListSubRequests(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, item := range list2 {
+		if item.ID == sr3.ID {
+			found = true
+			if item.TakerEmail != u4.Email {
+				t.Fatalf("expected taker email %v, got %v", u4.Email, item.TakerEmail)
+			}
+			if item.TakenByUserID == nil || *item.TakenByUserID != u4.ID {
+				t.Fatalf("expected taken_by_user_id %v", u4.ID)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected to find the taken sub request")
+	}
+
+	err = repo.TakeSubRequest(ctx, 99999, u4.ID)
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound for TakeSubRequest, got %v", err)
+	}
+
+	// UntakeSubRequest
+	err = repo.UntakeSubRequest(ctx, sr3.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sr3After, err := repo.GetSubRequestByID(ctx, sr3.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sr3After.TakenByUserID != nil {
+		t.Fatal("expected TakenByUserID to be nil after untake")
+	}
+
+	err = repo.UntakeSubRequest(ctx, 99999)
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound for UntakeSubRequest, got %v", err)
+	}
+
 	// ListUsers
 	users, err := repo.ListUsers(ctx)
 	if err != nil {
@@ -355,6 +420,16 @@ func TestRepositoryErrors(t *testing.T) {
 	err = repo.UpdateUser(ctx, 1, &role, nil)
 	if err == nil {
 		t.Error("expected error with cancelled context in UpdateUser")
+	}
+
+	err = repo.TakeSubRequest(ctx, 1, 1)
+	if err == nil {
+		t.Error("expected error with cancelled context in TakeSubRequest")
+	}
+
+	err = repo.UntakeSubRequest(ctx, 1)
+	if err == nil {
+		t.Error("expected error with cancelled context in UntakeSubRequest")
 	}
 
 	// Test unique constraint violation
