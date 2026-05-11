@@ -182,16 +182,22 @@ func TestAuthMiddleware(t *testing.T) {
 	req1 := httptest.NewRequest(http.MethodGet, "/", nil)
 	rr1 := httptest.NewRecorder()
 	mw.ServeHTTP(rr1, req1)
-	if rr1.Code != http.StatusUnauthorized {
-		t.Errorf("expected unauthorized without cookie")
+	if rr1.Code != http.StatusFound {
+		t.Errorf("expected redirect without cookie, got %v", rr1.Code)
+	}
+	if rr1.Header().Get("Location") != "/" {
+		t.Errorf("expected redirect to /, got %v", rr1.Header().Get("Location"))
 	}
 
 	req2 := httptest.NewRequest(http.MethodGet, "/", nil)
 	req2.AddCookie(&http.Cookie{Name: "session_id", Value: "invalid"})
 	rr2 := httptest.NewRecorder()
 	mw.ServeHTTP(rr2, req2)
-	if rr2.Code != http.StatusUnauthorized {
-		t.Errorf("expected unauthorized with invalid cookie")
+	if rr2.Code != http.StatusFound {
+		t.Errorf("expected redirect with invalid cookie, got %v", rr2.Code)
+	}
+	if rr2.Header().Get("Location") != "/" {
+		t.Errorf("expected redirect to /, got %v", rr2.Header().Get("Location"))
 	}
 
 	req3 := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -201,6 +207,16 @@ func TestAuthMiddleware(t *testing.T) {
 	if rr3.Code != http.StatusOK {
 		t.Errorf("expected OK with valid cookie")
 	}
+
+	t.Run("json client", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set("Accept", "application/json")
+		rr := httptest.NewRecorder()
+		mw.ServeHTTP(rr, req)
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401 for JSON client, got %v", rr.Code)
+		}
+	})
 }
 
 func TestAuthMiddleware_Disabled(t *testing.T) {
@@ -222,8 +238,11 @@ func TestAuthMiddleware_Disabled(t *testing.T) {
 	rr := httptest.NewRecorder()
 	mw.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 for disabled user session, got %d", rr.Code)
+	if rr.Code != http.StatusFound {
+		t.Errorf("expected 302 for disabled user session, got %d", rr.Code)
+	}
+	if rr.Header().Get("Location") != "/" {
+		t.Errorf("expected redirect to /, got %v", rr.Header().Get("Location"))
 	}
 }
 
@@ -437,8 +456,8 @@ func TestAuthMiddleware_UserNotFound(t *testing.T) {
 	rr := httptest.NewRecorder()
 	mw.ServeHTTP(rr, req)
 	// After closing DB, GetSessionByToken will fail → 401
-	if rr.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 for closed DB auth middleware, got %d", rr.Code)
+	if rr.Code != http.StatusFound {
+		t.Errorf("expected 302 for closed DB auth middleware, got %d", rr.Code)
 	}
 }
 
@@ -464,8 +483,8 @@ func TestAuthMiddleware_GetUserByIDError(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	mw.ServeHTTP(rr, req)
-	if rr.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 when user is deleted, got %d", rr.Code)
+	if rr.Code != http.StatusFound {
+		t.Errorf("expected 302 when user is deleted, got %d", rr.Code)
 	}
 }
 

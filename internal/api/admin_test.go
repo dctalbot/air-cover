@@ -29,8 +29,8 @@ func TestAuthHandler_RequireAdmin(t *testing.T) {
 		wantStatus int
 	}{
 		{"admin access", "admin", http.StatusOK},
-		{"member access", "member", http.StatusForbidden},
-		{"no role access", "", http.StatusForbidden},
+		{"member access", "member", http.StatusFound},
+		{"no role access", "", http.StatusFound},
 	}
 
 	for _, tt := range tests {
@@ -45,8 +45,23 @@ func TestAuthHandler_RequireAdmin(t *testing.T) {
 			if rr.Code != tt.wantStatus {
 				t.Errorf("expected status %v, got %v", tt.wantStatus, rr.Code)
 			}
+			if tt.wantStatus == http.StatusFound && rr.Header().Get("Location") != "/" {
+				t.Errorf("expected redirect to /, got %v", rr.Header().Get("Location"))
+			}
 		})
 	}
+
+	t.Run("json client", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+		req.Header.Set("Accept", "application/json")
+		ctx := context.WithValue(req.Context(), UserRoleKey, "member")
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		mw.ServeHTTP(rr, req)
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("expected 403 for JSON client, got %v", rr.Code)
+		}
+	})
 }
 
 func TestServer_GetAdmin(t *testing.T) {

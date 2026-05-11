@@ -223,20 +223,20 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("session_id")
 		if err != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			h.handleAuthError(w, r, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
 		ctx := r.Context()
 		session, err := h.repo.GetSessionByToken(ctx, cookie.Value)
 		if err != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			h.handleAuthError(w, r, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
 		user, err := h.repo.GetUserByID(ctx, session.UserID)
 		if err != nil || !user.IsEnabled {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			h.handleAuthError(w, r, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
@@ -251,9 +251,17 @@ func (h *AuthHandler) RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		role, ok := r.Context().Value(UserRoleKey).(string)
 		if !ok || role != "admin" {
-			http.Error(w, "Forbidden", http.StatusForbidden)
+			h.handleAuthError(w, r, "Forbidden", http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (h *AuthHandler) handleAuthError(w http.ResponseWriter, r *http.Request, message string, code int) {
+	if strings.Contains(r.Header.Get("Accept"), "application/json") {
+		http.Error(w, message, code)
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusFound)
 }

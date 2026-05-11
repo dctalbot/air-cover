@@ -3,7 +3,7 @@ module air-cover
 go 1.26
 
 require (
-	github.com/a-h/templ v0.3.1001
+	github.com/a-h/templ v0.3.1020
 	github.com/getkin/kin-openapi v0.136.0
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-chi/docgen v1.4.0
