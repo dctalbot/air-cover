@@ -72,12 +72,12 @@ templ TableStyles() {
 			height: 1rem;
 		}
 
-		.data-table tbody tr:hover {
+		.data-table tr:hover,
+		.data-table tbody.row-group:hover tr {
 			background-color: #f5f5f5;
 		}
 
 		.data-table .actions-cell {
-			display: flex;
 			gap: 0.5rem;
 			align-items: center;
 		}

@@ -235,52 +235,53 @@ templ SubRequestTable(subRequests []SubRequestView) {
 		<thead>
 			<tr>
 				<th>When</th>
-				<th>Duration</th>
-				<th>Show</th>
-				<th>Posted By</th>
-				<th>Taken By</th>
+				<th>What</th>
+				<th>Who</th>
 				<th>Actions</th>
 			</tr>
 		</thead>
-		<tbody>
 		for _, req := range subRequests {
-			<tr id={ "sub-request-row-" + strconv.Itoa(req.ID) } class={ templ.KV("row-available", req.TakerEmail == ""), templ.KV("row-taken", req.TakerEmail != "") }>
-				<td>{ req.StartTime }</td>
-				<td>{ req.Duration }</td>
-				<td>{ req.ShowTitle }</td>
-				<td>{ req.RequesterEmail }</td>
-				<td>
-					if req.TakerEmail != "" {
-					{ req.TakerEmail }
-					} else {
-					—
-					}
-				</td>
-				<td class="actions-cell">
-					if req.CanTake {
-					<button class="btn-action btn-action-primary" onclick={ templ.ComponentScript{
-						Call: "takeRequest('" + strconv.Itoa(req.ID) + "')",
-					} }>
-						Take
-					</button>
-					}
-					if req.CanUntake {
-					<button class="btn-action btn-action-warning" onclick={ templ.ComponentScript{
-						Call: "untakeRequest('" + strconv.Itoa(req.ID) + "')",
-					} }>
-						Untake
-					</button>
-					}
-					if req.CanDelete {
-					<button class="btn-action btn-action-danger" onclick={ templ.ComponentScript{
-						Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
-					} }>
-						Delete
-					</button>
-					}
-				</td>
-			</tr>
+			<tbody class="row-group">
+				<tr id={ "sub-request-row-" + strconv.Itoa(req.ID) } class={ templ.KV("row-available", req.TakerEmail == ""), templ.KV("row-taken", req.TakerEmail != "") }>
+					<td rowspan="2">{ req.StartTime }</td>
+					<td>{ req.ShowTitle }</td>
+					<td>🗣 { req.RequesterEmail }</td>
+					<td rowspan="2" class="actions-cell">
+						if req.CanTake {
+						<button class="btn-action btn-action-primary" onclick={ templ.ComponentScript{
+							Call: "takeRequest('" + strconv.Itoa(req.ID) + "')",
+						} }>
+							Take
+						</button>
+						}
+						if req.CanUntake {
+						<button class="btn-action btn-action-warning" onclick={ templ.ComponentScript{
+							Call: "untakeRequest('" + strconv.Itoa(req.ID) + "')",
+						} }>
+							Untake
+						</button>
+						}
+						if req.CanDelete {
+						<button class="btn-action btn-action-danger" onclick={ templ.ComponentScript{
+							Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
+						} }>
+							Delete
+						</button>
+						}
+					</td>
+				</tr>
+				<tr class={ templ.KV("row-available", req.TakerEmail == ""), templ.KV("row-taken", req.TakerEmail != "") }>
+					<td style="font-size: 0.8rem; color: #666; border-bottom: 1px solid #eee;">{ req.Duration }</td>
+					<td>
+					  🙋
+						if req.TakerEmail != "" {
+						{ req.TakerEmail }
+						} else {
+						—
+						}
+					</td>
+				</tr>
+			</tbody>
 		}
-		</tbody>
 	</table>
 }
