@@ -128,7 +128,7 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 			Notes:          sr.Notes,
 			Status:         sr.GetStatus(),
 			CanDelete:      sr.PostedByUserID == userID || isAdmin,
-			CanTake:        sr.TakenByUserID == nil && sr.PostedByUserID != userID,
+			CanTake:        (sr.TakenByUserID == nil || isAdmin) && !isTaker && (sr.PostedByUserID != userID || isAdmin),
 			CanUntake:      isTaker,
 		})
 	}
@@ -350,6 +350,7 @@ func (s *Server) PatchSubRequestsId(w http.ResponseWriter, r *http.Request, id i
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	role, _ := r.Context().Value(UserRoleKey).(string)
 
 	sr, err := s.repo.GetSubRequestByID(r.Context(), id)
 	if err != nil {
@@ -364,7 +365,7 @@ func (s *Server) PatchSubRequestsId(w http.ResponseWriter, r *http.Request, id i
 
 	switch req.Action {
 	case "take":
-		if sr.TakenByUserID != nil {
+		if sr.TakenByUserID != nil && role != "admin" {
 			http.Error(w, "Sub request already taken", http.StatusConflict)
 			return
 		}

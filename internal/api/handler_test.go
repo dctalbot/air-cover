@@ -1299,6 +1299,36 @@ func TestAppHandler_UnknownShowTitle(t *testing.T) {
 	}
 }
 
+func TestAppHandler_AdminCanTakeOwnRequest(t *testing.T) {
+	repo := setupTestDB(t)
+	server := NewServer(repo, nil, &MockShowsService{})
+
+	admin, _ := repo.CreateUser(context.Background(), "admin@example.com", "admin")
+	_ = repo.CreateSubRequest(context.Background(), &models.SubRequest{
+		ShowID:         1,
+		PostedByUserID: admin.ID,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(time.Hour),
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/app", nil)
+	ctx := context.WithValue(req.Context(), UserEmailKey, "admin@example.com")
+	ctx = context.WithValue(ctx, UserIDKey, admin.ID)
+	ctx = context.WithValue(ctx, UserRoleKey, "admin")
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	server.GetApp(rr, req)
+
+	// Check if "Take" button is present in the actions column
+	if !strings.Contains(rr.Body.String(), "takeRequest") {
+		t.Errorf("expected body to contain 'takeRequest' script for admin on their own request")
+	}
+	if !strings.Contains(rr.Body.String(), "Take") {
+		t.Errorf("expected body to contain 'Take' button text")
+	}
+}
+
 func TestServer_GetAdmin_DBError(t *testing.T) {
 	dbConn, err := db.InitDB("file::memory:")
 	if err != nil {
@@ -1564,6 +1594,55 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 		s.PatchSubRequestsId(rr, req, 99999)
 		if rr.Code != http.StatusNotFound {
 			t.Errorf("expected 404, got %d", rr.Code)
+		}
+	})
+
+	t.Run("admin can take their own request", func(t *testing.T) {
+		admin, _ := repo.CreateUser(context.Background(), "admin-poster@example.com", "admin")
+		srAdmin := &models.SubRequest{
+			ShowID:         1,
+			PostedByUserID: admin.ID,
+			StartTime:      time.Now(),
+			EndTime:        time.Now().Add(time.Hour),
+		}
+		_ = repo.CreateSubRequest(context.Background(), srAdmin)
+
+		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/"+strconv.Itoa(srAdmin.ID),
+			strings.NewReader(`{"action":"take"}`))
+		ctx := context.WithValue(req.Context(), UserIDKey, admin.ID)
+		ctx = context.WithValue(ctx, UserRoleKey, "admin")
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PatchSubRequestsId(rr, req, srAdmin.ID)
+
+		if rr.Code != http.StatusNoContent {
+			t.Errorf("expected 204 for admin taking own request, got %d", rr.Code)
+		}
+	})
+
+	t.Run("admin can take already taken request", func(t *testing.T) {
+		admin, _ := repo.CreateUser(context.Background(), "admin-taker@example.com", "admin")
+		// sr is already taken by u2 in previous test case if it hasn't been reset,
+		// but let's make a clean one just in case.
+		srTaken := &models.SubRequest{
+			ShowID:         1,
+			PostedByUserID: u1.ID,
+			StartTime:      time.Now(),
+			EndTime:        time.Now().Add(time.Hour),
+		}
+		_ = repo.CreateSubRequest(context.Background(), srTaken)
+		_ = repo.TakeSubRequest(context.Background(), srTaken.ID, u2.ID)
+
+		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/"+strconv.Itoa(srTaken.ID),
+			strings.NewReader(`{"action":"take"}`))
+		ctx := context.WithValue(req.Context(), UserIDKey, admin.ID)
+		ctx = context.WithValue(ctx, UserRoleKey, "admin")
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PatchSubRequestsId(rr, req, srTaken.ID)
+
+		if rr.Code != http.StatusNoContent {
+			t.Errorf("expected 204 for admin taking taken request, got %d", rr.Code)
 		}
 	})
 }
