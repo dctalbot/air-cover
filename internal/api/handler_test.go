@@ -451,6 +451,26 @@ func TestServer_PatchSubRequestsId_RepositoryErrorsWithFake(t *testing.T) {
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
+			name: "take conflict",
+			repo: &fakeServerRepo{
+				subRequest: &models.SubRequest{ID: 10, PostedByUserID: 1},
+				takeErr:    db.ErrConflict,
+			},
+			body:       `{"action":"take"}`,
+			userID:     takerID,
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name: "take not found after update",
+			repo: &fakeServerRepo{
+				subRequest: &models.SubRequest{ID: 10, PostedByUserID: 1},
+				takeErr:    db.ErrNotFound,
+			},
+			body:       `{"action":"take"}`,
+			userID:     takerID,
+			wantStatus: http.StatusNotFound,
+		},
+		{
 			name: "untake error",
 			repo: &fakeServerRepo{
 				subRequest: &models.SubRequest{ID: 10, PostedByUserID: 1, TakenByUserID: &takerID},

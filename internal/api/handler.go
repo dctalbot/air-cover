@@ -403,11 +403,15 @@ func (s *Server) PatchSubRequestsId(w http.ResponseWriter, r *http.Request, id i
 
 	switch req.Action {
 	case "take":
-		if sr.TakenByUserID != nil {
-			http.Error(w, "Sub request already taken", http.StatusConflict)
-			return
-		}
 		if err := s.repo.TakeSubRequest(r.Context(), id, userID); err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				http.Error(w, "Sub request not found", http.StatusNotFound)
+				return
+			}
+			if errors.Is(err, db.ErrConflict) {
+				http.Error(w, "Sub request already taken", http.StatusConflict)
+				return
+			}
 			slog.Error("Failed to take sub request", "id", id, "error", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return

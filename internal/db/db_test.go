@@ -276,6 +276,11 @@ func TestRepository(t *testing.T) {
 		t.Fatalf("expected ErrNotFound for TakeSubRequest, got %v", err)
 	}
 
+	err = repo.TakeSubRequest(ctx, sr3.ID, u4.ID)
+	if err != ErrConflict {
+		t.Fatalf("expected ErrConflict for already taken TakeSubRequest, got %v", err)
+	}
+
 	// UntakeSubRequest
 	err = repo.UntakeSubRequest(ctx, sr3.ID)
 	if err != nil {
@@ -903,7 +908,7 @@ func TestRepositoryDriverLevelErrors(t *testing.T) {
 		dbConn, mock, repo := newMockRepository(t)
 		defer dbConn.Close()
 
-		mock.ExpectExec(regexp.QuoteMeta("UPDATE sub_requests SET taken_by_user_id = ?, updated_at = ? WHERE id = ?")).
+		mock.ExpectExec(regexp.QuoteMeta("UPDATE sub_requests SET taken_by_user_id = ?, updated_at = ? WHERE id = ? AND taken_by_user_id IS NULL")).
 			WithArgs(2, sqlmock.AnyArg(), 9).
 			WillReturnResult(sqlmock.NewErrorResult(errors.New("rows affected failed")))
 

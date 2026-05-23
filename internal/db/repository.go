@@ -9,7 +9,10 @@ import (
 	"air-cover/internal/models"
 )
 
-var ErrNotFound = errors.New("record not found")
+var (
+	ErrNotFound = errors.New("record not found")
+	ErrConflict = errors.New("record conflict")
+)
 
 type Repository struct {
 	db *sql.DB
@@ -203,7 +206,7 @@ func (r *Repository) DeleteSubRequest(ctx context.Context, id int) error {
 
 func (r *Repository) TakeSubRequest(ctx context.Context, id int, userID int) error {
 	res, err := r.db.ExecContext(ctx,
-		"UPDATE sub_requests SET taken_by_user_id = ?, updated_at = ? WHERE id = ?",
+		"UPDATE sub_requests SET taken_by_user_id = ?, updated_at = ? WHERE id = ? AND taken_by_user_id IS NULL",
 		userID, time.Now(), id)
 	if err != nil {
 		return err
@@ -213,7 +216,10 @@ func (r *Repository) TakeSubRequest(ctx context.Context, id int, userID int) err
 		return err
 	}
 	if rows == 0 {
-		return ErrNotFound
+		if _, err := r.GetSubRequestByID(ctx, id); err != nil {
+			return err
+		}
+		return ErrConflict
 	}
 	return nil
 }
