@@ -21,28 +21,22 @@ import (
 
 type MockShowsService struct{}
 
-func (m *MockShowsService) GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error) {
-	return spinitron.ShowsPage{
-		Items:    []spinitron.Show{{ID: "1", Title: "Test Show"}},
-		NextPage: nil,
-	}, nil
+func (m *MockShowsService) ListShows(ctx context.Context) ([]spinitron.Show, error) {
+	return []spinitron.Show{{ID: "1", Title: "Test Show"}}, nil
 }
 
-func (m *MockShowsService) GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error) {
-	return spinitron.PersonasPage{}, nil
+func (m *MockShowsService) ListPersonas(ctx context.Context) ([]spinitron.Persona, error) {
+	return nil, nil
 }
 
 type badShowsService struct{}
 
-func (b *badShowsService) GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error) {
-	return spinitron.ShowsPage{
-		Items:    []spinitron.Show{{ID: "not-a-number", Title: "Bad ID Show"}},
-		NextPage: nil,
-	}, nil
+func (b *badShowsService) ListShows(ctx context.Context) ([]spinitron.Show, error) {
+	return []spinitron.Show{{ID: "not-a-number", Title: "Bad ID Show"}}, nil
 }
 
-func (b *badShowsService) GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error) {
-	return spinitron.PersonasPage{}, nil
+func (b *badShowsService) ListPersonas(ctx context.Context) ([]spinitron.Persona, error) {
+	return nil, nil
 }
 
 type fakeServerRepo struct {
@@ -1095,34 +1089,25 @@ func TestServer_GetApp_ListSubRequestsError(t *testing.T) {
 	}
 }
 
-// multiPageShowsService simulates a two-page response.
-type multiPageShowsService struct {
+type listingShowsService struct {
 	calls int
 }
 
-func (m *multiPageShowsService) GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error) {
+func (m *listingShowsService) ListShows(ctx context.Context) ([]spinitron.Show, error) {
 	m.calls++
-	if m.calls == 1 {
-		next := 2
-		return spinitron.ShowsPage{
-			Items:    []spinitron.Show{{ID: "1", Title: "Show A"}},
-			NextPage: &next,
-		}, nil
-	}
-	return spinitron.ShowsPage{
-		Items:    []spinitron.Show{{ID: "2", Title: "Show B"}},
-		NextPage: nil,
+	return []spinitron.Show{
+		{ID: "1", Title: "Show A"},
+		{ID: "2", Title: "Show B"},
 	}, nil
 }
 
-func (m *multiPageShowsService) GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error) {
-	return spinitron.PersonasPage{}, nil
+func (m *listingShowsService) ListPersonas(ctx context.Context) ([]spinitron.Persona, error) {
+	return nil, nil
 }
 
-// TestServer_GetApp_MultiPage covers the pagination loop in GetApp.
-func TestServer_GetApp_MultiPage(t *testing.T) {
+func TestServer_GetApp_LoadsShowList(t *testing.T) {
 	repo := setupTestDB(t)
-	svc := &multiPageShowsService{}
+	svc := &listingShowsService{}
 	s := NewServer(repo, nil, svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
@@ -1135,8 +1120,8 @@ func TestServer_GetApp_MultiPage(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected OK for multi-page, got %d", rr.Code)
 	}
-	if svc.calls != 2 {
-		t.Errorf("expected 2 page calls, got %d", svc.calls)
+	if svc.calls != 1 {
+		t.Errorf("expected 1 show list call, got %d", svc.calls)
 	}
 }
 
@@ -1317,12 +1302,12 @@ func TestServer_GetApp_SpinitronError(t *testing.T) {
 
 type faultyShowsService struct{}
 
-func (f *faultyShowsService) GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error) {
-	return spinitron.ShowsPage{}, errors.New("spinitron down")
+func (f *faultyShowsService) ListShows(ctx context.Context) ([]spinitron.Show, error) {
+	return nil, errors.New("spinitron down")
 }
 
-func (f *faultyShowsService) GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error) {
-	return spinitron.PersonasPage{}, nil
+func (f *faultyShowsService) ListPersonas(ctx context.Context) ([]spinitron.Persona, error) {
+	return nil, nil
 }
 
 func TestServer_PostSubRequests_LargeBody(t *testing.T) {
@@ -1415,29 +1400,18 @@ type importMockShowsService struct {
 	fail bool
 }
 
-func (m *importMockShowsService) GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error) {
-	return spinitron.ShowsPage{}, nil
+func (m *importMockShowsService) ListShows(ctx context.Context) ([]spinitron.Show, error) {
+	return nil, nil
 }
 
-func (m *importMockShowsService) GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error) {
+func (m *importMockShowsService) ListPersonas(ctx context.Context) ([]spinitron.Persona, error) {
 	if m.fail {
-		return spinitron.PersonasPage{}, errors.New("spinitron error")
+		return nil, errors.New("spinitron error")
 	}
-	if page == 1 {
-		next := 2
-		return spinitron.PersonasPage{
-			Items: []spinitron.Persona{
-				{ID: 1, Name: "DJ One", Email: "one@example.com"},
-				{ID: 2, Name: "DJ Empty", Email: "  "}, // should be skipped
-			},
-			NextPage: &next,
-		}, nil
-	}
-	return spinitron.PersonasPage{
-		Items: []spinitron.Persona{
-			{ID: 3, Name: "DJ Two", Email: "two@example.com"},
-		},
-		NextPage: nil,
+	return []spinitron.Persona{
+		{ID: 1, Name: "DJ One", Email: "one@example.com"},
+		{ID: 2, Name: "DJ Empty", Email: "  "}, // should be skipped
+		{ID: 3, Name: "DJ Two", Email: "two@example.com"},
 	}, nil
 }
 

@@ -25,6 +25,7 @@ var newRequestWithContext = http.NewRequestWithContext
 const (
 	defaultBaseURL       = "https://spinitron.com/api"
 	defaultShowsPageSize = 200
+	defaultClientTimeout = 10 * time.Second
 )
 
 type Show struct {
@@ -58,7 +59,7 @@ func NewClient(apiKey, baseURL string) *Client {
 	return &Client{
 		BaseURL:    strings.TrimRight(baseURL, "/"),
 		APIKey:     apiKey,
-		HTTPClient: &http.Client{},
+		HTTPClient: &http.Client{Timeout: defaultClientTimeout},
 		nowFunc:    time.Now,
 	}
 }

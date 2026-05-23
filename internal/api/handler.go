@@ -19,8 +19,8 @@ import (
 )
 
 type ShowsService interface {
-	GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error)
-	GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error)
+	ListShows(ctx context.Context) ([]spinitron.Show, error)
+	ListPersonas(ctx context.Context) ([]spinitron.Persona, error)
 }
 
 type serverRepository interface {
@@ -79,24 +79,11 @@ func (s *Server) Get(w http.ResponseWriter, r *http.Request) {
 // Authenticated application page
 // (GET /app)
 func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
-	var allShows []spinitron.Show
-	page := 1
-
-	for page > 0 {
-		showsPage, err := s.spinitronClient.GetShowsPage(r.Context(), page)
-		if err != nil {
-			slog.Error("Failed to load shows from spinitron", "error", err)
-			http.Error(w, "Unable to load shows", http.StatusBadGateway)
-			return
-		}
-
-		allShows = append(allShows, showsPage.Items...)
-
-		if showsPage.NextPage != nil {
-			page = *showsPage.NextPage
-		} else {
-			break
-		}
+	allShows, err := s.spinitronClient.ListShows(r.Context())
+	if err != nil {
+		slog.Error("Failed to load shows from spinitron", "error", err)
+		http.Error(w, "Unable to load shows", http.StatusBadGateway)
+		return
 	}
 
 	sort.Slice(allShows, func(i, j int) bool {
@@ -523,25 +510,15 @@ func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
 // (POST /users/import/spinitron)
 func (s *Server) PostUsersImportSpinitron(w http.ResponseWriter, r *http.Request) {
 	var emails []string
-	page := 1
 
-	for page > 0 {
-		personasPage, err := s.spinitronClient.GetPersonasPage(r.Context(), page)
-		if err != nil {
-			slog.Error("Failed to load personas from spinitron", "error", err)
-			break // Stop fetching, but proceed with what we have
-		}
-
-		for _, p := range personasPage.Items {
+	personas, err := s.spinitronClient.ListPersonas(r.Context())
+	if err != nil {
+		slog.Error("Failed to load personas from spinitron", "error", err)
+	} else {
+		for _, p := range personas {
 			if strings.TrimSpace(p.Email) != "" {
 				emails = append(emails, p.Email)
 			}
-		}
-
-		if personasPage.NextPage != nil {
-			page = *personasPage.NextPage
-		} else {
-			break
 		}
 	}
 

@@ -40,7 +40,8 @@ type serverDeps struct {
 	loadConfig       func(*cobra.Command) (*config.Config, error)
 	initDB           func(string) (*sql.DB, error)
 	newSender        func(apiKey, fromEmail, env string) email.Sender
-	newSpinitron     func(apiKey, baseURL string) api.ShowsService
+	newSpinitron     func(apiKey, baseURL string) spinitron.PageClient
+	newCatalog       func(spinitron.PageClient) api.ShowsService
 	newRouter        func(*api.Server, *api.AuthHandler) chi.Router
 	listenAndServe   func(*http.Server) error
 	backgroundCtx    func() context.Context
@@ -84,9 +85,10 @@ func defaultServerDeps() serverDeps {
 		loadConfig: config.Load,
 		initDB:     db.InitDB,
 		newSender:  email.NewSender,
-		newSpinitron: func(apiKey, baseURL string) api.ShowsService {
+		newSpinitron: func(apiKey, baseURL string) spinitron.PageClient {
 			return spinitron.NewClient(apiKey, baseURL)
 		},
+		newCatalog:     func(source spinitron.PageClient) api.ShowsService { return spinitron.NewCatalog(source) },
 		newRouter:      newRouter,
 		listenAndServe: listenAndServe,
 		backgroundCtx:  context.Background,
@@ -200,7 +202,17 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 	sender := deps.newSender(cfg.SendGridAPIKey, cfg.FromEmail, cfg.ENV)
 	authHandler := deps.newAuthHandler(repo, sender)
 	spinitronClient := deps.newSpinitron("", cfg.SpinitronAPIURL)
-	apiServer := deps.newAPIServer(repo, authHandler, spinitronClient)
+	spinitronCatalog := deps.newCatalog(spinitronClient)
+	if prefetcher, ok := spinitronCatalog.(interface{ Prefetch(context.Context) error }); ok {
+		go func() {
+			ctx, cancel := context.WithTimeout(deps.backgroundCtx(), 5*time.Second)
+			defer cancel()
+			if err := prefetcher.Prefetch(ctx); err != nil {
+				slog.Warn("Failed to prefetch spinitron catalog", "error", err)
+			}
+		}()
+	}
+	apiServer := deps.newAPIServer(repo, authHandler, spinitronCatalog)
 
 	r := deps.newRouter(apiServer, authHandler)
 	portStr := strconv.Itoa(cfg.Port)

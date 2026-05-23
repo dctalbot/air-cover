@@ -35,21 +35,41 @@ func (w *errorWriter) Write(b []byte) (int, error) {
 func (w *errorWriter) WriteHeader(statusCode int) {}
 
 type fakeShowsService struct {
-	page     spinitron.ShowsPage
+	shows    []spinitron.Show
 	err      error
-	lastPage int
+	calls    int
+	prefetch bool
+	done     chan struct{}
 }
 
-func (f *fakeShowsService) GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error) {
-	f.lastPage = page
+func (f *fakeShowsService) ListShows(ctx context.Context) ([]spinitron.Show, error) {
+	f.calls++
 	if f.err != nil {
-		return spinitron.ShowsPage{}, f.err
+		return nil, f.err
 	}
-	return f.page, nil
+	return f.shows, nil
 }
 
-func (f *fakeShowsService) GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error) {
-	return spinitron.PersonasPage{}, f.err
+func (f *fakeShowsService) ListPersonas(ctx context.Context) ([]spinitron.Persona, error) {
+	return nil, f.err
+}
+
+func (f *fakeShowsService) Prefetch(ctx context.Context) error {
+	f.prefetch = true
+	if f.done != nil {
+		close(f.done)
+	}
+	return f.err
+}
+
+type fakeSpinitronPageClient struct{}
+
+func (f *fakeSpinitronPageClient) GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error) {
+	return spinitron.ShowsPage{}, nil
+}
+
+func (f *fakeSpinitronPageClient) GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error) {
+	return spinitron.PersonasPage{}, nil
 }
 
 type mockSender struct{}
@@ -148,7 +168,10 @@ func testServerDeps(cfg *config.Config, repo repository) serverDeps {
 		newSender: func(apiKey, fromEmail, env string) email.Sender {
 			return &mockSender{}
 		},
-		newSpinitron: func(apiKey, baseURL string) api.ShowsService {
+		newSpinitron: func(apiKey, baseURL string) spinitron.PageClient {
+			return &fakeSpinitronPageClient{}
+		},
+		newCatalog: func(source spinitron.PageClient) api.ShowsService {
 			return &fakeShowsService{}
 		},
 		newRouter: func(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
@@ -269,11 +292,9 @@ func TestIndexHandler(t *testing.T) {
 
 func TestAppHandler(t *testing.T) {
 	service := &fakeShowsService{
-		page: spinitron.ShowsPage{
-			Items: []spinitron.Show{
-				{ID: "2", Title: "Zebra Show"},
-				{ID: "1", Title: "Apple Show"},
-			},
+		shows: []spinitron.Show{
+			{ID: "2", Title: "Zebra Show"},
+			{ID: "1", Title: "Apple Show"},
 		},
 	}
 	dbConn, _ := db.InitDB("file::memory:?cache=shared")
@@ -565,6 +586,27 @@ func TestRunServer_DependencyFailures(t *testing.T) {
 
 		if err := runServer(&cobra.Command{}, deps); err != nil {
 			t.Fatalf("expected nil error, got %v", err)
+		}
+	})
+
+	t.Run("prefetch starts in background", func(t *testing.T) {
+		deps := testServerDeps(cfg, &fakeStartupRepo{})
+		service := &fakeShowsService{done: make(chan struct{})}
+		deps.newCatalog = func(source spinitron.PageClient) api.ShowsService {
+			return service
+		}
+
+		if err := runServer(&cobra.Command{}, deps); err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+
+		select {
+		case <-service.done:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for prefetch")
+		}
+		if !service.prefetch {
+			t.Fatal("expected prefetch to run")
 		}
 	})
 }

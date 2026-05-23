@@ -32,6 +32,9 @@ func TestNewClient(t *testing.T) {
 	if client.HTTPClient == nil {
 		t.Error("expected HTTP client to be initialized")
 	}
+	if client.HTTPClient.Timeout != defaultClientTimeout {
+		t.Errorf("expected HTTP client timeout %s, got %s", defaultClientTimeout, client.HTTPClient.Timeout)
+	}
 }
 
 func TestNewClient_DefaultBaseURL(t *testing.T) {
