@@ -247,6 +247,12 @@ templ SubRequestTable(subRequests []SubRequestView) {
 					<td>{ req.ShowTitle }</td>
 					<td>🗣 { req.RequesterEmail }</td>
 					<td rowspan="2" class="actions-cell">
+						if req.CanDelete {
+						<button class="btn-action btn-action-danger" onclick={ templ.ComponentScript{ Call: "deleteRequest('" +
+							strconv.Itoa(req.ID) + "')" , } }>
+							Delete
+						</button>
+						}
 						if req.CanTake {
 						<button class="btn-action btn-action-primary" onclick={ templ.ComponentScript{
 							Call: "takeRequest('" + strconv.Itoa(req.ID) + "')",
@@ -259,13 +265,6 @@ templ SubRequestTable(subRequests []SubRequestView) {
 							Call: "untakeRequest('" + strconv.Itoa(req.ID) + "')",
 						} }>
 							Untake
-						</button>
-						}
-						if req.CanDelete {
-						<button class="btn-action btn-action-danger" onclick={ templ.ComponentScript{
-							Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')",
-						} }>
-							Delete
 						</button>
 						}
 					</td>
