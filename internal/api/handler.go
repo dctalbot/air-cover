@@ -187,6 +187,9 @@ func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
 		if views[i].IsEnabled != views[j].IsEnabled {
 			return views[i].IsEnabled
 		}
+		if !views[i].IsEnabled {
+			return strings.ToLower(views[i].Email) < strings.ToLower(views[j].Email)
+		}
 		if views[i].Role != views[j].Role {
 			return views[i].Role == "admin"
 		}

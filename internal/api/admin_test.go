@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"air-cover/internal/db"
@@ -103,6 +104,44 @@ func TestServer_GetAdmin(t *testing.T) {
 	s.GetAdmin(rr, req)
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected InternalServerError with closed DB, got %v", rr.Code)
+	}
+}
+
+func TestServer_GetAdmin_DeactivatedUsersSortedByEmail(t *testing.T) {
+	repo := setupTestDB(t)
+	s := NewServer(repo, nil, nil)
+
+	_, _ = repo.CreateUser(context.Background(), "admin@example.com", "admin")
+	zUser, _ := repo.CreateUser(context.Background(), "zeta@example.com", "member")
+	aUser, _ := repo.CreateUser(context.Background(), "alpha@example.com", "admin")
+	enabled := false
+	if err := repo.UpdateUser(context.Background(), zUser.ID, nil, &enabled); err != nil {
+		t.Fatalf("failed to deactivate zeta user: %v", err)
+	}
+	if err := repo.UpdateUser(context.Background(), aUser.ID, nil, &enabled); err != nil {
+		t.Fatalf("failed to deactivate alpha user: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	ctx := context.WithValue(req.Context(), UserIDKey, 1)
+	ctx = context.WithValue(ctx, UserEmailKey, "admin@example.com")
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	s.GetAdmin(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected OK, got %v", rr.Code)
+	}
+
+	output := rr.Body.String()
+	alphaIndex := strings.Index(output, "alpha@example.com")
+	zetaIndex := strings.Index(output, "zeta@example.com")
+	if alphaIndex == -1 || zetaIndex == -1 {
+		t.Fatalf("expected deactivated users in admin output: %s", output)
+	}
+	if alphaIndex > zetaIndex {
+		t.Error("expected deactivated users to be sorted by email")
 	}
 }
 
