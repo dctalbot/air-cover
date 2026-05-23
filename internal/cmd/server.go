@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -36,6 +38,14 @@ var (
 	getSwagger = api.GetSwagger
 )
 
+const (
+	serverReadHeaderTimeout = 3 * time.Second
+	serverReadTimeout       = 10 * time.Second
+	serverWriteTimeout      = 30 * time.Second
+	serverIdleTimeout       = 60 * time.Second
+	serverShutdownTimeout   = 10 * time.Second
+)
+
 type serverDeps struct {
 	loadConfig       func(*cobra.Command) (*config.Config, error)
 	initDB           func(string) (*sql.DB, error)
@@ -49,6 +59,9 @@ type serverDeps struct {
 	newAPIServer     func(apiServerRepository, *api.AuthHandler, api.ShowsService) *api.Server
 	newDBRepository  func(*sql.DB) repository
 	setDefaultLogger func(*config.Config)
+	signalContext    func(context.Context) (context.Context, context.CancelFunc)
+	shutdownServer   func(*http.Server, context.Context) error
+	shutdownTimeout  time.Duration
 }
 
 type repository interface {
@@ -104,6 +117,13 @@ func defaultServerDeps() serverDeps {
 		setDefaultLogger: func(cfg *config.Config) {
 			slog.SetDefault(logger.NewLogger(cfg))
 		},
+		signalContext: func(parent context.Context) (context.Context, context.CancelFunc) {
+			return signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
+		},
+		shutdownServer: func(server *http.Server, ctx context.Context) error {
+			return server.Shutdown(ctx)
+		},
+		shutdownTimeout: serverShutdownTimeout,
 	}
 }
 
@@ -221,13 +241,53 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 	server := &http.Server{
 		Addr:              ":" + portStr,
 		Handler:           r,
-		ReadHeaderTimeout: 3 * time.Second,
+		ReadHeaderTimeout: serverReadHeaderTimeout,
+		ReadTimeout:       serverReadTimeout,
+		WriteTimeout:      serverWriteTimeout,
+		IdleTimeout:       serverIdleTimeout,
 	}
 
-	if err := deps.listenAndServe(server); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := serveWithGracefulShutdown(server, deps); err != nil {
 		return fmt.Errorf("server failed to start: %w", err)
 	}
 	return nil
+}
+
+func serveWithGracefulShutdown(server *http.Server, deps serverDeps) error {
+	ctx, stop := deps.signalContext(deps.backgroundCtx())
+	defer stop()
+
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- deps.listenAndServe(server)
+	}()
+
+	select {
+	case err := <-serverErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
+	case <-ctx.Done():
+		stop()
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(deps.backgroundCtx(), deps.shutdownTimeout)
+	defer cancel()
+
+	if err := deps.shutdownServer(server, shutdownCtx); err != nil {
+		return fmt.Errorf("graceful shutdown failed: %w", err)
+	}
+
+	select {
+	case err := <-serverErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
+	case <-shutdownCtx.Done():
+		return shutdownCtx.Err()
+	}
 }
 
 func init() {

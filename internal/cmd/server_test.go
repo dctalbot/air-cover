@@ -191,6 +191,13 @@ func testServerDeps(cfg *config.Config, repo repository) serverDeps {
 			return repo
 		},
 		setDefaultLogger: func(cfg *config.Config) {},
+		signalContext: func(parent context.Context) (context.Context, context.CancelFunc) {
+			return context.WithCancel(parent)
+		},
+		shutdownServer: func(server *http.Server, ctx context.Context) error {
+			return nil
+		},
+		shutdownTimeout: serverShutdownTimeout,
 	}
 }
 
@@ -421,11 +428,19 @@ func TestServerCmd_Error(t *testing.T) {
 func TestListenAndServe(t *testing.T) {
 	server := &http.Server{
 		Addr:              "invalid:",
-		ReadHeaderTimeout: 3 * time.Second,
+		ReadHeaderTimeout: serverReadHeaderTimeout,
 	}
 	err := listenAndServe(server)
 	if err == nil {
 		t.Error("expected error, got nil")
+	}
+}
+
+func TestDefaultShutdownServer(t *testing.T) {
+	deps := defaultServerDeps()
+	server := &http.Server{ReadHeaderTimeout: serverReadHeaderTimeout}
+	if err := deps.shutdownServer(server, context.Background()); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
 	}
 }
 
@@ -578,6 +593,34 @@ func TestRunServer_DependencyFailures(t *testing.T) {
 		}
 	})
 
+	t.Run("server timeouts are configured", func(t *testing.T) {
+		deps := testServerDeps(cfg, &fakeStartupRepo{})
+		var got *http.Server
+		deps.listenAndServe = func(server *http.Server) error {
+			got = server
+			return http.ErrServerClosed
+		}
+
+		if err := runServer(&cobra.Command{}, deps); err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if got == nil {
+			t.Fatal("expected server to be passed to listener")
+		}
+		if got.ReadHeaderTimeout != serverReadHeaderTimeout {
+			t.Errorf("expected ReadHeaderTimeout %s, got %s", serverReadHeaderTimeout, got.ReadHeaderTimeout)
+		}
+		if got.ReadTimeout != serverReadTimeout {
+			t.Errorf("expected ReadTimeout %s, got %s", serverReadTimeout, got.ReadTimeout)
+		}
+		if got.WriteTimeout != serverWriteTimeout {
+			t.Errorf("expected WriteTimeout %s, got %s", serverWriteTimeout, got.WriteTimeout)
+		}
+		if got.IdleTimeout != serverIdleTimeout {
+			t.Errorf("expected IdleTimeout %s, got %s", serverIdleTimeout, got.IdleTimeout)
+		}
+	})
+
 	t.Run("server closed is graceful", func(t *testing.T) {
 		deps := testServerDeps(cfg, &fakeStartupRepo{})
 		deps.listenAndServe = func(server *http.Server) error {
@@ -586,6 +629,113 @@ func TestRunServer_DependencyFailures(t *testing.T) {
 
 		if err := runServer(&cobra.Command{}, deps); err != nil {
 			t.Fatalf("expected nil error, got %v", err)
+		}
+	})
+
+	t.Run("signal triggers graceful shutdown", func(t *testing.T) {
+		deps := testServerDeps(cfg, &fakeStartupRepo{})
+		started := make(chan struct{})
+		shutdown := make(chan struct{})
+		deps.signalContext = func(parent context.Context) (context.Context, context.CancelFunc) {
+			ctx, cancel := context.WithCancel(parent)
+			go func() {
+				<-started
+				cancel()
+			}()
+			return ctx, cancel
+		}
+		deps.listenAndServe = func(server *http.Server) error {
+			close(started)
+			<-shutdown
+			return http.ErrServerClosed
+		}
+		deps.shutdownServer = func(server *http.Server, ctx context.Context) error {
+			close(shutdown)
+			return nil
+		}
+
+		if err := runServer(&cobra.Command{}, deps); err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+	})
+
+	t.Run("shutdown error is returned", func(t *testing.T) {
+		deps := testServerDeps(cfg, &fakeStartupRepo{})
+		started := make(chan struct{})
+		release := make(chan struct{})
+		shutdownErr := errors.New("shutdown failed")
+		deps.signalContext = func(parent context.Context) (context.Context, context.CancelFunc) {
+			ctx, cancel := context.WithCancel(parent)
+			go func() {
+				<-started
+				cancel()
+			}()
+			return ctx, cancel
+		}
+		deps.listenAndServe = func(server *http.Server) error {
+			close(started)
+			<-release
+			return http.ErrServerClosed
+		}
+		deps.shutdownServer = func(server *http.Server, ctx context.Context) error {
+			close(release)
+			return shutdownErr
+		}
+
+		err := runServer(&cobra.Command{}, deps)
+		if err == nil || !strings.Contains(err.Error(), "graceful shutdown failed") {
+			t.Fatalf("expected shutdown error, got %v", err)
+		}
+	})
+
+	t.Run("post-shutdown listen error is returned", func(t *testing.T) {
+		deps := testServerDeps(cfg, &fakeStartupRepo{})
+		started := make(chan struct{})
+		shutdown := make(chan struct{})
+		deps.signalContext = func(parent context.Context) (context.Context, context.CancelFunc) {
+			ctx, cancel := context.WithCancel(parent)
+			go func() {
+				<-started
+				cancel()
+			}()
+			return ctx, cancel
+		}
+		deps.listenAndServe = func(server *http.Server) error {
+			close(started)
+			<-shutdown
+			return errors.New("late listen failure")
+		}
+		deps.shutdownServer = func(server *http.Server, ctx context.Context) error {
+			close(shutdown)
+			return nil
+		}
+
+		err := runServer(&cobra.Command{}, deps)
+		if err == nil || !strings.Contains(err.Error(), "late listen failure") {
+			t.Fatalf("expected post-shutdown listen error, got %v", err)
+		}
+	})
+
+	t.Run("shutdown wait timeout is returned", func(t *testing.T) {
+		deps := testServerDeps(cfg, &fakeStartupRepo{})
+		started := make(chan struct{})
+		deps.shutdownTimeout = time.Nanosecond
+		deps.signalContext = func(parent context.Context) (context.Context, context.CancelFunc) {
+			ctx, cancel := context.WithCancel(parent)
+			go func() {
+				<-started
+				cancel()
+			}()
+			return ctx, cancel
+		}
+		deps.listenAndServe = func(server *http.Server) error {
+			close(started)
+			select {}
+		}
+
+		err := runServer(&cobra.Command{}, deps)
+		if err == nil || !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
+			t.Fatalf("expected shutdown timeout, got %v", err)
 		}
 	})
 
