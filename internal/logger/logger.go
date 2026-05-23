@@ -9,6 +9,14 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+type zapBuilder interface {
+	Build(...zap.Option) (*zap.Logger, error)
+}
+
+var buildZapLogger = func(cfg zapBuilder) (*zap.Logger, error) {
+	return cfg.Build()
+}
+
 // NewLogger creates a new slog.Logger backed by Zap.
 func NewLogger(cfg *config.Config) *slog.Logger {
 	production := cfg.ENV == "production"
@@ -26,7 +34,7 @@ func NewLogger(cfg *config.Config) *slog.Logger {
 	}
 
 	// Build the Zap logger
-	zl, err := zcfg.Build()
+	zl, err := buildZapLogger(zcfg)
 	if err != nil {
 		// Fallback to default slog if zap fails (unlikely)
 		return slog.Default()

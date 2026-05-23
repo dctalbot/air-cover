@@ -722,6 +722,19 @@ func TestGetShowsPage_InvalidBaseURL(t *testing.T) {
 	}
 }
 
+func TestGetShowsPage_RequestCreateError(t *testing.T) {
+	originalNewRequestWithContext := newRequestWithContext
+	t.Cleanup(func() { newRequestWithContext = originalNewRequestWithContext })
+	newRequestWithContext = func(ctx context.Context, method, url string, body io.Reader) (*http.Request, error) {
+		return nil, fmt.Errorf("request create failed")
+	}
+
+	client := NewClient("", "http://example.com")
+	if _, err := client.GetShowsPage(context.Background(), 1); err == nil {
+		t.Fatal("expected request creation error")
+	}
+}
+
 func TestPageFromGeneric_MapWithNextKey(t *testing.T) {
 	// map with "next" key that is a string page URL
 	v := map[string]interface{}{
@@ -769,12 +782,6 @@ func TestParsePageString_InvalidPageParam(t *testing.T) {
 	if ok {
 		t.Error("expected ok=false for invalid page param")
 	}
-}
-
-func TestGet_RequestCreateError(t *testing.T) {
-	// To trigger http.NewRequestWithContext error, we need an invalid method or URL.
-	// But route is hardcoded and method is GET.
-	// However, if we can pass a bad context? No.
 }
 
 func TestParsePageString_ControlChar(t *testing.T) {

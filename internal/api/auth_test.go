@@ -19,6 +19,17 @@ func (m *MockSender) SendMagicLink(toEmail, magicLink string) error {
 	return nil
 }
 
+type recordingSender struct {
+	toEmail   string
+	magicLink string
+}
+
+func (s *recordingSender) SendMagicLink(toEmail, magicLink string) error {
+	s.toEmail = toEmail
+	s.magicLink = magicLink
+	return nil
+}
+
 func setupTestDB(t *testing.T) *db.Repository {
 	// Using a unique name for each test to avoid conflicts when tests run in parallel or share a process.
 	// Actually, just using ":memory:" without shared cache is enough for a single *sql.DB.
@@ -97,6 +108,54 @@ func TestAuthHandler_Login_HTTPSScheme(t *testing.T) {
 	}
 }
 
+func TestAuthHandler_Login_TokenGenerationError(t *testing.T) {
+	repo := setupTestDB(t)
+	_, _ = repo.CreateUser(context.Background(), "tokenfail@example.com", "member")
+	handler := NewAuthHandler(repo, &MockSender{})
+	handler.tokenGenerator = func(n int) (string, error) {
+		return "", errors.New("token failed")
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"tokenfail@example.com"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.HandleLogin(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500 for token generation failure, got %d", rr.Code)
+	}
+}
+
+func TestAuthHandler_Login_DeterministicMagicLink(t *testing.T) {
+	repo := setupTestDB(t)
+	_, _ = repo.CreateUser(context.Background(), "link@example.com", "member")
+	sender := &recordingSender{}
+	handler := NewAuthHandler(repo, sender)
+	handler.tokenGenerator = func(n int) (string, error) {
+		return "fixed-login-token", nil
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"link@example.com"}`))
+	req.Host = "aircover.example.test"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	rr := httptest.NewRecorder()
+
+	handler.HandleLogin(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	if sender.toEmail != "link@example.com" {
+		t.Errorf("expected sender email link@example.com, got %q", sender.toEmail)
+	}
+	wantLink := "https://aircover.example.test/auth/verify?token=fixed-login-token"
+	if sender.magicLink != wantLink {
+		t.Errorf("expected magic link %q, got %q", wantLink, sender.magicLink)
+	}
+}
+
 func TestAuthHandler_Verify(t *testing.T) {
 	repo := setupTestDB(t)
 	handler := NewAuthHandler(repo, &MockSender{})
@@ -136,6 +195,61 @@ func TestAuthHandler_Verify(t *testing.T) {
 			t.Errorf("expected 400, got %d", rr.Code)
 		}
 	})
+}
+
+func TestAuthHandler_Verify_TokenGenerationErrors(t *testing.T) {
+	tests := []struct {
+		name           string
+		generatorCalls []struct {
+			token string
+			err   error
+		}
+	}{
+		{
+			name: "session id failure",
+			generatorCalls: []struct {
+				token string
+				err   error
+			}{
+				{"", errors.New("session id failed")},
+			},
+		},
+		{
+			name: "session token failure",
+			generatorCalls: []struct {
+				token string
+				err   error
+			}{
+				{"fixed-session-id", nil},
+				{"", errors.New("session token failed")},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := setupTestDB(t)
+			handler := NewAuthHandler(repo, &MockSender{})
+			u, _ := repo.CreateUser(context.Background(), tt.name+"@example.com", "member")
+			rawToken := "verify-token-" + strings.ReplaceAll(tt.name, " ", "-")
+			_ = repo.CreateMagicLink(context.Background(), u.ID, hashToken(rawToken), time.Now().Add(1*time.Hour))
+
+			call := 0
+			handler.tokenGenerator = func(n int) (string, error) {
+				result := tt.generatorCalls[call]
+				call++
+				return result.token, result.err
+			}
+
+			req := httptest.NewRequest(http.MethodGet, "/auth/verify", nil)
+			rr := httptest.NewRecorder()
+			handler.HandleVerify(rr, req, rawToken)
+
+			if rr.Code != http.StatusInternalServerError {
+				t.Errorf("expected 500 for token generation failure, got %d", rr.Code)
+			}
+		})
+	}
 }
 
 func TestAuthHandler_Verify_HTTPSCookie(t *testing.T) {
@@ -321,6 +435,18 @@ func TestGenerateRandomToken(t *testing.T) {
 	tok2, _ := generateRandomToken(32)
 	if tok == tok2 {
 		t.Error("expected distinct tokens")
+	}
+}
+
+func TestGenerateRandomToken_ReadError(t *testing.T) {
+	originalRandomRead := randomRead
+	t.Cleanup(func() { randomRead = originalRandomRead })
+	randomRead = func(b []byte) (int, error) {
+		return 0, errors.New("random failed")
+	}
+
+	if _, err := generateRandomToken(32); err == nil {
+		t.Fatal("expected random read error")
 	}
 }
 

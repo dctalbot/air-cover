@@ -11,6 +11,8 @@ import (
 	"air-cover/internal/logger"
 )
 
+var sqlOpen = sql.Open
+
 var migrateCmd = &cobra.Command{
 	Use:   "migrate",
 	Short: "Manage database migrations",
@@ -58,7 +60,7 @@ func runMigrate(cmd *cobra.Command, action string) {
 
 	slog.SetDefault(logger.NewLogger(cfg))
 
-	database, err := sql.Open("libsql", cfg.DBURI)
+	database, err := sqlOpen("libsql", cfg.DBURI)
 	if err != nil {
 		slog.Error("Failed to open database", "error", err)
 		osExit(1)

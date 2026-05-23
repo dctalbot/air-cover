@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -25,6 +26,13 @@ type SendGridSender struct {
 	FromEmail  string
 	HTTPClient *http.Client
 }
+
+var (
+	jsonMarshal    = json.Marshal
+	newHTTPRequest = func(method, url string, body io.Reader) (*http.Request, error) {
+		return http.NewRequest(method, url, body) //nolint:noctx
+	}
+)
 
 func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
 	if s.APIKey == "" {
@@ -54,12 +62,12 @@ func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
 		},
 	}
 
-	body, err := json.Marshal(payload)
+	body, err := jsonMarshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal sendgrid payload: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", "https://api.sendgrid.com/v3/mail/send", bytes.NewBuffer(body))
+	req, err := newHTTPRequest("POST", "https://api.sendgrid.com/v3/mail/send", bytes.NewBuffer(body))
 	if err != nil {
 		return fmt.Errorf("failed to create sendgrid request: %w", err)
 	}

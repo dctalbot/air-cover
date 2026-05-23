@@ -13,8 +13,14 @@ import (
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
 
+var (
+	sqlOpen         = sql.Open
+	runMigrationFn  = RunMigration
+	gooseSetDialect = goose.SetDialect
+)
+
 func InitDB(uri string) (*sql.DB, error) {
-	db, err := sql.Open("libsql", uri)
+	db, err := sqlOpen("libsql", uri)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open db: %w", err)
 	}
@@ -23,7 +29,7 @@ func InitDB(uri string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to connect to db: %w", err)
 	}
 
-	if err := RunMigration(db, "up"); err != nil {
+	if err := runMigrationFn(db, "up"); err != nil {
 		return nil, err
 	}
 
@@ -32,7 +38,7 @@ func InitDB(uri string) (*sql.DB, error) {
 
 func RunMigration(db *sql.DB, command string) error {
 	goose.SetBaseFS(embedMigrations)
-	if err := goose.SetDialect("sqlite3"); err != nil {
+	if err := gooseSetDialect("sqlite3"); err != nil {
 		return fmt.Errorf("failed to set goose dialect: %w", err)
 	}
 

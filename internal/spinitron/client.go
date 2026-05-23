@@ -20,6 +20,8 @@ type Client struct {
 	nowFunc    func() time.Time
 }
 
+var newRequestWithContext = http.NewRequestWithContext
+
 const (
 	defaultBaseURL       = "https://spinitron.com/api"
 	defaultShowsPageSize = 200
@@ -108,7 +110,7 @@ func (c *Client) get(ctx context.Context, route string, query url.Values) ([]byt
 	}
 	reqURL.RawQuery = query.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create request: %w", err)
 	}

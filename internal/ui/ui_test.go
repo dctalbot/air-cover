@@ -88,6 +88,8 @@ func TestUnauthenticated(t *testing.T) {
 func TestAdmin(t *testing.T) {
 	users := []UserView{
 		{ID: 1, Email: "admin@example.com", Role: "admin", IsEnabled: true},
+		{ID: 2, Email: "member@example.com", Role: "member", IsEnabled: true, CanDeactivate: true},
+		{ID: 3, Email: "disabled@example.com", Role: "member", IsEnabled: false, CanDeactivate: true},
 	}
 	buf := new(bytes.Buffer)
 	component := Admin(users, "admin@example.com")
@@ -98,6 +100,34 @@ func TestAdmin(t *testing.T) {
 
 	if !bytes.Contains(buf.Bytes(), []byte("admin@example.com")) {
 		t.Error("expected user email not found in rendered output")
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`form action="/users/import/spinitron" method="POST"`,
+		`form action="/users" method="POST"`,
+		`input type="email" id="email" name="email" required`,
+		`form action="/users/2" method="POST"`,
+		`name="is_enabled" value="false"`,
+		`form action="/users/3" method="POST"`,
+		`name="is_enabled" value="true"`,
+		`role-badge role-admin`,
+		`role-badge role-member`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("expected admin output to contain %q", want)
+		}
+	}
+}
+
+func TestAdmin_Empty(t *testing.T) {
+	buf := new(bytes.Buffer)
+	component := Admin(nil, "admin@example.com")
+	if err := component.Render(context.Background(), buf); err != nil {
+		t.Fatalf("failed to render: %v", err)
+	}
+
+	if !strings.Contains(buf.String(), "No users found.") {
+		t.Error("expected empty users message")
 	}
 }
 
@@ -126,6 +156,68 @@ func TestAuthenticated(t *testing.T) {
 	}
 	if !bytes.Contains(buf.Bytes(), []byte("row-available")) {
 		t.Error("expected row-available class not found in rendered output")
+	}
+	if !strings.Contains(buf.String(), `form action="/sub-requests" method="POST"`) {
+		t.Error("expected sub-request form action not found")
+	}
+	if !strings.Contains(buf.String(), `name="show" required`) {
+		t.Error("expected show selector name and required attribute")
+	}
+	if !strings.Contains(buf.String(), `name="start_time" required`) {
+		t.Error("expected start_time input name and required attribute")
+	}
+	if !strings.Contains(buf.String(), `name="end_time" required`) {
+		t.Error("expected end_time input name and required attribute")
+	}
+	if !strings.Contains(buf.String(), `body: JSON.stringify({ action: "take" })`) {
+		t.Error("expected take action script payload")
+	}
+	if !strings.Contains(buf.String(), `body: JSON.stringify({ action: "untake" })`) {
+		t.Error("expected untake action script payload")
+	}
+}
+
+func TestAuthenticated_AdminLinkAndFallbackShowTitle(t *testing.T) {
+	shows := []spinitron.Show{{ID: "99"}}
+	buf := new(bytes.Buffer)
+	component := Authenticated(shows, "admin@example.com", nil, nil, true)
+	if err := component.Render(context.Background(), buf); err != nil {
+		t.Fatalf("failed to render: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, `<a href="/admin">Admin</a>`) {
+		t.Error("expected admin navigation link")
+	}
+	if !strings.Contains(output, `<option value="99">99</option>`) {
+		t.Error("expected show ID fallback when title is empty")
+	}
+}
+
+func TestSubRequestTable_ActionVisibility(t *testing.T) {
+	requests := []SubRequestView{
+		{ID: 1, ShowTitle: "Open Show", RequesterEmail: "requester@example.com", Status: "open", CanTake: true, CanDelete: true},
+		{ID: 2, ShowTitle: "Taken Show", RequesterEmail: "requester@example.com", TakerEmail: "taker@example.com", Status: "filled", CanUntake: true},
+		{ID: 3, ShowTitle: "Past Show", RequesterEmail: "requester@example.com", TakerEmail: "taker@example.com", Status: "filled", IsPast: true},
+	}
+	buf := new(bytes.Buffer)
+	component := SubRequestTable(requests)
+	if err := component.Render(context.Background(), buf); err != nil {
+		t.Fatalf("failed to render: %v", err)
+	}
+
+	output := buf.String()
+	for _, want := range []string{
+		`id="sub-request-row-1"`,
+		`takeRequest('1')`,
+		`deleteRequest('1')`,
+		`id="sub-request-row-2"`,
+		`untakeRequest('2')`,
+		`Past Show`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("expected rendered table to contain %q", want)
+		}
 	}
 }
 

@@ -45,6 +45,83 @@ func (b *badShowsService) GetPersonasPage(ctx context.Context, page int) (spinit
 	return spinitron.PersonasPage{}, nil
 }
 
+type fakeServerRepo struct {
+	session       *models.Session
+	subRequests   []*models.SubRequest
+	subRequest    *models.SubRequest
+	users         []*models.User
+	err           error
+	deleteErr     error
+	takeErr       error
+	untakeErr     error
+	updateErr     error
+	importErr     error
+	createUserErr error
+	createSubErr  error
+}
+
+func (f *fakeServerRepo) GetSessionByToken(ctx context.Context, sessionToken string) (*models.Session, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.session, nil
+}
+
+func (f *fakeServerRepo) ListSubRequests(ctx context.Context) ([]*models.SubRequest, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.subRequests, nil
+}
+
+func (f *fakeServerRepo) ListUsers(ctx context.Context) ([]*models.User, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.users, nil
+}
+
+func (f *fakeServerRepo) CreateUser(ctx context.Context, email string, role string) (*models.User, error) {
+	if f.createUserErr != nil {
+		return nil, f.createUserErr
+	}
+	return &models.User{ID: 1, Email: email, Role: role, IsEnabled: true}, nil
+}
+
+func (f *fakeServerRepo) CreateSubRequest(ctx context.Context, sr *models.SubRequest) error {
+	return f.createSubErr
+}
+
+func (f *fakeServerRepo) GetSubRequestByID(ctx context.Context, id int) (*models.SubRequest, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.subRequest == nil {
+		return nil, db.ErrNotFound
+	}
+	return f.subRequest, nil
+}
+
+func (f *fakeServerRepo) DeleteSubRequest(ctx context.Context, id int) error {
+	return f.deleteErr
+}
+
+func (f *fakeServerRepo) TakeSubRequest(ctx context.Context, id int, userID int) error {
+	return f.takeErr
+}
+
+func (f *fakeServerRepo) UntakeSubRequest(ctx context.Context, id int) error {
+	return f.untakeErr
+}
+
+func (f *fakeServerRepo) UpdateUser(ctx context.Context, id int, role *string, isEnabled *bool) error {
+	return f.updateErr
+}
+
+func (f *fakeServerRepo) ImportUsers(ctx context.Context, emails []string) error {
+	return f.importErr
+}
+
 func TestServer_PostSubRequests(t *testing.T) {
 	repo := setupTestDB(t)
 	u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
@@ -189,8 +266,16 @@ func TestServer_GetApp(t *testing.T) {
 		UpdatedAt:      time.Now(),
 	})
 
-	// Create a past request with an unknown show ID and taken by another user
+	// Create past requests in ascending order so GetApp has to reverse them for display.
 	u2, _ := repo.CreateUser(context.Background(), "taker@example.com", "member")
+	_ = repo.CreateSubRequest(context.Background(), &models.SubRequest{
+		ShowID:         999,
+		PostedByUserID: u.ID,
+		StartTime:      time.Now().Add(-48 * time.Hour),
+		EndTime:        time.Now().Add(-46 * time.Hour),
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	})
 	_ = repo.CreateSubRequest(context.Background(), &models.SubRequest{
 		ShowID:         999, // Unknown show
 		PostedByUserID: u.ID,
@@ -225,6 +310,9 @@ func TestServer_GetApp(t *testing.T) {
 	if !strings.Contains(body, "taker@example.com") {
 		t.Error("expected taker email not found in body")
 	}
+	if strings.Index(body, "taker@example.com") > strings.LastIndex(body, "Unknown Show") {
+		t.Error("expected most recent past request to render before older past request")
+	}
 }
 
 func TestServer_GetApp_BadShowID(t *testing.T) {
@@ -242,6 +330,180 @@ func TestServer_GetApp_BadShowID(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected OK even with bad show ID, got %v", rr.Code)
 	}
+}
+
+func TestServer_GetApp_ListSubRequestsErrorClosedDB(t *testing.T) {
+	s := NewServer(&fakeServerRepo{err: errors.New("list failed")}, nil, &MockShowsService{})
+	req := httptest.NewRequest(http.MethodGet, "/app", nil)
+	rr := httptest.NewRecorder()
+
+	s.GetApp(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestServer_GetAdmin_ListUsersError(t *testing.T) {
+	s := NewServer(&fakeServerRepo{err: errors.New("list users failed")}, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	rr := httptest.NewRecorder()
+
+	s.GetAdmin(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestServer_GetApp_RenderErrorWithFakeRepo(t *testing.T) {
+	s := NewServer(&fakeServerRepo{}, nil, &MockShowsService{})
+	req := httptest.NewRequest(http.MethodGet, "/app", nil)
+	req = req.WithContext(context.WithValue(req.Context(), UserEmailKey, "test@example.com"))
+
+	s.GetApp(&errorResponseWriter{}, req)
+}
+
+func TestServer_GetAdmin_RenderErrorWithDisabledUsers(t *testing.T) {
+	s := NewServer(&fakeServerRepo{
+		users: []*models.User{
+			{ID: 1, Email: "disabled-b@example.com", Role: "member", IsEnabled: false},
+			{ID: 2, Email: "disabled-a@example.com", Role: "member", IsEnabled: false},
+			{ID: 3, Email: "z-member@example.com", Role: "member", IsEnabled: true},
+			{ID: 4, Email: "a-member@example.com", Role: "member", IsEnabled: true},
+		},
+	}, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req = req.WithContext(context.WithValue(req.Context(), UserIDKey, 1))
+
+	s.GetAdmin(&errorResponseWriter{}, req)
+}
+
+func TestServer_DeleteSubRequestsId_RepositoryErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		repo       *fakeServerRepo
+		userID     int
+		role       string
+		wantStatus int
+	}{
+		{
+			name:       "lookup error",
+			repo:       &fakeServerRepo{err: errors.New("lookup failed")},
+			userID:     1,
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name: "delete error",
+			repo: &fakeServerRepo{
+				subRequest: &models.SubRequest{ID: 10, PostedByUserID: 1},
+				deleteErr:  errors.New("delete failed"),
+			},
+			userID:     1,
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewServer(tt.repo, nil, nil)
+			req := httptest.NewRequest(http.MethodDelete, "/sub-requests/10", nil)
+			ctx := context.WithValue(req.Context(), UserIDKey, tt.userID)
+			if tt.role != "" {
+				ctx = context.WithValue(ctx, UserRoleKey, tt.role)
+			}
+			req = req.WithContext(ctx)
+			rr := httptest.NewRecorder()
+
+			s.DeleteSubRequestsId(rr, req, 10)
+
+			if rr.Code != tt.wantStatus {
+				t.Errorf("expected %d, got %d", tt.wantStatus, rr.Code)
+			}
+		})
+	}
+}
+
+func TestServer_PatchSubRequestsId_RepositoryErrorsWithFake(t *testing.T) {
+	takerID := 2
+	tests := []struct {
+		name       string
+		repo       *fakeServerRepo
+		body       string
+		userID     int
+		wantStatus int
+	}{
+		{
+			name:       "lookup error",
+			repo:       &fakeServerRepo{err: errors.New("lookup failed")},
+			body:       `{"action":"take"}`,
+			userID:     takerID,
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name: "take error",
+			repo: &fakeServerRepo{
+				subRequest: &models.SubRequest{ID: 10, PostedByUserID: 1},
+				takeErr:    errors.New("take failed"),
+			},
+			body:       `{"action":"take"}`,
+			userID:     takerID,
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name: "untake error",
+			repo: &fakeServerRepo{
+				subRequest: &models.SubRequest{ID: 10, PostedByUserID: 1, TakenByUserID: &takerID},
+				untakeErr:  errors.New("untake failed"),
+			},
+			body:       `{"action":"untake"}`,
+			userID:     takerID,
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewServer(tt.repo, nil, nil)
+			req := httptest.NewRequest(http.MethodPatch, "/sub-requests/10", strings.NewReader(tt.body))
+			req = req.WithContext(context.WithValue(req.Context(), UserIDKey, tt.userID))
+			rr := httptest.NewRecorder()
+
+			s.PatchSubRequestsId(rr, req, 10)
+
+			if rr.Code != tt.wantStatus {
+				t.Errorf("expected %d, got %d", tt.wantStatus, rr.Code)
+			}
+		})
+	}
+}
+
+func TestServer_PostUsersAndImport_RepositoryErrors(t *testing.T) {
+	t.Run("create user error", func(t *testing.T) {
+		s := NewServer(&fakeServerRepo{createUserErr: errors.New("create failed")}, nil, nil)
+		req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader("email=test@example.com&role=member"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rr := httptest.NewRecorder()
+
+		s.PostUsers(rr, req)
+
+		if rr.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", rr.Code)
+		}
+	})
+
+	t.Run("import users error", func(t *testing.T) {
+		service := &importMockShowsService{fail: false}
+		s := NewServer(&fakeServerRepo{importErr: errors.New("import failed")}, nil, service)
+		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
+		rr := httptest.NewRecorder()
+
+		s.PostUsersImportSpinitron(rr, req)
+
+		if rr.Code != http.StatusInternalServerError {
+			t.Errorf("expected 500, got %d", rr.Code)
+		}
+	})
 }
 
 func TestServer_AuthDelegation(t *testing.T) {

@@ -1,4 +1,4 @@
-.PHONY: setup start build lint test check generate codecov-html db-reset db-down db-status
+.PHONY: setup start build lint test check generate codecov-html coverage-summary db-reset db-down db-status
 
 setup:
 	curl -sSfL https://golangci-lint.run/install.sh | sh -s v2.11.4
@@ -39,7 +39,7 @@ lint:
 
 test:
 	@go test -coverprofile=coverage.out ./...
-	@grep -v ".gen.go" coverage.out | grep -v "_templ.go" > coverage.filtered.out
+	@grep -v '\.gen\.go' coverage.out | grep -v '_templ\.go' > coverage.filtered.out
 	@coverage=$$(go tool cover -func=coverage.filtered.out | grep total: | awk '{print $$3}' | sed 's/%//'); \
 	if [ "$$coverage" != "100.0" ]; then \
 		echo "Test coverage is $$coverage%, expected 100.0%"; \
@@ -47,6 +47,12 @@ test:
 	fi
 
 check: lint test build
+
+coverage-summary: test
+	@echo "Raw coverage:"
+	@go tool cover -func=coverage.out | grep total:
+	@echo "Filtered coverage (excluding generated OpenAPI and templ output):"
+	@go tool cover -func=coverage.filtered.out | grep total:
 
 codecov-html:
 	go tool cover -html=coverage.out

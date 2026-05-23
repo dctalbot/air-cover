@@ -2,11 +2,17 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"os"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
 	"air-cover/internal/models"
+
+	"github.com/DATA-DOG/go-sqlmock"
 )
 
 func TestInitDB(t *testing.T) {
@@ -460,6 +466,48 @@ func TestInitDBErrors(t *testing.T) {
 	}
 }
 
+func TestInitDB_OpenAndMigrationErrors(t *testing.T) {
+	t.Run("open error", func(t *testing.T) {
+		originalSQLOpen := sqlOpen
+		t.Cleanup(func() { sqlOpen = originalSQLOpen })
+		sqlOpen = func(driverName, dataSourceName string) (*sql.DB, error) {
+			return nil, errors.New("open failed")
+		}
+
+		if _, err := InitDB("file::memory:"); err == nil || !strings.Contains(err.Error(), "failed to open db") {
+			t.Fatalf("expected open error, got %v", err)
+		}
+	})
+
+	t.Run("migration error", func(t *testing.T) {
+		originalRunMigration := runMigrationFn
+		t.Cleanup(func() { runMigrationFn = originalRunMigration })
+		runMigrationFn = func(db *sql.DB, command string) error {
+			return errors.New("migration failed")
+		}
+
+		if _, err := InitDB("file::memory:"); err == nil || !strings.Contains(err.Error(), "migration failed") {
+			t.Fatalf("expected migration error, got %v", err)
+		}
+	})
+}
+
+func TestRunMigration_SetDialectError(t *testing.T) {
+	originalSetDialect := gooseSetDialect
+	t.Cleanup(func() { gooseSetDialect = originalSetDialect })
+	gooseSetDialect = func(dialect string) error {
+		return errors.New("dialect failed")
+	}
+
+	dbConn, mock, _ := newMockRepository(t)
+	mock.MatchExpectationsInOrder(false)
+	defer dbConn.Close()
+
+	if err := RunMigration(dbConn, "up"); err == nil || !strings.Contains(err.Error(), "failed to set goose dialect") {
+		t.Fatalf("expected dialect error, got %v", err)
+	}
+}
+
 func TestListSubRequestsErrors(t *testing.T) {
 	dbConn, err := InitDB("file::memory:?cache=shared")
 	if err != nil {
@@ -694,29 +742,22 @@ func TestUseMagicLink_AlreadyUsed(t *testing.T) {
 }
 
 func TestUseMagicLink_DeleteError(t *testing.T) {
-	// Test the path where the magic link is valid but the DELETE fails
-	dbConn, err := InitDB("file::memory:")
-	if err != nil {
-		t.Fatal(err)
+	dbConn, mock, repo := newMockRepository(t)
+	defer dbConn.Close()
+
+	expiresAt := time.Now().Add(time.Hour)
+	rows := sqlmock.NewRows([]string{"id", "user_id", "token_hash", "expires_at", "used_at"}).
+		AddRow(1, 2, "del-hash", expiresAt, nil)
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, user_id, token_hash, expires_at, used_at FROM magic_links WHERE token_hash = ?")).
+		WithArgs("del-hash").
+		WillReturnRows(rows)
+	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM magic_links WHERE id = ?")).
+		WithArgs(1).
+		WillReturnError(errors.New("delete failed"))
+
+	if _, err := repo.UseMagicLink(context.Background(), "del-hash"); err == nil {
+		t.Fatal("expected delete error")
 	}
-
-	repo := NewRepository(dbConn)
-	ctx := context.Background()
-
-	u, _ := repo.CreateUser(ctx, "delerr@example.com", "member")
-	err = repo.CreateMagicLink(ctx, u.ID, "del-hash", time.Now().Add(1*time.Hour))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Drop magic_links table after creating the link to force DELETE to fail
-	// We can't do this easily because the SELECT will also fail.
-	// Instead, rename the table after SELECT succeeds - but we can't control timing.
-	// Better approach: use a cancelled context for the DELETE step.
-	// Actually the simplest approach is to just drop and recreate without the id column.
-	// However the SELECT reads it first. Let's just verify UseMagicLink delete error via closed DB.
-	// This is actually already tested via context cancellation in TestRepositoryErrors.
-	// Skip this specific path.
 }
 
 func TestImportUsers_ExecError(t *testing.T) {
@@ -807,4 +848,209 @@ func TestListSubRequestsOrdering(t *testing.T) {
 	if !list[1].StartTime.Before(list[2].StartTime) {
 		t.Errorf("expected %v before %v", list[1].StartTime, list[2].StartTime)
 	}
+}
+
+func TestRepositoryDriverLevelErrors(t *testing.T) {
+	t.Run("create user last insert id error", func(t *testing.T) {
+		dbConn, mock, repo := newMockRepository(t)
+		defer dbConn.Close()
+
+		mock.ExpectExec(regexp.QuoteMeta("INSERT INTO users (email, role) VALUES (?, ?)")).
+			WithArgs("lastid@example.com", "member").
+			WillReturnResult(sqlmock.NewErrorResult(errors.New("last insert id failed")))
+
+		_, err := repo.CreateUser(context.Background(), "lastid@example.com", "member")
+		if err == nil {
+			t.Fatal("expected LastInsertId error")
+		}
+	})
+
+	t.Run("create sub request last insert id error", func(t *testing.T) {
+		dbConn, mock, repo := newMockRepository(t)
+		defer dbConn.Close()
+
+		mock.ExpectExec("INSERT INTO sub_requests").
+			WillReturnResult(sqlmock.NewErrorResult(errors.New("last insert id failed")))
+
+		err := repo.CreateSubRequest(context.Background(), &models.SubRequest{
+			ShowID:         1,
+			PostedByUserID: 2,
+			StartTime:      time.Now(),
+			EndTime:        time.Now().Add(time.Hour),
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
+		})
+		if err == nil {
+			t.Fatal("expected LastInsertId error")
+		}
+	})
+
+	t.Run("delete sub request rows affected error", func(t *testing.T) {
+		dbConn, mock, repo := newMockRepository(t)
+		defer dbConn.Close()
+
+		mock.ExpectExec(regexp.QuoteMeta("DELETE FROM sub_requests WHERE id = ?")).
+			WithArgs(9).
+			WillReturnResult(sqlmock.NewErrorResult(errors.New("rows affected failed")))
+
+		err := repo.DeleteSubRequest(context.Background(), 9)
+		if err == nil {
+			t.Fatal("expected RowsAffected error")
+		}
+	})
+
+	t.Run("take sub request rows affected error", func(t *testing.T) {
+		dbConn, mock, repo := newMockRepository(t)
+		defer dbConn.Close()
+
+		mock.ExpectExec(regexp.QuoteMeta("UPDATE sub_requests SET taken_by_user_id = ?, updated_at = ? WHERE id = ?")).
+			WithArgs(2, sqlmock.AnyArg(), 9).
+			WillReturnResult(sqlmock.NewErrorResult(errors.New("rows affected failed")))
+
+		err := repo.TakeSubRequest(context.Background(), 9, 2)
+		if err == nil {
+			t.Fatal("expected RowsAffected error")
+		}
+	})
+
+	t.Run("untake sub request rows affected error", func(t *testing.T) {
+		dbConn, mock, repo := newMockRepository(t)
+		defer dbConn.Close()
+
+		mock.ExpectExec(regexp.QuoteMeta("UPDATE sub_requests SET taken_by_user_id = NULL, updated_at = ? WHERE id = ?")).
+			WithArgs(sqlmock.AnyArg(), 9).
+			WillReturnResult(sqlmock.NewErrorResult(errors.New("rows affected failed")))
+
+		err := repo.UntakeSubRequest(context.Background(), 9)
+		if err == nil {
+			t.Fatal("expected RowsAffected error")
+		}
+	})
+
+	t.Run("update user rows affected error", func(t *testing.T) {
+		dbConn, mock, repo := newMockRepository(t)
+		defer dbConn.Close()
+
+		role := "admin"
+		mock.ExpectExec(regexp.QuoteMeta("UPDATE users SET role = ? WHERE id = ?")).
+			WithArgs(role, 7).
+			WillReturnResult(sqlmock.NewErrorResult(errors.New("rows affected failed")))
+
+		err := repo.UpdateUser(context.Background(), 7, &role, nil)
+		if err == nil {
+			t.Fatal("expected RowsAffected error")
+		}
+	})
+}
+
+func TestRepositoryRowsErrors(t *testing.T) {
+	t.Run("list sub requests rows err", func(t *testing.T) {
+		dbConn, mock, repo := newMockRepository(t)
+		defer dbConn.Close()
+
+		rows := sqlmock.NewRows([]string{
+			"id", "show_id", "posted_by_user_id", "taken_by_user_id", "email", "email", "start_time", "end_time", "notes", "created_at", "updated_at",
+		}).AddRow(1, 2, 3, nil, "requester@example.com", "", time.Now(), time.Now().Add(time.Hour), "", time.Now(), time.Now()).
+			RowError(0, errors.New("rows failed"))
+		mock.ExpectQuery("SELECT sr.id").WillReturnRows(rows)
+
+		_, err := repo.ListSubRequests(context.Background())
+		if err == nil {
+			t.Fatal("expected rows error")
+		}
+	})
+
+	t.Run("list users rows err", func(t *testing.T) {
+		dbConn, mock, repo := newMockRepository(t)
+		defer dbConn.Close()
+
+		rows := sqlmock.NewRows([]string{"id", "email", "role", "is_enabled", "created_at"}).
+			AddRow(1, "user@example.com", "member", true, time.Now()).
+			RowError(0, errors.New("rows failed"))
+		mock.ExpectQuery(regexp.QuoteMeta("SELECT id, email, role, is_enabled, created_at FROM users ORDER BY created_at DESC")).
+			WillReturnRows(rows)
+
+		_, err := repo.ListUsers(context.Background())
+		if err == nil {
+			t.Fatal("expected rows error")
+		}
+	})
+}
+
+func TestImportUsersDriverLevelErrors(t *testing.T) {
+	tests := []struct {
+		name      string
+		expect    func(sqlmock.Sqlmock)
+		wantError string
+	}{
+		{
+			name: "begin error",
+			expect: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin().WillReturnError(errors.New("begin failed"))
+			},
+			wantError: "begin failed",
+		},
+		{
+			name: "prepare error",
+			expect: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectPrepare("INSERT INTO users").WillReturnError(errors.New("prepare failed"))
+				mock.ExpectRollback()
+			},
+			wantError: "prepare failed",
+		},
+		{
+			name: "exec error",
+			expect: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectPrepare("INSERT INTO users").
+					ExpectExec().
+					WithArgs("one@example.com").
+					WillReturnError(errors.New("exec failed"))
+				mock.ExpectRollback()
+			},
+			wantError: "exec failed",
+		},
+		{
+			name: "commit error",
+			expect: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectPrepare("INSERT INTO users").
+					ExpectExec().
+					WithArgs("one@example.com").
+					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectCommit().WillReturnError(errors.New("commit failed"))
+			},
+			wantError: "commit failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dbConn, mock, repo := newMockRepository(t)
+			defer dbConn.Close()
+			tt.expect(mock)
+
+			err := repo.ImportUsers(context.Background(), []string{"one@example.com"})
+			if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("expected error containing %q, got %v", tt.wantError, err)
+			}
+		})
+	}
+}
+
+func newMockRepository(t *testing.T) (*sql.DB, sqlmock.Sqlmock, *Repository) {
+	t.Helper()
+
+	dbConn, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("failed to create sqlmock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet sql expectations: %v", err)
+		}
+	})
+
+	return dbConn, mock, NewRepository(dbConn)
 }

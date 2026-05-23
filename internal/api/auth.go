@@ -17,23 +17,38 @@ import (
 
 	"air-cover/internal/db"
 	"air-cover/internal/email"
+	"air-cover/internal/models"
 )
 
 type AuthHandler struct {
-	repo   *db.Repository
-	sender email.Sender
+	repo           authRepository
+	sender         email.Sender
+	tokenGenerator func(int) (string, error)
 }
 
-func NewAuthHandler(repo *db.Repository, sender email.Sender) *AuthHandler {
+var randomRead = rand.Read
+
+type authRepository interface {
+	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
+	GetUserByID(ctx context.Context, id int) (*models.User, error)
+	CreateMagicLink(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error
+	UseMagicLink(ctx context.Context, tokenHash string) (*models.MagicLink, error)
+	CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error
+	GetSessionByToken(ctx context.Context, sessionToken string) (*models.Session, error)
+	DeleteSessionsByUserID(ctx context.Context, userID int) error
+}
+
+func NewAuthHandler(repo authRepository, sender email.Sender) *AuthHandler {
 	return &AuthHandler{
-		repo:   repo,
-		sender: sender,
+		repo:           repo,
+		sender:         sender,
+		tokenGenerator: generateRandomToken,
 	}
 }
 
 func generateRandomToken(n int) (string, error) {
 	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
+	if _, err := randomRead(b); err != nil {
 		return "", err
 	}
 	return base64.URLEncoding.EncodeToString(b), nil
@@ -90,7 +105,7 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rawToken, err := generateRandomToken(32)
+	rawToken, err := h.tokenGenerator(32)
 	if err != nil {
 		slog.Error("Failed to generate token", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -150,14 +165,14 @@ func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request, rawTo
 		return
 	}
 
-	sessionID, err := generateRandomToken(32)
+	sessionID, err := h.tokenGenerator(32)
 	if err != nil {
 		slog.Error("Failed to generate session id", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	sessionToken, err := generateRandomToken(32)
+	sessionToken, err := h.tokenGenerator(32)
 	if err != nil {
 		slog.Error("Failed to generate session token", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)

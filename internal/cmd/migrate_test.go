@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"database/sql"
+	"errors"
 	"github.com/spf13/cobra"
 	"os"
 	"testing"
@@ -128,6 +130,44 @@ func TestMigrateCmds_MigrationError(t *testing.T) {
 			}
 		}()
 		runMigrate(migrateStatusCmd, "invalid")
+	}()
+
+	if !exited {
+		t.Errorf("expected osExit to be called")
+	}
+}
+
+func TestMigrateCmds_OpenError(t *testing.T) {
+	originalOsExit := osExit
+	originalSQLOpen := sqlOpen
+	defer func() {
+		osExit = originalOsExit
+		sqlOpen = originalSQLOpen
+	}()
+
+	exited := false
+	osExit = func(code int) {
+		exited = true
+		if code != 1 {
+			t.Errorf("expected exit code 1, got %d", code)
+		}
+		panic("osExit")
+	}
+	sqlOpen = func(driverName, dataSourceName string) (*sql.DB, error) {
+		return nil, errors.New("open failed")
+	}
+
+	t.Setenv("DB_URI", "file::memory:")
+	t.Setenv("FROM_EMAIL", "test@example.com")
+	t.Setenv("SPINITRON_API_URL", "http://example.com")
+
+	func() {
+		defer func() {
+			if r := recover(); r != nil && r != "osExit" {
+				panic(r)
+			}
+		}()
+		migrateStatusCmd.Run(migrateStatusCmd, nil)
 	}()
 
 	if !exited {

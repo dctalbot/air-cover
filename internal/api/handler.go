@@ -23,13 +23,27 @@ type ShowsService interface {
 	GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error)
 }
 
+type serverRepository interface {
+	GetSessionByToken(ctx context.Context, sessionToken string) (*models.Session, error)
+	ListSubRequests(ctx context.Context) ([]*models.SubRequest, error)
+	ListUsers(ctx context.Context) ([]*models.User, error)
+	CreateUser(ctx context.Context, email string, role string) (*models.User, error)
+	CreateSubRequest(ctx context.Context, sr *models.SubRequest) error
+	GetSubRequestByID(ctx context.Context, id int) (*models.SubRequest, error)
+	DeleteSubRequest(ctx context.Context, id int) error
+	TakeSubRequest(ctx context.Context, id int, userID int) error
+	UntakeSubRequest(ctx context.Context, id int) error
+	UpdateUser(ctx context.Context, id int, role *string, isEnabled *bool) error
+	ImportUsers(ctx context.Context, emails []string) error
+}
+
 type Server struct {
-	repo            *db.Repository
+	repo            serverRepository
 	auth            *AuthHandler
 	spinitronClient ShowsService
 }
 
-func NewServer(repo *db.Repository, auth *AuthHandler, spinitronClient ShowsService) *Server {
+func NewServer(repo serverRepository, auth *AuthHandler, spinitronClient ShowsService) *Server {
 	return &Server{
 		repo:            repo,
 		auth:            auth,

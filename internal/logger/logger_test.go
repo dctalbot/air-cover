@@ -1,9 +1,12 @@
 package logger
 
 import (
+	"errors"
+	"log/slog"
 	"testing"
 
 	"air-cover/internal/config"
+	"go.uber.org/zap"
 )
 
 func TestNewLogger(t *testing.T) {
@@ -32,5 +35,18 @@ func TestNewLogger(t *testing.T) {
 			}
 			logger.Info("test message", "env", tt.env)
 		})
+	}
+}
+
+func TestNewLogger_BuildErrorFallback(t *testing.T) {
+	originalBuildZapLogger := buildZapLogger
+	t.Cleanup(func() { buildZapLogger = originalBuildZapLogger })
+	buildZapLogger = func(cfg zapBuilder) (*zap.Logger, error) {
+		return nil, errors.New("build failed")
+	}
+
+	logger := NewLogger(&config.Config{ENV: "production"})
+	if logger != slog.Default() {
+		t.Fatal("expected slog default fallback")
 	}
 }

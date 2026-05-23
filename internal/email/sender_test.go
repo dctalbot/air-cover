@@ -1,6 +1,8 @@
 package email
 
 import (
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -130,4 +132,32 @@ type errorTransport struct{}
 
 func (t *errorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return nil, http.ErrHandlerTimeout
+}
+
+func TestSendGridSender_MarshalAndRequestErrors(t *testing.T) {
+	t.Run("marshal error", func(t *testing.T) {
+		originalJSONMarshal := jsonMarshal
+		t.Cleanup(func() { jsonMarshal = originalJSONMarshal })
+		jsonMarshal = func(v any) ([]byte, error) {
+			return nil, errors.New("marshal failed")
+		}
+
+		s := &SendGridSender{APIKey: "test-key", HTTPClient: &http.Client{}}
+		if err := s.SendMagicLink("test@example.com", "http://example.com"); err == nil {
+			t.Fatal("expected marshal error")
+		}
+	})
+
+	t.Run("request creation error", func(t *testing.T) {
+		originalNewHTTPRequest := newHTTPRequest
+		t.Cleanup(func() { newHTTPRequest = originalNewHTTPRequest })
+		newHTTPRequest = func(method, url string, body io.Reader) (*http.Request, error) {
+			return nil, errors.New("request failed")
+		}
+
+		s := &SendGridSender{APIKey: "test-key", HTTPClient: &http.Client{}}
+		if err := s.SendMagicLink("test@example.com", "http://example.com"); err == nil {
+			t.Fatal("expected request creation error")
+		}
+	})
 }
