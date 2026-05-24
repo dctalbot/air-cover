@@ -12,7 +12,6 @@ build:
 	$(GO) build -o bin/aircover cmd/aircover/main.go
 
 start:
-	@lsof -ti :8080 | xargs -r kill -TERM 2>/dev/null || true
 	$(GO) run $(AIR) -c .air.toml
 
 generate:
