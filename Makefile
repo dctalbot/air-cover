@@ -18,7 +18,6 @@ start:
 generate:
 	@$(GO) run $(SQLC) generate -f .sqlc.yaml
 	@$(GO) run $(OAPI_CODEGEN) -package api -generate chi-server,types,spec internal/adapters/inbound/http/api/openapi.yaml > internal/adapters/inbound/http/api/api.gen.go
-	@$(GO) run cmd/aircover/main.go doc > internal/adapters/inbound/http/api/routes.json
 	@$(GO) run $(TEMPL) fmt -log-level=warn . 
 	@$(GO) run $(TEMPL) generate -log-level=warn
 
