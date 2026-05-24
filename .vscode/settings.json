@@ -10,6 +10,9 @@
     "**/Thumbs.db": true,
     "**/CVS": true,
     "**/.ruby-lsp": true,
-    "**/*_templ.go": true
+    "**/*_templ.go": true,
+    ".gopath": true,
+    "bin": true,
+    "tmp": true
   }
 }
