@@ -16,7 +16,7 @@ start:
 	$(GO) run $(AIR) -c .air.toml
 
 generate:
-	@$(GO) run $(SQLC) generate
+	@$(GO) run $(SQLC) generate -f .sqlc.yaml
 	@$(GO) run $(OAPI_CODEGEN) -package httpadapter -generate chi-server,types,spec internal/adapters/http/openapi.yaml > internal/adapters/http/api.gen.go
 	@$(GO) run cmd/aircover/main.go doc > internal/adapters/http/routes.json
 	@$(GO) run $(TEMPL) fmt -log-level=warn . 
