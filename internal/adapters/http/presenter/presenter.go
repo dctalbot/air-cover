@@ -5,19 +5,43 @@ import (
 	"strings"
 	"time"
 
-	"air-cover/internal/adapters/http/ui"
 	"air-cover/internal/app/subrequests"
 	"air-cover/internal/domain"
 )
 
-func SubRequestDashboard(dashboard subrequests.Dashboard) ([]ui.SubRequestView, []ui.SubRequestView) {
+type UserView struct {
+	ID            int
+	Email         string
+	Role          string
+	CreatedAt     string
+	IsEnabled     bool
+	CanDeactivate bool
+}
+
+type SubRequestView struct {
+	ID             int
+	ShowTitle      string
+	RequesterEmail string
+	TakerEmail     string
+	StartTime      string
+	EndTime        string
+	Duration       string
+	Notes          string
+	Status         string
+	CanDelete      bool
+	CanTake        bool
+	CanUntake      bool
+	IsPast         bool
+}
+
+func SubRequestDashboard(dashboard subrequests.Dashboard) ([]SubRequestView, []SubRequestView) {
 	return subRequestViews(dashboard.Upcoming), subRequestViews(dashboard.Past)
 }
 
-func AdminUsers(users []*domain.User, currentUserID int) []ui.UserView {
-	views := make([]ui.UserView, 0, len(users))
+func AdminUsers(users []*domain.User, currentUserID int) []UserView {
+	views := make([]UserView, 0, len(users))
 	for _, u := range users {
-		views = append(views, ui.UserView{
+		views = append(views, UserView{
 			ID:            u.ID,
 			Email:         u.Email,
 			Role:          string(u.Role),
@@ -29,11 +53,11 @@ func AdminUsers(users []*domain.User, currentUserID int) []ui.UserView {
 	return views
 }
 
-func subRequestViews(items []subrequests.DashboardSubRequest) []ui.SubRequestView {
-	views := make([]ui.SubRequestView, 0, len(items))
+func subRequestViews(items []subrequests.DashboardSubRequest) []SubRequestView {
+	views := make([]SubRequestView, 0, len(items))
 	for _, item := range items {
 		sr := item.Request
-		views = append(views, ui.SubRequestView{
+		views = append(views, SubRequestView{
 			ID:             sr.ID,
 			ShowTitle:      item.ShowTitle,
 			RequesterEmail: item.RequesterEmail,

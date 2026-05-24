@@ -12,7 +12,6 @@ import (
 	"air-cover/internal/adapters/http/ui"
 	adminapp "air-cover/internal/app/admin"
 	"air-cover/internal/apperrors"
-	"air-cover/internal/domain"
 )
 
 // Admin dashboard
@@ -47,10 +46,6 @@ func (s *Server) PostUsers(w http.ResponseWriter, r *http.Request) {
 	input := adminapp.CreateUserInput{
 		Email: r.FormValue("email"),
 		Role:  r.FormValue("role"),
-	}
-	if input.Email == "" || (input.Role != "" && !domain.Role(input.Role).Valid()) {
-		http.Error(w, "Invalid user", http.StatusBadRequest)
-		return
 	}
 	if err := s.admin.CreateUser(r.Context(), input); err != nil {
 		if errors.Is(err, apperrors.ErrInvalid) {

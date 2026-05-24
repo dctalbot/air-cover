@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"air-cover/internal/adapters/http/presenter"
 	appcatalog "air-cover/internal/app/catalog"
 )
 
@@ -86,7 +87,7 @@ func TestUnauthenticated(t *testing.T) {
 }
 
 func TestAdmin(t *testing.T) {
-	users := []UserView{
+	users := []presenter.UserView{
 		{ID: 1, Email: "admin@example.com", Role: "admin", IsEnabled: true},
 		{ID: 2, Email: "member@example.com", Role: "member", IsEnabled: true, CanDeactivate: true},
 		{ID: 3, Email: "disabled@example.com", Role: "member", IsEnabled: false, CanDeactivate: true},
@@ -135,10 +136,10 @@ func TestAuthenticated(t *testing.T) {
 	shows := []appcatalog.Show{
 		{ID: "1", Title: "Test Show"},
 	}
-	upcoming := []SubRequestView{
+	upcoming := []presenter.SubRequestView{
 		{ID: 2, ShowTitle: "Another Show", RequesterEmail: "other@example.com", Status: "open", CanTake: true},
 	}
-	past := []SubRequestView{
+	past := []presenter.SubRequestView{
 		{ID: 1, ShowTitle: "Test Show", RequesterEmail: "user@example.com", TakerEmail: "taker@example.com", Status: "filled", CanDelete: true, CanUntake: true, IsPast: true},
 	}
 	buf := new(bytes.Buffer)
@@ -195,7 +196,7 @@ func TestAuthenticated_AdminLinkAndFallbackShowTitle(t *testing.T) {
 }
 
 func TestSubRequestTable_ActionVisibility(t *testing.T) {
-	requests := []SubRequestView{
+	requests := []presenter.SubRequestView{
 		{ID: 1, ShowTitle: "Open Show", RequesterEmail: "requester@example.com", Status: "open", CanTake: true, CanDelete: true},
 		{ID: 2, ShowTitle: "Taken Show", RequesterEmail: "requester@example.com", TakerEmail: "taker@example.com", Status: "filled", CanUntake: true},
 		{ID: 3, ShowTitle: "Past Show", RequesterEmail: "requester@example.com", TakerEmail: "taker@example.com", Status: "filled", IsPast: true},

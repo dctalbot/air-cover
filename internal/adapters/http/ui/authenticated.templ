@@ -1,11 +1,12 @@
 package ui
 
 import (
+	"air-cover/internal/adapters/http/presenter"
 	appcatalog "air-cover/internal/app/catalog"
 	"strconv"
 )
 
-templ Authenticated(shows []appcatalog.Show, email string, upcoming []SubRequestView, past []SubRequestView, isAdmin bool) {
+templ Authenticated(shows []appcatalog.Show, email string, upcoming []presenter.SubRequestView, past []presenter.SubRequestView, isAdmin bool) {
 	@Layout("Air Cover") {
 		@BaseStyles()
 		@TableStyles()
@@ -225,7 +226,7 @@ templ Authenticated(shows []appcatalog.Show, email string, upcoming []SubRequest
 	}
 }
 
-templ SubRequestTable(subRequests []SubRequestView) {
+templ SubRequestTable(subRequests []presenter.SubRequestView) {
 	<table class="data-table">
 		<thead>
 			<tr>

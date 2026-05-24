@@ -1,8 +1,11 @@
 package ui
 
-import "strconv"
+import (
+	"air-cover/internal/adapters/http/presenter"
+	"strconv"
+)
 
-templ Admin(users []UserView, email string) {
+templ Admin(users []presenter.UserView, email string) {
 	@Layout("Admin Dashboard - Air Cover") {
 		@BaseStyles()
 		@TableStyles()

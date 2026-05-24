@@ -2049,7 +2049,7 @@ func TestServer_PostUsers_CreateError(t *testing.T) {
 }
 
 func TestServer_PostUsers_EmptyEmail(t *testing.T) {
-	s := newTestServer(nil, nil, nil)
+	s := NewServer(nil, nil, &fakeAdminService{err: apperrors.ErrInvalid})
 	req := httptest.NewRequest(http.MethodPost, "/users", nil)
 	req.PostForm = url.Values{
 		"email": {""},
@@ -2062,7 +2062,7 @@ func TestServer_PostUsers_EmptyEmail(t *testing.T) {
 }
 
 func TestServer_PostUsers_InvalidRole(t *testing.T) {
-	s := newTestServer(nil, nil, nil)
+	s := NewServer(nil, nil, &fakeAdminService{err: apperrors.ErrInvalid})
 	req := httptest.NewRequest(http.MethodPost, "/users", nil)
 	req.PostForm = url.Values{
 		"email": {"test@example.com"},
