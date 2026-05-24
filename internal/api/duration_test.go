@@ -3,6 +3,8 @@ package api
 import (
 	"testing"
 	"time"
+
+	"air-cover/internal/presenter"
 )
 
 func TestFormatDuration(t *testing.T) {
@@ -22,9 +24,9 @@ func TestFormatDuration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {
-			got := formatDuration(tt.duration)
+			got := presenter.FormatDuration(tt.duration)
 			if got != tt.want {
-				t.Errorf("formatDuration(%v) = %q, want %q", tt.duration, got, tt.want)
+				t.Errorf("FormatDuration(%v) = %q, want %q", tt.duration, got, tt.want)
 			}
 		})
 	}

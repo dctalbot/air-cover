@@ -4,16 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"air-cover/internal/db"
+	adminapp "air-cover/internal/app/admin"
+	"air-cover/internal/app/session"
+	subrequestsapp "air-cover/internal/app/subrequests"
+	"air-cover/internal/apperrors"
 	"air-cover/internal/models"
+	"air-cover/internal/presenter"
 	"air-cover/internal/spinitron"
 	"air-cover/internal/ui"
 )
@@ -41,6 +43,8 @@ type Server struct {
 	repo            serverRepository
 	auth            *AuthHandler
 	spinitronClient ShowsService
+	subRequests     *subrequestsapp.Service
+	admin           *adminapp.Service
 }
 
 func NewServer(repo serverRepository, auth *AuthHandler, spinitronClient ShowsService) *Server {
@@ -48,6 +52,8 @@ func NewServer(repo serverRepository, auth *AuthHandler, spinitronClient ShowsSe
 		repo:            repo,
 		auth:            auth,
 		spinitronClient: spinitronClient,
+		subRequests:     subrequestsapp.NewService(repo, spinitronClient),
+		admin:           adminapp.NewService(repo, spinitronClient),
 	}
 }
 
@@ -79,84 +85,23 @@ func (s *Server) Get(w http.ResponseWriter, r *http.Request) {
 // Authenticated application page
 // (GET /app)
 func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
-	allShows, err := s.spinitronClient.ListShows(r.Context())
+	viewer := currentUser(r)
+	dashboard, err := s.subRequests.ListDashboard(r.Context(), viewer)
 	if err != nil {
-		slog.Error("Failed to load shows from spinitron", "error", err)
-		http.Error(w, "Unable to load shows", http.StatusBadGateway)
-		return
-	}
-
-	sort.Slice(allShows, func(i, j int) bool {
-		return strings.ToLower(allShows[i].Title) < strings.ToLower(allShows[j].Title)
-	})
-
-	email, _ := r.Context().Value(UserEmailKey).(string)
-
-	subRequests, err := s.repo.ListSubRequests(r.Context())
-	if err != nil {
-		slog.Error("Failed to load sub requests", "error", err)
-		http.Error(w, "Unable to load sub requests", http.StatusInternalServerError)
-		return
-	}
-
-	showMap := make(map[int]string)
-	for _, show := range allShows {
-		id, err := strconv.Atoi(show.ID)
-		if err != nil {
-			slog.Warn("Failed to parse show ID", "id", show.ID, "error", err)
-			continue
+		slog.Error("Failed to load app dashboard", "error", err)
+		if writeAppError(w, err) {
+			return
 		}
-		showMap[id] = show.Title
-	}
-
-	userID, _ := r.Context().Value(UserIDKey).(int)
-	role, _ := r.Context().Value(UserRoleKey).(string)
-	isAdmin := role == "admin"
-
-	var upcoming []ui.SubRequestView
-	var past []ui.SubRequestView
-	now := time.Now()
-
-	for _, sr := range subRequests {
-		title := showMap[sr.ShowID]
-		if title == "" {
-			title = "Unknown Show"
-		}
-		isTaker := sr.TakenByUserID != nil && *sr.TakenByUserID == userID
-		durationStr := formatDuration(sr.EndTime.Sub(sr.StartTime))
-
-		isPast := sr.StartTime.Before(now)
-		view := ui.SubRequestView{
-			ID:             sr.ID,
-			ShowTitle:      title,
-			RequesterEmail: sr.RequesterEmail,
-			TakerEmail:     sr.TakerEmail,
-			StartTime:      sr.StartTime.Format("Jan 2, 3:04pm"),
-			EndTime:        sr.EndTime.Format(time.RFC3339),
-			Duration:       durationStr,
-			Notes:          sr.Notes,
-			Status:         sr.GetStatus(),
-			CanDelete:      sr.PostedByUserID == userID || isAdmin,
-			CanTake:        sr.TakenByUserID == nil && (sr.PostedByUserID != userID || isAdmin),
-			CanUntake:      isTaker,
-			IsPast:         isPast,
-		}
-
-		if isPast {
-			past = append(past, view)
+		if errors.Is(err, subrequestsapp.ErrCatalog) {
+			http.Error(w, "Unable to load shows", http.StatusBadGateway)
 		} else {
-			upcoming = append(upcoming, view)
+			http.Error(w, "Unable to load app", http.StatusInternalServerError)
 		}
+		return
 	}
 
-	// Sort past requests by StartTime DESC (most recent first)
-	// Since subRequests is already sorted ASC, 'past' is also currently sorted ASC.
-	// We reverse it to get DESC order.
-	for i, j := 0, len(past)-1; i < j; i, j = i+1, j-1 {
-		past[i], past[j] = past[j], past[i]
-	}
-
-	if err := ui.Authenticated(allShows, email, upcoming, past, isAdmin).Render(r.Context(), w); err != nil {
+	upcoming, past := presenter.SubRequestDashboard(dashboard)
+	if err := ui.Authenticated(dashboard.Shows, viewer.Email, upcoming, past, viewer.IsAdmin()).Render(r.Context(), w); err != nil {
 		slog.Error("Failed to write response", "error", err)
 	}
 }
@@ -164,42 +109,17 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 // Admin dashboard
 // (GET /admin)
 func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
-	users, err := s.repo.ListUsers(r.Context())
+	users, err := s.admin.ListUsers(r.Context())
 	if err != nil {
 		slog.Error("Failed to load users", "error", err)
 		http.Error(w, "Unable to load users", http.StatusInternalServerError)
 		return
 	}
 
-	currentUserID, _ := r.Context().Value(UserIDKey).(int)
-	var views []ui.UserView
-	for _, u := range users {
-		views = append(views, ui.UserView{
-			ID:            u.ID,
-			Email:         u.Email,
-			Role:          u.Role,
-			CreatedAt:     u.CreatedAt.Format("Jan 02, 2006 at 3:04 PM"),
-			IsEnabled:     u.IsEnabled,
-			CanDeactivate: u.ID != currentUserID,
-		})
-	}
+	viewer := currentUser(r)
+	views := presenter.AdminUsers(users, viewer.ID)
 
-	sort.Slice(views, func(i, j int) bool {
-		if views[i].IsEnabled != views[j].IsEnabled {
-			return views[i].IsEnabled
-		}
-		if !views[i].IsEnabled {
-			return strings.ToLower(views[i].Email) < strings.ToLower(views[j].Email)
-		}
-		if views[i].Role != views[j].Role {
-			return views[i].Role == "admin"
-		}
-		return strings.ToLower(views[i].Email) < strings.ToLower(views[j].Email)
-	})
-
-	email, _ := r.Context().Value(UserEmailKey).(string)
-
-	if err := ui.Admin(views, email).Render(r.Context(), w); err != nil {
+	if err := ui.Admin(views, viewer.Email).Render(r.Context(), w); err != nil {
 		slog.Error("Failed to write response", "error", err)
 	}
 }
@@ -216,25 +136,16 @@ func (s *Server) PostUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	email := r.FormValue("email")
-	if email == "" {
-		http.Error(w, "Email is required", http.StatusBadRequest)
-		return
+	input := adminapp.CreateUserInput{
+		Email: r.FormValue("email"),
+		Role:  r.FormValue("role"),
 	}
-
-	role := r.FormValue("role")
-	if role == "" {
-		role = "member"
-	}
-
-	if role != "admin" && role != "member" {
-		http.Error(w, "Invalid role", http.StatusBadRequest)
-		return
-	}
-
-	_, err := s.repo.CreateUser(r.Context(), email, role)
-	if err != nil {
-		slog.Error("Failed to create user", "email", strconv.Quote(email), "role", strconv.Quote(role), "error", err)
+	if err := s.admin.CreateUser(r.Context(), input); err != nil {
+		if errors.Is(err, apperrors.ErrInvalid) {
+			http.Error(w, "Invalid user", http.StatusBadRequest)
+			return
+		}
+		slog.Error("Failed to create user", "email", strconv.Quote(input.Email), "role", strconv.Quote(input.Role), "error", err)
 		http.Error(w, "Failed to create user", http.StatusInternalServerError)
 		return
 	}
@@ -298,24 +209,20 @@ func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 
 	notes := r.FormValue("notes")
 
-	userID, ok := r.Context().Value(UserIDKey).(int)
+	viewer, ok := requireCurrentUser(w, r)
 	if !ok {
 		slog.Error("User ID not found in context")
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	sr := &models.SubRequest{
-		ShowID:         showID,
-		PostedByUserID: userID,
-		StartTime:      startTime,
-		EndTime:        endTime,
-		Notes:          notes,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+	input := subrequestsapp.CreateInput{
+		ShowID:    showID,
+		StartTime: startTime,
+		EndTime:   endTime,
+		Notes:     notes,
 	}
 
-	if err := s.repo.CreateSubRequest(r.Context(), sr); err != nil {
+	if err := s.subRequests.Create(r.Context(), viewer, input); err != nil {
 		slog.Error("Failed to create sub request", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -327,30 +234,14 @@ func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 // Delete a sub request
 // (DELETE /sub-requests/{id})
 func (s *Server) DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id int) {
-	sr, err := s.repo.GetSubRequestByID(r.Context(), id)
-	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
-			http.Error(w, "Sub request not found", http.StatusNotFound)
+	viewer, ok := requireCurrentUser(w, r)
+	if !ok {
+		return
+	}
+	if err := s.subRequests.Delete(r.Context(), viewer, id); err != nil {
+		if writeAppError(w, err) {
 			return
 		}
-		slog.Error("Failed to get sub request", "id", id, "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	userID, ok := r.Context().Value(UserIDKey).(int)
-	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	role, _ := r.Context().Value(UserRoleKey).(string)
-	if sr.PostedByUserID != userID && role != "admin" {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
-
-	if err := s.repo.DeleteSubRequest(r.Context(), id); err != nil {
 		slog.Error("Failed to delete sub request", "id", id, "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -371,50 +262,17 @@ func (s *Server) PatchSubRequestsId(w http.ResponseWriter, r *http.Request, id i
 		return
 	}
 
-	userID, ok := r.Context().Value(UserIDKey).(int)
+	viewer, ok := requireCurrentUser(w, r)
 	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	sr, err := s.repo.GetSubRequestByID(r.Context(), id)
-	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
-			http.Error(w, "Sub request not found", http.StatusNotFound)
+	if err := s.subRequests.ApplyAction(r.Context(), viewer, id, subrequestsapp.Action(req.Action)); err != nil {
+		if writeAppError(w, err) {
 			return
 		}
-		slog.Error("Failed to get sub request", "id", id, "error", err)
+		slog.Error("Failed to update sub request", "id", id, "action", req.Action, "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	switch req.Action {
-	case "take":
-		if err := s.repo.TakeSubRequest(r.Context(), id, userID); err != nil {
-			if errors.Is(err, db.ErrNotFound) {
-				http.Error(w, "Sub request not found", http.StatusNotFound)
-				return
-			}
-			if errors.Is(err, db.ErrConflict) {
-				http.Error(w, "Sub request already taken", http.StatusConflict)
-				return
-			}
-			slog.Error("Failed to take sub request", "id", id, "error", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-	case "untake":
-		if sr.TakenByUserID == nil || *sr.TakenByUserID != userID {
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
-		}
-		if err := s.repo.UntakeSubRequest(r.Context(), id); err != nil {
-			slog.Error("Failed to untake sub request", "id", id, "error", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-	default:
-		http.Error(w, "Invalid action", http.StatusBadRequest)
 		return
 	}
 
@@ -459,28 +317,18 @@ func (s *Server) PostUsersId(w http.ResponseWriter, r *http.Request, id int) {
 		role = req.Role
 	}
 
-	if role != nil {
-		if *role != "admin" && *role != "member" {
-			http.Error(w, "Invalid role", http.StatusBadRequest)
-			return
-		}
-	}
-
-	currentUserID, ok := r.Context().Value(UserIDKey).(int)
+	viewer, ok := requireCurrentUser(w, r)
 	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	// Only check self-deactivation if is_enabled is provided and false
-	if isEnabled != nil && !*isEnabled && currentUserID == id {
-		http.Error(w, "Cannot deactivate your own account", http.StatusForbidden)
-		return
+	input := adminapp.UpdateUserInput{
+		ID:        id,
+		Role:      role,
+		IsEnabled: isEnabled,
 	}
-
-	if err := s.repo.UpdateUser(r.Context(), id, role, isEnabled); err != nil {
-		if errors.Is(err, db.ErrNotFound) {
-			http.Error(w, "User not found", http.StatusNotFound)
+	if err := s.admin.UpdateUser(r.Context(), viewer, input); err != nil {
+		if writeAppError(w, err) {
 			return
 		}
 		slog.Error("Failed to update user", "id", id, "error", err)
@@ -509,38 +357,55 @@ func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
 // Import users from Spinitron
 // (POST /users/import/spinitron)
 func (s *Server) PostUsersImportSpinitron(w http.ResponseWriter, r *http.Request) {
-	var emails []string
-
-	personas, err := s.spinitronClient.ListPersonas(r.Context())
-	if err != nil {
-		slog.Error("Failed to load personas from spinitron", "error", err)
-	} else {
-		for _, p := range personas {
-			if strings.TrimSpace(p.Email) != "" {
-				emails = append(emails, p.Email)
-			}
-		}
-	}
-
-	if len(emails) > 0 {
-		if err := s.repo.ImportUsers(r.Context(), emails); err != nil {
-			slog.Error("Failed to import users", "error", err)
-			http.Error(w, "Failed to import users", http.StatusInternalServerError)
-			return
-		}
+	if err := s.admin.ImportSpinitronUsers(r.Context()); err != nil {
+		slog.Error("Failed to import users from spinitron", "error", err)
+		http.Error(w, "Failed to import users", http.StatusInternalServerError)
+		return
 	}
 
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
-func formatDuration(duration time.Duration) string {
-	if duration < time.Hour {
-		return fmt.Sprintf("%d min", int(duration.Minutes()))
+func currentUser(r *http.Request) session.CurrentUser {
+	viewer, _ := userFromContext(r)
+	return viewer
+}
+
+func requireCurrentUser(w http.ResponseWriter, r *http.Request) (session.CurrentUser, bool) {
+	viewer, ok := userFromContext(r)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return session.CurrentUser{}, false
 	}
-	hours := duration.Hours()
-	durationStr := fmt.Sprintf("%.2f", hours)
-	durationStr = strings.TrimSuffix(durationStr, "0")
-	durationStr = strings.TrimSuffix(durationStr, "0")
-	durationStr = strings.TrimSuffix(durationStr, ".")
-	return durationStr + " hours"
+	return viewer, true
+}
+
+func userFromContext(r *http.Request) (session.CurrentUser, bool) {
+	userID, ok := r.Context().Value(UserIDKey).(int)
+	if !ok {
+		return session.CurrentUser{}, false
+	}
+	email, _ := r.Context().Value(UserEmailKey).(string)
+	role, _ := r.Context().Value(UserRoleKey).(string)
+	return session.CurrentUser{
+		ID:    userID,
+		Email: email,
+		Role:  role,
+	}, true
+}
+
+func writeAppError(w http.ResponseWriter, err error) bool {
+	switch {
+	case errors.Is(err, apperrors.ErrNotFound):
+		http.Error(w, "Not found", http.StatusNotFound)
+	case errors.Is(err, apperrors.ErrConflict):
+		http.Error(w, "Conflict", http.StatusConflict)
+	case errors.Is(err, apperrors.ErrForbidden):
+		http.Error(w, "Forbidden", http.StatusForbidden)
+	case errors.Is(err, apperrors.ErrInvalid):
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+	default:
+		return false
+	}
+	return true
 }

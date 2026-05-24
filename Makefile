@@ -38,8 +38,12 @@ lint:
 # 	@uvx --from skills-ref agentskills validate ./.agents/skills/verify-changes
 
 test:
-	@go test -coverprofile=coverage.out ./...
+	@go test -count=1 -coverprofile=coverage.out ./...
+	@{ IFS= read -r mode; printf '%s\n' "$$mode"; LC_ALL=C sort; } < coverage.out > coverage.sorted.out
+	@mv coverage.sorted.out coverage.out
 	@grep -v '\.gen\.go' coverage.out | grep -v '_templ\.go' > coverage.filtered.out
+	@{ IFS= read -r mode; printf '%s\n' "$$mode"; LC_ALL=C sort; } < coverage.filtered.out > coverage.filtered.sorted.out
+	@mv coverage.filtered.sorted.out coverage.filtered.out
 	@coverage=$$(go tool cover -func=coverage.filtered.out | grep total: | awk '{print $$3}' | sed 's/%//'); \
 	if [ "$$coverage" != "100.0" ]; then \
 		echo "Test coverage is $$coverage%, expected 100.0%"; \

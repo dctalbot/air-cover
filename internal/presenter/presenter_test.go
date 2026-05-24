@@ -1,0 +1,94 @@
+package presenter
+
+import (
+	"testing"
+	"time"
+
+	"air-cover/internal/app/subrequests"
+	"air-cover/internal/models"
+)
+
+func TestSubRequestDashboard(t *testing.T) {
+	start := time.Date(2026, 5, 23, 15, 4, 0, 0, time.UTC)
+	dashboard := subrequests.Dashboard{
+		Upcoming: []subrequests.SubRequest{{
+			Request: &models.SubRequest{
+				ID:             1,
+				RequesterEmail: "requester@example.com",
+				StartTime:      start,
+				EndTime:        start.Add(90 * time.Minute),
+			},
+			ShowTitle: "Example Show",
+			CanDelete: true,
+			CanTake:   true,
+		}},
+		Past: []subrequests.SubRequest{{
+			Request: &models.SubRequest{
+				ID:            2,
+				TakenByUserID: intPtr(3),
+				TakerEmail:    "taker@example.com",
+				StartTime:     start.Add(-24 * time.Hour),
+				EndTime:       start.Add(-23 * time.Hour),
+			},
+			ShowTitle: "Past Show",
+			CanUntake: true,
+			IsPast:    true,
+		}},
+	}
+
+	upcoming, past := SubRequestDashboard(dashboard)
+	if len(upcoming) != 1 || len(past) != 1 {
+		t.Fatalf("expected one upcoming and one past view, got %d and %d", len(upcoming), len(past))
+	}
+	if upcoming[0].ShowTitle != "Example Show" || upcoming[0].Duration != "1.5 hours" {
+		t.Errorf("unexpected upcoming view: %+v", upcoming[0])
+	}
+	if !upcoming[0].CanDelete || !upcoming[0].CanTake {
+		t.Errorf("expected upcoming permissions to be preserved: %+v", upcoming[0])
+	}
+	if past[0].Status != "filled" || !past[0].CanUntake || !past[0].IsPast {
+		t.Errorf("unexpected past view: %+v", past[0])
+	}
+}
+
+func TestAdminUsers(t *testing.T) {
+	created := time.Date(2026, 5, 23, 15, 4, 0, 0, time.UTC)
+	views := AdminUsers([]*models.User{{
+		ID:        1,
+		Email:     "admin@example.com",
+		Role:      "admin",
+		CreatedAt: created,
+		IsEnabled: true,
+	}}, 1)
+	if len(views) != 1 {
+		t.Fatalf("expected one view, got %d", len(views))
+	}
+	if views[0].CreatedAt != "May 23, 2026 at 3:04 PM" {
+		t.Errorf("unexpected created-at format: %q", views[0].CreatedAt)
+	}
+	if views[0].CanDeactivate {
+		t.Error("expected current user's deactivate action to be hidden")
+	}
+}
+
+func TestFormatDuration(t *testing.T) {
+	tests := []struct {
+		duration time.Duration
+		want     string
+	}{
+		{45 * time.Minute, "45 min"},
+		{time.Hour, "1 hours"},
+		{90 * time.Minute, "1.5 hours"},
+		{75 * time.Minute, "1.25 hours"},
+	}
+
+	for _, tt := range tests {
+		if got := FormatDuration(tt.duration); got != tt.want {
+			t.Errorf("FormatDuration(%v) = %q, want %q", tt.duration, got, tt.want)
+		}
+	}
+}
+
+func intPtr(v int) *int {
+	return &v
+}

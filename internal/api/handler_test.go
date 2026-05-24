@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"air-cover/internal/apperrors"
 	"air-cover/internal/db"
 	"air-cover/internal/models"
 	"air-cover/internal/spinitron"
@@ -335,6 +336,18 @@ func TestServer_GetApp_ListSubRequestsErrorClosedDB(t *testing.T) {
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestServer_GetApp_AppError(t *testing.T) {
+	s := NewServer(&fakeServerRepo{err: apperrors.ErrNotFound}, nil, &MockShowsService{})
+	req := httptest.NewRequest(http.MethodGet, "/app", nil)
+	rr := httptest.NewRecorder()
+
+	s.GetApp(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", rr.Code)
 	}
 }
 
