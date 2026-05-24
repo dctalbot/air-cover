@@ -1026,20 +1026,10 @@ func TestImportUsersDriverLevelErrors(t *testing.T) {
 			wantError: "begin failed",
 		},
 		{
-			name: "prepare error",
-			expect: func(mock sqlmock.Sqlmock) {
-				mock.ExpectBegin()
-				mock.ExpectPrepare("INSERT INTO users").WillReturnError(errors.New("prepare failed"))
-				mock.ExpectRollback()
-			},
-			wantError: "prepare failed",
-		},
-		{
 			name: "exec error",
 			expect: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
-				mock.ExpectPrepare("INSERT INTO users").
-					ExpectExec().
+				mock.ExpectExec("INSERT INTO users").
 					WithArgs("one@example.com").
 					WillReturnError(errors.New("exec failed"))
 				mock.ExpectRollback()
@@ -1050,8 +1040,7 @@ func TestImportUsersDriverLevelErrors(t *testing.T) {
 			name: "commit error",
 			expect: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
-				mock.ExpectPrepare("INSERT INTO users").
-					ExpectExec().
+				mock.ExpectExec("INSERT INTO users").
 					WithArgs("one@example.com").
 					WillReturnResult(sqlmock.NewResult(0, 1))
 				mock.ExpectCommit().WillReturnError(errors.New("commit failed"))

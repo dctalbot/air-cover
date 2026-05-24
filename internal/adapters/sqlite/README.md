@@ -11,3 +11,10 @@ SQLite assumptions to isolate before adding another database adapter:
 - `AUTOINCREMENT` integer IDs in migrations;
 - SQLite/libSQL boolean and timestamp scanning behavior;
 - goose migration dialect and the migration file layout under `internal/adapters/sqlite/migrations`.
+
+SQL queries are authored in `internal/adapters/sqlite/queries` and generated with sqlc
+into `internal/adapters/sqlite/dbgen`. The generated package is adapter-internal:
+repository methods map sqlc rows into domain/app types before returning them.
+
+Keep `internal/adapters/sqlite/schema.sql` in sync with the current goose schema
+when migrations change, then run `make generate`.
