@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"air-cover/internal/adapters/sqlite"
+	adminapp "air-cover/internal/app/admin"
 	appcatalog "air-cover/internal/app/catalog"
+	"air-cover/internal/app/session"
 	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
@@ -43,7 +45,7 @@ func (b *badShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Person
 
 type fakeServerRepo struct {
 	session       *domain.Session
-	subRequests   []subrequestsapp.SubRequestRecord
+	subRequests   []subrequestsapp.SubRequestSummary
 	subRequest    *domain.SubRequest
 	users         []*domain.User
 	err           error
@@ -96,7 +98,7 @@ func (f *fakeServerRepo) DeleteSessionsByUserID(ctx context.Context, userID int)
 	return nil
 }
 
-func (f *fakeServerRepo) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubRequestRecord, error) {
+func (f *fakeServerRepo) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubRequestSummary, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -149,6 +151,167 @@ func (f *fakeServerRepo) UpdateUser(ctx context.Context, id int, role *string, i
 
 func (f *fakeServerRepo) ImportUsers(ctx context.Context, emails []string) error {
 	return f.importErr
+}
+
+type fakeSubRequestService struct {
+	dashboard    subrequestsapp.Dashboard
+	err          error
+	createInput  subrequestsapp.CreateInput
+	deleteID     int
+	actionID     int
+	action       subrequestsapp.Action
+	createCalled bool
+	deleteCalled bool
+	actionCalled bool
+}
+
+func (f *fakeSubRequestService) ListDashboard(ctx context.Context, viewer session.CurrentUser) (subrequestsapp.Dashboard, error) {
+	return f.dashboard, f.err
+}
+
+func (f *fakeSubRequestService) Create(ctx context.Context, viewer session.CurrentUser, input subrequestsapp.CreateInput) error {
+	f.createCalled = true
+	f.createInput = input
+	return f.err
+}
+
+func (f *fakeSubRequestService) Delete(ctx context.Context, viewer session.CurrentUser, id int) error {
+	f.deleteCalled = true
+	f.deleteID = id
+	return f.err
+}
+
+func (f *fakeSubRequestService) ApplyAction(ctx context.Context, viewer session.CurrentUser, id int, action subrequestsapp.Action) error {
+	f.actionCalled = true
+	f.actionID = id
+	f.action = action
+	return f.err
+}
+
+type fakeAdminService struct {
+	users        []*domain.User
+	err          error
+	createInput  adminapp.CreateUserInput
+	updateInput  adminapp.UpdateUserInput
+	createCalled bool
+	updateCalled bool
+	importCalled bool
+}
+
+func (f *fakeAdminService) ListUsers(ctx context.Context) ([]*domain.User, error) {
+	return f.users, f.err
+}
+
+func (f *fakeAdminService) CreateUser(ctx context.Context, input adminapp.CreateUserInput) error {
+	f.createCalled = true
+	f.createInput = input
+	return f.err
+}
+
+func (f *fakeAdminService) UpdateUser(ctx context.Context, viewer session.CurrentUser, input adminapp.UpdateUserInput) error {
+	f.updateCalled = true
+	f.updateInput = input
+	return f.err
+}
+
+func (f *fakeAdminService) ImportCatalogUsers(ctx context.Context) error {
+	f.importCalled = true
+	return f.err
+}
+
+func TestServer_WithFakeServices(t *testing.T) {
+	t.Run("post sub request delegates parsed app input", func(t *testing.T) {
+		subRequests := &fakeSubRequestService{}
+		server := NewServer(nil, subRequests, nil)
+		form := url.Values{
+			"show":       {"12"},
+			"start_time": {"2036-05-01T10:00"},
+			"end_time":   {"2036-05-01T12:00"},
+			"notes":      {"Help please"},
+		}
+		req := httptest.NewRequest(http.MethodPost, "/sub-requests", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req = req.WithContext(context.WithValue(req.Context(), UserIDKey, 9))
+
+		rr := httptest.NewRecorder()
+		server.PostSubRequests(rr, req)
+
+		if rr.Code != http.StatusSeeOther {
+			t.Fatalf("expected status %d, got %d", http.StatusSeeOther, rr.Code)
+		}
+		if !subRequests.createCalled || subRequests.createInput.ShowID != 12 || subRequests.createInput.Notes != "Help please" {
+			t.Fatalf("unexpected create input: called=%v input=%+v", subRequests.createCalled, subRequests.createInput)
+		}
+	})
+
+	t.Run("patch sub request delegates action", func(t *testing.T) {
+		subRequests := &fakeSubRequestService{}
+		server := NewServer(nil, subRequests, nil)
+		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/3", strings.NewReader(`{"action":"take"}`))
+		req = req.WithContext(context.WithValue(req.Context(), UserIDKey, 9))
+
+		rr := httptest.NewRecorder()
+		server.PatchSubRequestsId(rr, req, 3)
+
+		if rr.Code != http.StatusNoContent {
+			t.Fatalf("expected status %d, got %d", http.StatusNoContent, rr.Code)
+		}
+		if !subRequests.actionCalled || subRequests.actionID != 3 || subRequests.action != subrequestsapp.ActionTake {
+			t.Fatalf("unexpected action call: called=%v id=%d action=%s", subRequests.actionCalled, subRequests.actionID, subRequests.action)
+		}
+	})
+
+	t.Run("post users delegates create input", func(t *testing.T) {
+		admin := &fakeAdminService{}
+		server := NewServer(nil, nil, admin)
+		form := url.Values{"email": {"new@example.com"}, "role": {"admin"}}
+		req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rr := httptest.NewRecorder()
+		server.PostUsers(rr, req)
+
+		if rr.Code != http.StatusSeeOther {
+			t.Fatalf("expected status %d, got %d", http.StatusSeeOther, rr.Code)
+		}
+		if !admin.createCalled || admin.createInput.Email != "new@example.com" || admin.createInput.Role != "admin" {
+			t.Fatalf("unexpected create user input: called=%v input=%+v", admin.createCalled, admin.createInput)
+		}
+	})
+
+	t.Run("post users maps app invalid error", func(t *testing.T) {
+		admin := &fakeAdminService{err: apperrors.ErrInvalid}
+		server := NewServer(nil, nil, admin)
+		form := url.Values{"email": {"new@example.com"}, "role": {"member"}}
+		req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rr := httptest.NewRecorder()
+		server.PostUsers(rr, req)
+
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rr.Code)
+		}
+		if !admin.createCalled {
+			t.Fatal("expected create use case to be called")
+		}
+	})
+
+	t.Run("import users delegates use case", func(t *testing.T) {
+		admin := &fakeAdminService{}
+		server := NewServer(nil, nil, admin)
+		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
+
+		rr := httptest.NewRecorder()
+		server.PostUsersImportSpinitron(rr, req)
+
+		if rr.Code != http.StatusSeeOther {
+			t.Fatalf("expected status %d, got %d", http.StatusSeeOther, rr.Code)
+		}
+		if !admin.importCalled {
+			t.Fatal("expected import use case to be called")
+		}
+	})
 }
 
 func TestServer_PostSubRequests(t *testing.T) {

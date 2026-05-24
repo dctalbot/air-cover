@@ -21,7 +21,7 @@ var ErrCatalog = errors.New("show catalog error")
 const maxCreateNotesLength = 1000
 
 type Repository interface {
-	ListSubRequests(ctx context.Context) ([]SubRequestRecord, error)
+	ListSubRequests(ctx context.Context) ([]SubRequestSummary, error)
 	CreateSubRequest(ctx context.Context, sr *domain.SubRequest) error
 	GetSubRequestByID(ctx context.Context, id int) (*domain.SubRequest, error)
 	DeleteSubRequest(ctx context.Context, id int) error
@@ -53,7 +53,7 @@ type Dashboard struct {
 	Past     []DashboardSubRequest
 }
 
-type SubRequestRecord struct {
+type SubRequestSummary struct {
 	Request        *domain.SubRequest
 	RequesterEmail string
 	TakerEmail     string

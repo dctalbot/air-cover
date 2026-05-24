@@ -26,7 +26,7 @@ func (r *Repository) CreateSubRequest(ctx context.Context, sr *domain.SubRequest
 	return nil
 }
 
-func (r *Repository) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubRequestRecord, error) {
+func (r *Repository) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubRequestSummary, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT sr.id, sr.show_id, sr.posted_by_user_id, sr.taken_by_user_id, u.email, COALESCE(u2.email, ''), sr.start_time, sr.end_time, sr.notes, sr.created_at, sr.updated_at
 		FROM sub_requests sr
@@ -39,7 +39,7 @@ func (r *Repository) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubR
 	}
 	defer rows.Close()
 
-	var subRequests []subrequestsapp.SubRequestRecord
+	var subRequests []subrequestsapp.SubRequestSummary
 	for rows.Next() {
 		var sr domain.SubRequest
 		var requesterEmail string
@@ -51,7 +51,7 @@ func (r *Repository) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubR
 		if err != nil {
 			return nil, err
 		}
-		subRequests = append(subRequests, subrequestsapp.SubRequestRecord{
+		subRequests = append(subRequests, subrequestsapp.SubRequestSummary{
 			Request:        &sr,
 			RequesterEmail: requesterEmail,
 			TakerEmail:     takerEmail,

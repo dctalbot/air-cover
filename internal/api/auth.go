@@ -10,11 +10,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	authapp "air-cover/internal/app/auth"
 	"air-cover/internal/apperrors"
-	"air-cover/internal/domain"
 )
 
 var randomRead = rand.Read
@@ -24,17 +22,7 @@ type AuthHandler struct {
 	tokenGenerator func(int) (string, error)
 }
 
-type authRepository interface {
-	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
-	GetUserByID(ctx context.Context, id int) (*domain.User, error)
-	CreateMagicLink(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error
-	UseMagicLink(ctx context.Context, tokenHash string, now time.Time) (*domain.MagicLink, error)
-	CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error
-	GetSessionByToken(ctx context.Context, sessionToken string, now time.Time) (*domain.Session, error)
-	DeleteSessionsByUserID(ctx context.Context, userID int) error
-}
-
-func NewAuthHandler(repo authRepository, sender authapp.Sender) *AuthHandler {
+func NewAuthHandler(repo authapp.Repository, sender authapp.Sender) *AuthHandler {
 	return NewAuthHandlerWithService(authapp.NewService(repo, sender))
 }
 

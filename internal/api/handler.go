@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -13,6 +14,7 @@ import (
 	"air-cover/internal/app/session"
 	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/apperrors"
+	"air-cover/internal/domain"
 	"air-cover/internal/presenter"
 	"air-cover/internal/ui"
 )
@@ -21,11 +23,25 @@ const maxFormBodyBytes = 1024 * 1024
 
 type Server struct {
 	auth        *AuthHandler
-	subRequests *subrequestsapp.Service
-	admin       *adminapp.Service
+	subRequests subRequestService
+	admin       adminService
 }
 
-func NewServer(auth *AuthHandler, subRequests *subrequestsapp.Service, admin *adminapp.Service) *Server {
+type subRequestService interface {
+	ListDashboard(context.Context, session.CurrentUser) (subrequestsapp.Dashboard, error)
+	Create(context.Context, session.CurrentUser, subrequestsapp.CreateInput) error
+	Delete(context.Context, session.CurrentUser, int) error
+	ApplyAction(context.Context, session.CurrentUser, int, subrequestsapp.Action) error
+}
+
+type adminService interface {
+	ListUsers(context.Context) ([]*domain.User, error)
+	CreateUser(context.Context, adminapp.CreateUserInput) error
+	UpdateUser(context.Context, session.CurrentUser, adminapp.UpdateUserInput) error
+	ImportCatalogUsers(context.Context) error
+}
+
+func NewServer(auth *AuthHandler, subRequests subRequestService, admin adminService) *Server {
 	return &Server{
 		auth:        auth,
 		subRequests: subRequests,
@@ -42,7 +58,7 @@ func (s *Server) Get(w http.ResponseWriter, r *http.Request) {
 				http.Redirect(w, r, "/app", http.StatusFound)
 				return
 			}
-		} else if s.subRequests == nil && s.admin == nil {
+		} else if s.auth == nil && s.subRequests == nil && s.admin == nil {
 			http.Redirect(w, r, "/app", http.StatusFound)
 			return
 		}
@@ -120,6 +136,10 @@ func (s *Server) PostUsers(w http.ResponseWriter, r *http.Request) {
 	input := adminapp.CreateUserInput{
 		Email: r.FormValue("email"),
 		Role:  r.FormValue("role"),
+	}
+	if input.Email == "" || (input.Role != "" && !domain.Role(input.Role).Valid()) {
+		http.Error(w, "Invalid user", http.StatusBadRequest)
+		return
 	}
 	if err := s.admin.CreateUser(r.Context(), input); err != nil {
 		if errors.Is(err, apperrors.ErrInvalid) {

@@ -66,6 +66,16 @@ func (f *fakeShowsService) Prefetch(ctx context.Context) error {
 	return f.err
 }
 
+type fakeCatalogOnly struct{}
+
+func (f *fakeCatalogOnly) ListShows(ctx context.Context) ([]appcatalog.Show, error) {
+	return nil, nil
+}
+
+func (f *fakeCatalogOnly) ListPersonas(ctx context.Context) ([]appcatalog.Persona, error) {
+	return nil, nil
+}
+
 type fakeSpinitronPageClient struct{}
 
 func (f *fakeSpinitronPageClient) GetShowsPage(ctx context.Context, page int) (adapterspinitron.ShowsPage, error) {
@@ -85,6 +95,75 @@ func (m *mockSender) SendMagicLink(toEmail, magicLink string) error {
 type fakeStartupRepo struct {
 	getUserErr    error
 	createUserErr error
+}
+
+type fakeAuthRepo struct {
+	fakeStartupRepo
+}
+
+func (f *fakeAuthRepo) CreateMagicLink(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error {
+	return nil
+}
+
+func (f *fakeAuthRepo) UseMagicLink(ctx context.Context, tokenHash string, now time.Time) (*domain.MagicLink, error) {
+	return &domain.MagicLink{UserID: 1, ExpiresAt: now.Add(time.Hour)}, nil
+}
+
+func (f *fakeAuthRepo) CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error {
+	return nil
+}
+
+func (f *fakeAuthRepo) GetSessionByToken(ctx context.Context, sessionToken string, now time.Time) (*domain.Session, error) {
+	return &domain.Session{ID: "session", UserID: 1, SessionToken: sessionToken, ExpiresAt: now.Add(time.Hour)}, nil
+}
+
+func (f *fakeAuthRepo) DeleteSessionsByUserID(ctx context.Context, userID int) error {
+	return nil
+}
+
+type fakeSubRequestsRepo struct{}
+
+func (f *fakeSubRequestsRepo) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubRequestSummary, error) {
+	return nil, nil
+}
+
+func (f *fakeSubRequestsRepo) CreateSubRequest(ctx context.Context, sr *domain.SubRequest) error {
+	sr.ID = 1
+	return nil
+}
+
+func (f *fakeSubRequestsRepo) GetSubRequestByID(ctx context.Context, id int) (*domain.SubRequest, error) {
+	return &domain.SubRequest{ID: id, PostedByUserID: 1, StartTime: time.Now().Add(time.Hour)}, nil
+}
+
+func (f *fakeSubRequestsRepo) DeleteSubRequest(ctx context.Context, id int) error {
+	return nil
+}
+
+func (f *fakeSubRequestsRepo) TakeSubRequest(ctx context.Context, id int, userID int, updatedAt time.Time) error {
+	return nil
+}
+
+func (f *fakeSubRequestsRepo) UntakeSubRequest(ctx context.Context, id int, updatedAt time.Time) error {
+	return nil
+}
+
+type fakeAdminRepo struct{}
+
+func (f *fakeAdminRepo) ListUsers(ctx context.Context) ([]*domain.User, error) {
+	return nil, nil
+}
+
+func (f *fakeAdminRepo) CreateUser(ctx context.Context, email string, role string) (*domain.User, error) {
+	return &domain.User{ID: 1, Email: email, Role: role, IsEnabled: true}, nil
+}
+
+func (f *fakeAdminRepo) UpdateUser(ctx context.Context, id int, role *string, isEnabled *bool) error {
+	return nil
+}
+
+func (f *fakeAdminRepo) ImportUsers(ctx context.Context, emails []string) error {
+	return nil
 }
 
 func (f *fakeStartupRepo) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
@@ -724,6 +803,77 @@ func TestRunServer_DependencyFailures(t *testing.T) {
 			t.Fatal("expected prefetch to run")
 		}
 	})
+}
+
+func TestRunServer_WiresIndependentRepositoryPorts(t *testing.T) {
+	cfg := &config.Config{
+		Port:            8080,
+		DBURI:           "file::memory:",
+		ENV:             "test",
+		FromEmail:       "noreply@example.com",
+		SpinitronAPIURL: "https://proxy.example.test/api",
+	}
+	startupRepo := &fakeStartupRepo{}
+	authRepo := &fakeAuthRepo{}
+	subRequestsRepo := &fakeSubRequestsRepo{}
+	adminRepo := &fakeAdminRepo{}
+	repos := repositories{
+		startup:     startupRepo,
+		auth:        authRepo,
+		subRequests: subRequestsRepo,
+		admin:       adminRepo,
+	}
+	deps := testServerDeps(cfg, startupRepo)
+	deps.newDBRepository = func(database *sql.DB) repositories {
+		return repos
+	}
+	var gotAuthRepo authapp.Repository
+	deps.newAuthHandler = func(repo authapp.Repository, sender authapp.Sender) *api.AuthHandler {
+		gotAuthRepo = repo
+		return api.NewAuthHandler(repo, sender)
+	}
+	var gotSubRequestsRepo subrequestsapp.Repository
+	var gotAdminRepo adminapp.Repository
+	deps.newAPIServer = func(subRequestsRepo subrequestsapp.Repository, adminRepo adminapp.Repository, authHandler *api.AuthHandler, catalog catalog) *api.Server {
+		gotSubRequestsRepo = subRequestsRepo
+		gotAdminRepo = adminRepo
+		return api.NewServer(authHandler, nil, nil)
+	}
+
+	if err := runServer(&cobra.Command{}, deps); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if gotAuthRepo != authRepo {
+		t.Fatalf("auth repo = %T, want %T", gotAuthRepo, authRepo)
+	}
+	if gotSubRequestsRepo != subRequestsRepo {
+		t.Fatalf("subrequests repo = %T, want %T", gotSubRequestsRepo, subRequestsRepo)
+	}
+	if gotAdminRepo != adminRepo {
+		t.Fatalf("admin repo = %T, want %T", gotAdminRepo, adminRepo)
+	}
+}
+
+func TestStartCatalogPrefetchWithoutPrefetcher(t *testing.T) {
+	service := &fakeCatalogOnly{}
+	startCatalogPrefetch(service, context.Background)
+}
+
+func TestStartCatalogPrefetchLogsError(t *testing.T) {
+	service := &fakeShowsService{
+		err:  errors.New("prefetch failed"),
+		done: make(chan struct{}),
+	}
+	startCatalogPrefetch(service, context.Background)
+
+	select {
+	case <-service.done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for prefetch")
+	}
+	if !service.prefetch {
+		t.Fatal("expected prefetch to run")
+	}
 }
 
 func TestDocCmd(t *testing.T) {

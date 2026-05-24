@@ -209,33 +209,15 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 	}
 	repo := deps.newDBRepository(database)
 
-	if cfg.MasterEmail != "" {
-		ctx := deps.backgroundCtx()
-		_, err := repo.startup.GetUserByEmail(ctx, cfg.MasterEmail)
-		if errors.Is(err, apperrors.ErrNotFound) {
-			slog.Info("Creating master admin user", "email", cfg.MasterEmail)
-			_, err = repo.startup.CreateUser(ctx, cfg.MasterEmail, "admin")
-			if err != nil {
-				return fmt.Errorf("failed to create master user: %w", err)
-			}
-		} else if err != nil {
-			return fmt.Errorf("failed to check master user: %w", err)
-		}
+	if err := ensureMasterUser(cfg.MasterEmail, repo.startup, deps.backgroundCtx); err != nil {
+		return err
 	}
 
 	sender := deps.newSender(cfg.SendGridAPIKey, cfg.FromEmail, cfg.ENV)
 	authHandler := deps.newAuthHandler(repo.auth, sender)
 	spinitronClient := deps.newSpinitron("", cfg.SpinitronAPIURL)
 	spinitronCatalog := deps.newCatalog(spinitronClient)
-	if prefetcher, ok := spinitronCatalog.(interface{ Prefetch(context.Context) error }); ok {
-		go func() {
-			ctx, cancel := context.WithTimeout(deps.backgroundCtx(), 5*time.Second)
-			defer cancel()
-			if err := prefetcher.Prefetch(ctx); err != nil {
-				slog.Warn("Failed to prefetch spinitron catalog", "error", err)
-			}
-		}()
-	}
+	startCatalogPrefetch(spinitronCatalog, deps.backgroundCtx)
 	apiServer := deps.newAPIServer(repo.subRequests, repo.admin, authHandler, spinitronCatalog)
 
 	r := deps.newRouter(apiServer, authHandler)
@@ -255,6 +237,40 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 		return fmt.Errorf("server failed to start: %w", err)
 	}
 	return nil
+}
+
+func ensureMasterUser(masterEmail string, repo startupRepository, backgroundCtx func() context.Context) error {
+	if masterEmail == "" {
+		return nil
+	}
+	ctx := backgroundCtx()
+	_, err := repo.GetUserByEmail(ctx, masterEmail)
+	if errors.Is(err, apperrors.ErrNotFound) {
+		slog.Info("Creating master admin user", "email", masterEmail)
+		_, err = repo.CreateUser(ctx, masterEmail, "admin")
+		if err != nil {
+			return fmt.Errorf("failed to create master user: %w", err)
+		}
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to check master user: %w", err)
+	}
+	return nil
+}
+
+func startCatalogPrefetch(catalog catalog, backgroundCtx func() context.Context) {
+	prefetcher, ok := catalog.(interface{ Prefetch(context.Context) error })
+	if !ok {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(backgroundCtx(), 5*time.Second)
+		defer cancel()
+		if err := prefetcher.Prefetch(ctx); err != nil {
+			slog.Warn("Failed to prefetch spinitron catalog", "error", err)
+		}
+	}()
 }
 
 func serveWithGracefulShutdown(server *http.Server, deps serverDeps) error {

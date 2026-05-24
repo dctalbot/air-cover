@@ -3,6 +3,7 @@ package contracttest
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -72,6 +73,9 @@ func (r *memoryRepository) UpdateUser(ctx context.Context, id int, role *string,
 
 func (r *memoryRepository) ImportUsers(ctx context.Context, emails []string) error {
 	for _, email := range emails {
+		if _, err := r.GetUserByEmail(ctx, email); err == nil {
+			continue
+		}
 		r.users = append(r.users, &domain.User{ID: r.nextUserID, Email: email, Role: "member", IsEnabled: true})
 		r.nextUserID++
 	}
@@ -92,6 +96,9 @@ func (r *memoryRepository) UseMagicLink(ctx context.Context, tokenHash string, n
 	if !ok {
 		return nil, apperrors.ErrNotFound
 	}
+	if !link.ExpiresAt.After(now) {
+		return nil, apperrors.ErrNotFound
+	}
 	delete(r.magicLinks, tokenHash)
 	return link, nil
 }
@@ -106,6 +113,9 @@ func (r *memoryRepository) GetSessionByToken(ctx context.Context, sessionToken s
 	if !ok {
 		return nil, apperrors.ErrNotFound
 	}
+	if session.ExpiresAt.Before(now) {
+		return nil, errors.New("session expired")
+	}
 	return session, nil
 }
 
@@ -118,11 +128,28 @@ func (r *memoryRepository) DeleteSessionsByUserID(ctx context.Context, userID in
 	return nil
 }
 
-func (r *memoryRepository) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubRequestRecord, error) {
-	requests := make([]subrequestsapp.SubRequestRecord, 0, len(r.subRequests))
+func (r *memoryRepository) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubRequestSummary, error) {
+	requests := make([]subrequestsapp.SubRequestSummary, 0, len(r.subRequests))
 	for _, request := range r.subRequests {
-		requests = append(requests, subrequestsapp.SubRequestRecord{Request: request})
+		requesterEmail := ""
+		if requester, err := r.GetUserByID(ctx, request.PostedByUserID); err == nil {
+			requesterEmail = requester.Email
+		}
+		takerEmail := ""
+		if request.TakenByUserID != nil {
+			if taker, err := r.GetUserByID(ctx, *request.TakenByUserID); err == nil {
+				takerEmail = taker.Email
+			}
+		}
+		requests = append(requests, subrequestsapp.SubRequestSummary{
+			Request:        request,
+			RequesterEmail: requesterEmail,
+			TakerEmail:     takerEmail,
+		})
 	}
+	sort.Slice(requests, func(i, j int) bool {
+		return requests[i].Request.StartTime.Before(requests[j].Request.StartTime)
+	})
 	return requests, nil
 }
 
@@ -161,6 +188,7 @@ func (r *memoryRepository) TakeSubRequest(ctx context.Context, id int, userID in
 		return apperrors.ErrConflict
 	}
 	request.TakenByUserID = &userID
+	request.UpdatedAt = updatedAt
 	r.takenRequestID = id
 	return nil
 }
@@ -171,6 +199,7 @@ func (r *memoryRepository) UntakeSubRequest(ctx context.Context, id int, updated
 		return err
 	}
 	request.TakenByUserID = nil
+	request.UpdatedAt = updatedAt
 	return nil
 }
 
@@ -178,6 +207,25 @@ func TestCheckRepository(t *testing.T) {
 	var ctx context.Context
 	if err := CheckRepository(ctx, newMemoryRepository()); err != nil {
 		t.Fatalf("CheckRepository returned error: %v", err)
+	}
+}
+
+func TestSplitRepositoryContracts(t *testing.T) {
+	checks := []struct {
+		name string
+		run  func(context.Context, Repository) error
+	}{
+		{name: "auth", run: CheckAuthRepository},
+		{name: "admin", run: CheckAdminRepository},
+		{name: "subrequests", run: CheckSubRequestRepository},
+	}
+
+	for _, tt := range checks {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.run(t.Context(), newMemoryRepository()); err != nil {
+				t.Fatalf("%s contract returned error: %v", tt.name, err)
+			}
+		})
 	}
 }
 
@@ -202,4 +250,14 @@ func TestMustNoErrPanics(t *testing.T) {
 	}()
 
 	mustNoErr(errors.New("boom"), "operation failed")
+}
+
+func TestIndexOfSummaryMissing(t *testing.T) {
+	summaries := []subrequestsapp.SubRequestSummary{
+		{Request: &domain.SubRequest{ID: 1}},
+		{Request: nil},
+	}
+	if got := indexOfSummary(summaries, 2); got != len(summaries) {
+		t.Fatalf("expected missing index %d, got %d", len(summaries), got)
+	}
 }

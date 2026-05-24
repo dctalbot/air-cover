@@ -14,7 +14,7 @@ import (
 )
 
 type fakeRepository struct {
-	subRequests []SubRequestRecord
+	subRequests []SubRequestSummary
 	subRequest  *domain.SubRequest
 	listErr     error
 	createErr   error
@@ -31,7 +31,7 @@ type fakeRepository struct {
 	untakenAt   time.Time
 }
 
-func (f *fakeRepository) ListSubRequests(ctx context.Context) ([]SubRequestRecord, error) {
+func (f *fakeRepository) ListSubRequests(ctx context.Context) ([]SubRequestSummary, error) {
 	return f.subRequests, f.listErr
 }
 
@@ -77,7 +77,7 @@ func (f *fakeCatalog) ListShows(ctx context.Context) ([]appcatalog.Show, error) 
 func TestListDashboard(t *testing.T) {
 	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
 	takerID := 2
-	repo := &fakeRepository{subRequests: []SubRequestRecord{
+	repo := &fakeRepository{subRequests: []SubRequestSummary{
 		{Request: &domain.SubRequest{ID: 1, ShowID: 2, PostedByUserID: 1, StartTime: now.Add(2 * time.Hour), EndTime: now.Add(3 * time.Hour)}},
 		{Request: &domain.SubRequest{ID: 2, ShowID: 999, PostedByUserID: 1, TakenByUserID: &takerID, StartTime: now.Add(-2 * time.Hour), EndTime: now.Add(-1 * time.Hour)}},
 		{Request: &domain.SubRequest{ID: 3, ShowID: 1, PostedByUserID: 3, StartTime: now.Add(-4 * time.Hour), EndTime: now.Add(-3 * time.Hour)}},

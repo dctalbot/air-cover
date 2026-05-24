@@ -2,11 +2,12 @@ package api
 
 import (
 	adminapp "air-cover/internal/app/admin"
+	authapp "air-cover/internal/app/auth"
 	subrequestsapp "air-cover/internal/app/subrequests"
 )
 
 type testServerRepository interface {
-	authRepository
+	authapp.Repository
 	adminapp.Repository
 	subrequestsapp.Repository
 }
@@ -17,8 +18,8 @@ type testCatalog interface {
 }
 
 func newTestServer(repo testServerRepository, auth *AuthHandler, catalog testCatalog) *Server {
-	var subRequests *subrequestsapp.Service
-	var admin *adminapp.Service
+	var subRequests subRequestService
+	var admin adminService
 	if auth == nil && repo != nil {
 		auth = NewAuthHandler(repo, nil)
 	}
