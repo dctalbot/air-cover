@@ -1,4 +1,4 @@
-package api
+package httpadapter
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 
 	"air-cover/internal/adapters/sqlite"
 	authapp "air-cover/internal/app/auth"
+	"air-cover/internal/domain"
 )
 
 type MockSender struct{}
@@ -453,6 +454,35 @@ func TestHashToken(t *testing.T) {
 func TestAuthHandlerSyncTokenGeneratorNilReceiver(t *testing.T) {
 	var handler *AuthHandler
 	handler.syncTokenGenerator()
+}
+
+func TestAuthHandlerSyncTokenGeneratorWithoutSetter(t *testing.T) {
+	handler := NewAuthHandler(&fakeAuthService{})
+	handler.syncTokenGenerator()
+}
+
+func TestAuthHandlerAuthenticateSessionWithoutAuth(t *testing.T) {
+	if (&AuthHandler{}).AuthenticateSession(context.Background(), "token") {
+		t.Fatal("expected empty auth handler not to authenticate")
+	}
+}
+
+type fakeAuthService struct{}
+
+func (f *fakeAuthService) RequestLogin(ctx context.Context, input authapp.LoginInput) (authapp.LoginResult, error) {
+	return authapp.LoginResult{}, nil
+}
+
+func (f *fakeAuthService) VerifyMagicLink(ctx context.Context, rawToken string) (authapp.VerifiedSession, error) {
+	return authapp.VerifiedSession{}, nil
+}
+
+func (f *fakeAuthService) Logout(ctx context.Context, userID int) error {
+	return nil
+}
+
+func (f *fakeAuthService) AuthenticateSession(ctx context.Context, sessionToken string) (domain.CurrentUser, error) {
+	return domain.CurrentUser{}, errors.New("not authenticated")
 }
 
 type failSender struct{}

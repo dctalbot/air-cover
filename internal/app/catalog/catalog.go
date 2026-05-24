@@ -1,12 +1,12 @@
 package catalog
 
 type Show struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
+	ID    string
+	Title string
 }
 
 type Persona struct {
-	ID    int    `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	ID    int
+	Name  string
+	Email string
 }

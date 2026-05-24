@@ -26,6 +26,8 @@ func TestHexagonalImportBoundaries(t *testing.T) {
 			forbidImports(t, pkg, "air-cover/internal/adapters/sqlite", "air-cover/internal/adapters/email", "air-cover/internal/adapters/spinitron")
 		case strings.HasPrefix(pkg.ImportPath, "air-cover/internal/adapters/http/ui"):
 			forbidImports(t, pkg, "air-cover/internal/adapters/sqlite", "air-cover/internal/adapters/email", "air-cover/internal/adapters/spinitron")
+		case strings.HasPrefix(pkg.ImportPath, "air-cover/internal/adapters/http"):
+			forbidImports(t, pkg, "air-cover/internal/adapters/sqlite", "air-cover/internal/adapters/email", "air-cover/internal/adapters/spinitron")
 		case strings.HasPrefix(pkg.ImportPath, "air-cover/internal/adapters") && !strings.HasPrefix(pkg.ImportPath, "air-cover/internal/adapters/http"):
 			forbidImports(t, pkg, "air-cover/internal/adapters/http")
 		}
@@ -49,7 +51,15 @@ func TestHexagonalTestImportBoundaries(t *testing.T) {
 }
 
 func TestDomainTypesDoNotCarrySerializationTags(t *testing.T) {
-	err := filepath.WalkDir("domain", func(path string, entry fs.DirEntry, err error) error {
+	if err := assertNoStructTags(t, "domain", "json:", "form:"); err != nil {
+		t.Fatalf("walk domain: %v", err)
+	}
+}
+
+func assertNoStructTags(t *testing.T, dir string, forbiddenSubstrings ...string) error {
+	t.Helper()
+
+	return filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -67,16 +77,16 @@ func TestDomainTypesDoNotCarrySerializationTags(t *testing.T) {
 				return true
 			}
 			tag := strings.Trim(field.Tag.Value, "`")
-			if strings.Contains(tag, "json:") || strings.Contains(tag, "form:") {
-				t.Errorf("%s contains transport serialization tag %q", path, tag)
+			for _, forbidden := range forbiddenSubstrings {
+				if strings.Contains(tag, forbidden) {
+					t.Errorf("%s contains forbidden struct tag %q", path, tag)
+					break
+				}
 			}
 			return true
 		})
 		return nil
 	})
-	if err != nil {
-		t.Fatalf("walk domain: %v", err)
-	}
 }
 
 func TestGeneratedSQLiteTypesStayInsideSQLiteAdapter(t *testing.T) {
@@ -102,6 +112,45 @@ func TestHTTPPresentationPackagesStayHTTPOwned(t *testing.T) {
 			continue
 		}
 		forbidImports(t, pkg, "air-cover/internal/adapters/http/ui", "air-cover/internal/adapters/http/presenter")
+	}
+}
+
+func TestConcreteAdaptersOnlyComposedByCmd(t *testing.T) {
+	packages, err := listPackages(includeTests(false))
+	if err != nil {
+		t.Fatalf("list packages: %v", err)
+	}
+	for _, pkg := range packages {
+		if pkg.ImportPath == "air-cover/internal/cmd" || strings.HasPrefix(pkg.ImportPath, "air-cover/internal/adapters") {
+			continue
+		}
+		forbidImports(t, pkg,
+			"air-cover/internal/adapters/sqlite",
+			"air-cover/internal/adapters/email",
+			"air-cover/internal/adapters/spinitron",
+			"air-cover/internal/adapters/http",
+		)
+	}
+}
+
+func TestLegacyDeliveryPackagesStayRemoved(t *testing.T) {
+	packages, err := listPackages(includeTests(true))
+	if err != nil {
+		t.Fatalf("list packages: %v", err)
+	}
+	for _, pkg := range packages {
+		switch pkg.ImportPath {
+		case "air-cover/internal/api", "air-cover/internal/ui", "air-cover/internal/presenter":
+			t.Errorf("legacy delivery package %s should live under internal/adapters/http", pkg.ImportPath)
+		}
+	}
+}
+
+func TestAppTypesDoNotCarryTransportTags(t *testing.T) {
+	for _, dir := range []string{"domain", "app"} {
+		if err := assertNoStructTags(t, dir, "json:", "form:"); err != nil {
+			t.Fatalf("walk %s: %v", dir, err)
+		}
 	}
 }
 

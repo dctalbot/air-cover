@@ -20,6 +20,35 @@ type Repository interface {
 	subrequestsapp.DashboardQuery
 }
 
+type AuthRepository interface {
+	authapp.Repository
+	bootstrapRepository
+}
+
+type UserReader interface {
+	authapp.UserReader
+	bootstrapRepository
+}
+
+type MagicLinkStore interface {
+	authapp.MagicLinkStore
+	UserReader
+}
+
+type SessionStore interface {
+	authapp.SessionStore
+	UserReader
+}
+
+type AdminRepository interface {
+	adminapp.Repository
+	authapp.UserReader
+}
+
+type bootstrapRepository interface {
+	CreateUser(ctx context.Context, email string, role string) (*domain.User, error)
+}
+
 type SubRequestCommandRepository interface {
 	adminapp.Repository
 	subrequestsapp.CommandRepository
@@ -31,13 +60,31 @@ type SubRequestDashboardQuery interface {
 	subrequestsapp.DashboardQuery
 }
 
-func CheckAuthRepository(ctx context.Context, repo Repository) (err error) {
+func CheckAuthRepository(ctx context.Context, repo AuthRepository) (err error) {
 	return check(ctx, func(ctx context.Context) {
 		checkAuthRepository(ctx, repo)
 	})
 }
 
-func CheckAdminRepository(ctx context.Context, repo Repository) (err error) {
+func CheckUserReader(ctx context.Context, repo UserReader) (err error) {
+	return check(ctx, func(ctx context.Context) {
+		checkUserReader(ctx, repo)
+	})
+}
+
+func CheckMagicLinkStore(ctx context.Context, repo MagicLinkStore) (err error) {
+	return check(ctx, func(ctx context.Context) {
+		checkMagicLinkStore(ctx, repo)
+	})
+}
+
+func CheckSessionStore(ctx context.Context, repo SessionStore) (err error) {
+	return check(ctx, func(ctx context.Context) {
+		checkSessionStore(ctx, repo)
+	})
+}
+
+func CheckAdminRepository(ctx context.Context, repo AdminRepository) (err error) {
 	return check(ctx, func(ctx context.Context) {
 		checkAdminRepository(ctx, repo)
 	})
@@ -89,7 +136,13 @@ func checkRepository(ctx context.Context, repo Repository) {
 	checkSubRequestRepository(ctx, repo)
 }
 
-func checkAuthRepository(ctx context.Context, repo Repository) {
+func checkAuthRepository(ctx context.Context, repo AuthRepository) {
+	checkUserReader(ctx, repo)
+	checkMagicLinkStore(ctx, repo)
+	checkSessionStore(ctx, repo)
+}
+
+func checkUserReader(ctx context.Context, repo UserReader) {
 	user, err := repo.CreateUser(ctx, "contract-auth@example.com", "member")
 	mustNoErr(err, "CreateUser returned error")
 	must(user.ID != 0 && user.Email == "contract-auth@example.com" && user.IsEnabled, "unexpected created user: %+v", user)
@@ -102,7 +155,11 @@ func checkAuthRepository(ctx context.Context, repo Repository) {
 	must(errors.Is(err, apperrors.ErrNotFound), "missing user error = %v, want not found", err)
 	_, err = repo.GetUserByID(ctx, -1)
 	must(errors.Is(err, apperrors.ErrNotFound), "missing user by ID error = %v, want not found", err)
+}
 
+func checkMagicLinkStore(ctx context.Context, repo MagicLinkStore) {
+	user, err := repo.CreateUser(ctx, "contract-magic-link@example.com", "member")
+	mustNoErr(err, "CreateUser magic link user returned error")
 	rawHash := "contract-auth-hash"
 	now := time.Now().Truncate(time.Second)
 	err = repo.CreateMagicLink(ctx, user.ID, rawHash, now.Add(time.Hour))
@@ -117,7 +174,12 @@ func checkAuthRepository(ctx context.Context, repo Repository) {
 	mustNoErr(err, "CreateMagicLink expired returned error")
 	_, err = repo.UseMagicLink(ctx, expiredHash, now)
 	must(errors.Is(err, apperrors.ErrNotFound), "expired magic link error = %v, want not found", err)
+}
 
+func checkSessionStore(ctx context.Context, repo SessionStore) {
+	user, err := repo.CreateUser(ctx, "contract-session@example.com", "member")
+	mustNoErr(err, "CreateUser session user returned error")
+	now := time.Now().Truncate(time.Second)
 	err = repo.CreateSession(ctx, "contract-auth-session", "contract-auth-token", user.ID, now.Add(time.Hour))
 	mustNoErr(err, "CreateSession returned error")
 	session, err := repo.GetSessionByToken(ctx, "contract-auth-token", now)
@@ -133,14 +195,9 @@ func checkAuthRepository(ctx context.Context, repo Repository) {
 	_, err = repo.GetSessionByToken(ctx, "contract-auth-token", now)
 	must(errors.Is(err, apperrors.ErrNotFound), "deleted session error = %v, want not found", err)
 
-	enabled := false
-	err = repo.UpdateUser(ctx, user.ID, nil, &enabled)
-	mustNoErr(err, "UpdateUser disable returned error")
-	disabled, err := repo.GetUserByID(ctx, user.ID)
-	must(err == nil && !disabled.IsEnabled, "disabled user = %+v, %v; want disabled", disabled, err)
 }
 
-func checkAdminRepository(ctx context.Context, repo Repository) {
+func checkAdminRepository(ctx context.Context, repo AdminRepository) {
 	user, err := repo.CreateUser(ctx, "contract-admin@example.com", "member")
 	mustNoErr(err, "CreateUser returned error")
 	must(user.ID != 0 && user.Email == "contract-admin@example.com" && user.Role == domain.RoleMember && user.IsEnabled, "unexpected created admin test user: %+v", user)

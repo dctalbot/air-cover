@@ -1,4 +1,4 @@
-package api
+package httpadapter
 
 import (
 	"context"
@@ -18,7 +18,10 @@ import (
 	"air-cover/internal/domain"
 )
 
-const maxFormBodyBytes = 1024 * 1024
+const (
+	maxFormBodyBytes  = 1024 * 1024
+	sessionCookieName = "session_id"
+)
 
 type Server struct {
 	auth        *AuthHandler
@@ -48,29 +51,23 @@ func NewServer(auth *AuthHandler, subRequests subRequestService, admin adminServ
 	}
 }
 
+func (s *Server) hasValidSession(ctx context.Context, token string) bool {
+	if s.auth == nil {
+		return s.subRequests == nil && s.admin == nil
+	}
+	return s.auth.AuthenticateSession(ctx, token)
+}
+
 // Home page or login page
 // (GET /)
 func (s *Server) Get(w http.ResponseWriter, r *http.Request) {
-	if cookie, err := r.Cookie("session_id"); err == nil && cookie.Value != "" {
-		if s.auth != nil {
-			if _, err := s.auth.auth.AuthenticateSession(r.Context(), cookie.Value); err == nil {
-				http.Redirect(w, r, "/app", http.StatusFound)
-				return
-			}
-		} else if s.auth == nil && s.subRequests == nil && s.admin == nil {
+	if cookie, err := r.Cookie(sessionCookieName); err == nil && cookie.Value != "" {
+		if s.hasValidSession(r.Context(), cookie.Value) {
 			http.Redirect(w, r, "/app", http.StatusFound)
 			return
 		}
 
-		// Clear stale session cookie
-		http.SetCookie(w, &http.Cookie{
-			Name:     "session_id",
-			Value:    "",
-			Path:     "/",
-			MaxAge:   -1,
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-		})
+		clearSessionCookie(w, r)
 	}
 
 	if err := ui.Unauthenticated(r.URL.Query().Get("submitted") == "true").Render(r.Context(), w); err != nil {
@@ -123,8 +120,7 @@ func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
 // Create a new user
 // (POST /users)
 func (s *Server) PostUsers(w http.ResponseWriter, r *http.Request) {
-	// Limit request body size to 1MB
-	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
+	r.Body = http.MaxBytesReader(w, r.Body, maxFormBodyBytes)
 
 	if err := r.ParseForm(); err != nil {
 		slog.Error("Failed to parse form", "error", err)

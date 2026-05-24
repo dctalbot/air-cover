@@ -30,6 +30,10 @@ type DashboardQuery interface {
 	ListDashboardSubRequests(ctx context.Context) ([]DashboardRecord, error)
 }
 
+type RequestReader interface {
+	GetSubRequestByID(ctx context.Context, id int) (*domain.SubRequest, error)
+}
+
 type Repository interface {
 	CommandRepository
 	DashboardQuery
@@ -174,7 +178,7 @@ func (s *Service) validateCreateInput(ctx context.Context, input CreateInput) er
 		return apperrors.ErrInvalid
 	case !input.StartTime.After(now):
 		return apperrors.ErrInvalid
-	case !input.EndTime.After(input.StartTime):
+	case !(&domain.SubRequest{StartTime: input.StartTime, EndTime: input.EndTime}).HasValidTimeRange():
 		return apperrors.ErrInvalid
 	case len(input.Notes) > maxCreateNotesLength:
 		return apperrors.ErrInvalid

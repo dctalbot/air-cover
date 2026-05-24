@@ -18,7 +18,7 @@ start:
 generate:
 	@mkdir -p docs
 	@$(GO) run $(SQLC) generate
-	@$(GO) run $(OAPI_CODEGEN) -package api -generate chi-server,types,spec api/openapi.yaml > internal/adapters/http/api.gen.go
+	@$(GO) run $(OAPI_CODEGEN) -package httpadapter -generate chi-server,types,spec api/openapi.yaml > internal/adapters/http/api.gen.go
 	@$(GO) run cmd/aircover/main.go doc > docs/routes.json
 	@$(GO) run $(TEMPL) generate
 

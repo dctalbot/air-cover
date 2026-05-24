@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	appcatalog "air-cover/internal/app/catalog"
 )
 
 const (
@@ -28,11 +30,11 @@ type Catalog struct {
 	nowFunc        func() time.Time
 
 	mu                 sync.Mutex
-	shows              []Show
+	shows              []appcatalog.Show
 	showsLoaded        bool
 	showsExpiresAt     time.Time
 	showsRefreshing    bool
-	personas           []Persona
+	personas           []appcatalog.Persona
 	personasLoaded     bool
 	personasExpiresAt  time.Time
 	personasRefreshing bool
@@ -57,7 +59,7 @@ func (c *Catalog) Prefetch(ctx context.Context) error {
 	return nil
 }
 
-func (c *Catalog) ListShows(ctx context.Context) ([]Show, error) {
+func (c *Catalog) ListShows(ctx context.Context) ([]appcatalog.Show, error) {
 	if err := c.validate(); err != nil {
 		return nil, err
 	}
@@ -74,7 +76,7 @@ func (c *Catalog) ListShows(ctx context.Context) ([]Show, error) {
 	return cloneShows(shows), nil
 }
 
-func (c *Catalog) ListPersonas(ctx context.Context) ([]Persona, error) {
+func (c *Catalog) ListPersonas(ctx context.Context) ([]appcatalog.Persona, error) {
 	if err := c.validate(); err != nil {
 		return nil, err
 	}
@@ -98,7 +100,7 @@ func (c *Catalog) validate() error {
 	return nil
 }
 
-func (c *Catalog) cachedShows() ([]Show, bool) {
+func (c *Catalog) cachedShows() ([]appcatalog.Show, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -114,7 +116,7 @@ func (c *Catalog) cachedShows() ([]Show, bool) {
 	return shows, true
 }
 
-func (c *Catalog) cachedPersonas() ([]Persona, bool) {
+func (c *Catalog) cachedPersonas() ([]appcatalog.Persona, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -154,7 +156,7 @@ func (c *Catalog) refreshPersonas() {
 	}
 }
 
-func (c *Catalog) storeShows(shows []Show) {
+func (c *Catalog) storeShows(shows []appcatalog.Show) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.shows = cloneShows(shows)
@@ -162,7 +164,7 @@ func (c *Catalog) storeShows(shows []Show) {
 	c.showsExpiresAt = c.now().Add(c.ttl)
 }
 
-func (c *Catalog) storePersonas(personas []Persona) {
+func (c *Catalog) storePersonas(personas []appcatalog.Persona) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.personas = clonePersonas(personas)
@@ -170,10 +172,10 @@ func (c *Catalog) storePersonas(personas []Persona) {
 	c.personasExpiresAt = c.now().Add(c.ttl)
 }
 
-func (c *Catalog) fetchShows(ctx context.Context, cancel context.CancelFunc) ([]Show, error) {
+func (c *Catalog) fetchShows(ctx context.Context, cancel context.CancelFunc) ([]appcatalog.Show, error) {
 	defer cancel()
 
-	var shows []Show
+	var shows []appcatalog.Show
 	for page, fetched := 1, 0; page > 0; fetched++ {
 		if fetched >= maxCatalogPages {
 			return nil, fmt.Errorf("spinitron shows pagination exceeded %d pages", maxCatalogPages)
@@ -193,10 +195,10 @@ func (c *Catalog) fetchShows(ctx context.Context, cancel context.CancelFunc) ([]
 	return shows, nil
 }
 
-func (c *Catalog) fetchPersonas(ctx context.Context, cancel context.CancelFunc) ([]Persona, error) {
+func (c *Catalog) fetchPersonas(ctx context.Context, cancel context.CancelFunc) ([]appcatalog.Persona, error) {
 	defer cancel()
 
-	var personas []Persona
+	var personas []appcatalog.Persona
 	for page, fetched := 1, 0; page > 0; fetched++ {
 		if fetched >= maxCatalogPages {
 			return nil, fmt.Errorf("spinitron personas pagination exceeded %d pages", maxCatalogPages)
@@ -230,20 +232,20 @@ func (c *Catalog) now() time.Time {
 	return time.Now()
 }
 
-func cloneShows(shows []Show) []Show {
+func cloneShows(shows []appcatalog.Show) []appcatalog.Show {
 	if shows == nil {
 		return nil
 	}
-	cloned := make([]Show, len(shows))
+	cloned := make([]appcatalog.Show, len(shows))
 	copy(cloned, shows)
 	return cloned
 }
 
-func clonePersonas(personas []Persona) []Persona {
+func clonePersonas(personas []appcatalog.Persona) []appcatalog.Persona {
 	if personas == nil {
 		return nil
 	}
-	cloned := make([]Persona, len(personas))
+	cloned := make([]appcatalog.Persona, len(personas))
 	copy(cloned, personas)
 	return cloned
 }

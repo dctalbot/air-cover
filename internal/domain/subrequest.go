@@ -24,10 +24,18 @@ type SubRequest struct {
 }
 
 func (s *SubRequest) GetStatus() string {
-	if s.TakenByUserID == nil {
-		return string(SubRequestStatusOpen)
+	return string(s.Status())
+}
+
+func (s *SubRequest) Status() SubRequestStatus {
+	if s.TakenByUserID != nil {
+		return SubRequestStatusFilled
 	}
-	return string(SubRequestStatusFilled)
+	return SubRequestStatusOpen
+}
+
+func (s *SubRequest) HasValidTimeRange() bool {
+	return s.EndTime.After(s.StartTime)
 }
 
 func (s *SubRequest) CanBeDeletedBy(viewer CurrentUser) bool {

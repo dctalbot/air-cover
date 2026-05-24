@@ -30,18 +30,14 @@ const (
 	defaultClientTimeout = 10 * time.Second
 )
 
-type Show = appcatalog.Show
-
 type ShowsPage struct {
-	Items    []Show `json:"items"`
-	NextPage *int   `json:"next_page,omitempty"`
+	Items    []appcatalog.Show
+	NextPage *int
 }
 
-type Persona = appcatalog.Persona
-
 type PersonasPage struct {
-	Items    []Persona `json:"items"`
-	NextPage *int      `json:"next_page,omitempty"`
+	Items    []appcatalog.Persona
+	NextPage *int
 }
 
 // NewClient creates a new Spinitron API client.
@@ -152,7 +148,7 @@ func parseShowsPage(body []byte, headers http.Header) (ShowsPage, error) {
 		return ShowsPage{}, fmt.Errorf("failed to decode show list: %w", err)
 	}
 
-	items := make([]Show, 0, len(rawItems))
+	items := make([]appcatalog.Show, 0, len(rawItems))
 	for _, item := range rawItems {
 		id := normalizeID(item["id"])
 		if id == "" {
@@ -160,7 +156,7 @@ func parseShowsPage(body []byte, headers http.Header) (ShowsPage, error) {
 		}
 
 		title := normalizeTitle(item)
-		items = append(items, Show{
+		items = append(items, appcatalog.Show{
 			ID:    id,
 			Title: title,
 		})
@@ -191,7 +187,7 @@ func parsePersonasPage(body []byte, headers http.Header) (PersonasPage, error) {
 		return PersonasPage{}, fmt.Errorf("failed to decode persona list: %w", err)
 	}
 
-	items := make([]Persona, 0, len(rawItems))
+	items := make([]appcatalog.Persona, 0, len(rawItems))
 	for _, item := range rawItems {
 		idStr := normalizeID(item["id"])
 		if idStr == "" {
@@ -211,7 +207,7 @@ func parsePersonasPage(body []byte, headers http.Header) (PersonasPage, error) {
 			}
 		}
 
-		items = append(items, Persona{
+		items = append(items, appcatalog.Persona{
 			ID:    id,
 			Name:  name,
 			Email: email,

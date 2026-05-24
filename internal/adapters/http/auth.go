@@ -1,4 +1,4 @@
-package api
+package httpadapter
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	authapp "air-cover/internal/app/auth"
 	"air-cover/internal/apperrors"
@@ -16,19 +17,29 @@ import (
 )
 
 type AuthHandler struct {
-	auth           *authapp.Service
+	auth           authService
 	tokenGenerator func(int) (string, error)
 }
 
-func NewAuthHandler(service *authapp.Service) *AuthHandler {
+type authService interface {
+	RequestLogin(context.Context, authapp.LoginInput) (authapp.LoginResult, error)
+	VerifyMagicLink(context.Context, string) (authapp.VerifiedSession, error)
+	Logout(context.Context, int) error
+	AuthenticateSession(context.Context, string) (domain.CurrentUser, error)
+}
+
+type tokenGeneratorSetter interface {
+	WithTokenGenerator(authapp.TokenGenerator) *authapp.Service
+}
+
+func NewAuthHandler(service authService) *AuthHandler {
 	h := &AuthHandler{auth: service, tokenGenerator: authapp.GenerateRandomToken}
 	h.syncTokenGenerator()
 	return h
 }
 
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
-	// Limit request body size to 1MB to prevent memory exhaustion (G120)
-	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
+	r.Body = http.MaxBytesReader(w, r.Body, maxFormBodyBytes)
 
 	var emailVal string
 	contentType := r.Header.Get("Content-Type")
@@ -107,15 +118,7 @@ func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request, rawTo
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     "session_id",
-		Value:    session.Token,
-		Path:     "/",
-		Expires:  session.ExpiresAt,
-		HttpOnly: true,
-		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
-		SameSite: http.SameSiteLaxMode,
-	})
+	setSessionCookie(w, r, session.Token, session.ExpiresAt)
 
 	http.Redirect(w, r, "/", http.StatusFound)
 }
@@ -134,15 +137,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     "session_id",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
-		SameSite: http.SameSiteLaxMode,
-	})
+	clearSessionCookie(w, r)
 
 	http.Redirect(w, r, "/", http.StatusFound)
 }
@@ -157,7 +152,7 @@ const (
 
 func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie("session_id")
+		cookie, err := r.Cookie(sessionCookieName)
 		if err != nil {
 			h.handleAuthError(w, r, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -177,11 +172,23 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func (h *AuthHandler) AuthenticateSession(ctx context.Context, sessionToken string) bool {
+	if h == nil || h.auth == nil {
+		return false
+	}
+	_, err := h.auth.AuthenticateSession(ctx, sessionToken)
+	return err == nil
+}
+
 func (h *AuthHandler) syncTokenGenerator() {
 	if h == nil || h.auth == nil {
 		return
 	}
-	h.auth.WithTokenGenerator(h.tokenGenerator)
+	service, ok := h.auth.(tokenGeneratorSetter)
+	if !ok {
+		return
+	}
+	service.WithTokenGenerator(h.tokenGenerator)
 }
 
 func requestScheme(r *http.Request) string {
@@ -189,6 +196,34 @@ func requestScheme(r *http.Request) string {
 		return "https"
 	}
 	return "http"
+}
+
+func setSessionCookie(w http.ResponseWriter, r *http.Request, value string, expiresAt time.Time) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    value,
+		Path:     "/",
+		Expires:  expiresAt,
+		HttpOnly: true,
+		Secure:   isSecureRequest(r),
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func clearSessionCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   isSecureRequest(r),
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func isSecureRequest(r *http.Request) bool {
+	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 }
 
 func (h *AuthHandler) RequireAdmin(next http.Handler) http.Handler {

@@ -10,11 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"air-cover/internal/adapters/http"
+	httpadapter "air-cover/internal/adapters/http"
 	adapterspinitron "air-cover/internal/adapters/spinitron"
 	"air-cover/internal/adapters/sqlite"
 	adminapp "air-cover/internal/app/admin"
 	authapp "air-cover/internal/app/auth"
+	bootstrapapp "air-cover/internal/app/bootstrap"
 	appcatalog "air-cover/internal/app/catalog"
 	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/apperrors"
@@ -184,17 +185,17 @@ func (f *fakeStartupRepo) CreateUser(ctx context.Context, email string, role str
 	return &domain.User{ID: 1, Email: email, Role: domain.Role(role), IsEnabled: true}, nil
 }
 
-func newTestAPIServer(repo *sqlite.Repository, authHandler *api.AuthHandler, catalog catalog) *api.Server {
+func newTestAPIServer(repo *sqlite.Repository, authHandler *httpadapter.AuthHandler, catalog catalog) *httpadapter.Server {
 	var subRequests *subrequestsapp.Service
 	var admin *adminapp.Service
 	if repo != nil {
 		subRequests = subrequestsapp.NewService(repo, catalog)
 		admin = adminapp.NewService(repo, catalog)
 	}
-	return api.NewServer(authHandler, subRequests, admin)
+	return httpadapter.NewServer(authHandler, subRequests, admin)
 }
 
-func testServerDeps(cfg *config.Config, repo startupRepository) serverDeps {
+func testServerDeps(cfg *config.Config, repo bootstrapapp.Repository) serverDeps {
 	return serverDeps{
 		loadConfig: func(cmd *cobra.Command) (*config.Config, error) {
 			return cfg, nil
@@ -211,18 +212,18 @@ func testServerDeps(cfg *config.Config, repo startupRepository) serverDeps {
 		newCatalog: func(source adapterspinitron.PageClient) catalog {
 			return &fakeShowsService{}
 		},
-		newRouter: func(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
+		newRouter: func(apiServer *httpadapter.Server, authHandler *httpadapter.AuthHandler) chi.Router {
 			return chi.NewRouter()
 		},
 		listenAndServe: func(server *http.Server) error {
 			return nil
 		},
 		backgroundCtx: context.Background,
-		newAuthHandler: func(service *authapp.Service) *api.AuthHandler {
-			return api.NewAuthHandler(service)
+		newAuthHandler: func(service *authapp.Service) *httpadapter.AuthHandler {
+			return httpadapter.NewAuthHandler(service)
 		},
-		newAPIServer: func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *api.AuthHandler) *api.Server {
-			return api.NewServer(authHandler, subRequests, admin)
+		newAPIServer: func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *httpadapter.AuthHandler) *httpadapter.Server {
+			return httpadapter.NewServer(authHandler, subRequests, admin)
 		},
 		newDBRepository: func(database *sql.DB) repositories {
 			return repositories{startup: repo}
@@ -239,7 +240,7 @@ func testServerDeps(cfg *config.Config, repo startupRepository) serverDeps {
 }
 
 func TestHealthHandler(t *testing.T) {
-	server := api.NewServer(nil, nil, nil)
+	server := httpadapter.NewServer(nil, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 
 	rr := httptest.NewRecorder()
@@ -272,7 +273,7 @@ func TestIndexHandler(t *testing.T) {
 		t.Fatalf("failed to create session: %v", err)
 	}
 
-	auth := api.NewAuthHandler(authapp.NewService(repo, nil))
+	auth := httpadapter.NewAuthHandler(authapp.NewService(repo, nil))
 	server := newTestAPIServer(repo, auth, nil)
 
 	handler := server.Get
@@ -363,8 +364,8 @@ func TestAppHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
-			ctx := context.WithValue(req.Context(), api.UserEmailKey, "test@example.com")
-			ctx = context.WithValue(ctx, api.UserIDKey, 1)
+			ctx := context.WithValue(req.Context(), httpadapter.UserEmailKey, "test@example.com")
+			ctx = context.WithValue(ctx, httpadapter.UserIDKey, 1)
 			req = req.WithContext(ctx)
 			rr := httptest.NewRecorder()
 
@@ -824,16 +825,16 @@ func TestRunServer_WiresIndependentRepositoryPorts(t *testing.T) {
 		return repos
 	}
 	var gotAuthService *authapp.Service
-	deps.newAuthHandler = func(service *authapp.Service) *api.AuthHandler {
+	deps.newAuthHandler = func(service *authapp.Service) *httpadapter.AuthHandler {
 		gotAuthService = service
-		return api.NewAuthHandler(service)
+		return httpadapter.NewAuthHandler(service)
 	}
 	var gotSubRequestsService *subrequestsapp.Service
 	var gotAdminService *adminapp.Service
-	deps.newAPIServer = func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *api.AuthHandler) *api.Server {
+	deps.newAPIServer = func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *httpadapter.AuthHandler) *httpadapter.Server {
 		gotSubRequestsService = subRequests
 		gotAdminService = admin
-		return api.NewServer(authHandler, nil, nil)
+		return httpadapter.NewServer(authHandler, nil, nil)
 	}
 
 	if err := runServer(&cobra.Command{}, deps); err != nil {
@@ -885,7 +886,7 @@ func TestNewRouter(t *testing.T) {
 	defer dbConn.Close()
 
 	repo := sqlite.NewRepository(dbConn)
-	auth := api.NewAuthHandler(authapp.NewService(repo, nil))
+	auth := httpadapter.NewAuthHandler(authapp.NewService(repo, nil))
 	server := newTestAPIServer(repo, auth, nil)
 
 	r := newRouter(server, auth)
@@ -985,7 +986,7 @@ func TestAuthRateLimiting(t *testing.T) {
 
 	repo := sqlite.NewRepository(dbConn)
 	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
-	auth := api.NewAuthHandler(authapp.NewService(repo, &mockSender{}))
+	auth := httpadapter.NewAuthHandler(authapp.NewService(repo, &mockSender{}))
 	server := newTestAPIServer(repo, auth, nil)
 
 	r := newRouter(server, auth)

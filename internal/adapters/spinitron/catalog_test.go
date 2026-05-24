@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	appcatalog "air-cover/internal/app/catalog"
 )
 
 type fakePageClient struct {
@@ -49,8 +51,8 @@ func TestCatalog_ListShowsCachesPaginatedResults(t *testing.T) {
 	next := 2
 	source := &fakePageClient{
 		showPages: []ShowsPage{
-			{Items: []Show{{ID: "2", Title: "Second"}}, NextPage: &next},
-			{Items: []Show{{ID: "1", Title: "First"}}},
+			{Items: []appcatalog.Show{{ID: "2", Title: "Second"}}, NextPage: &next},
+			{Items: []appcatalog.Show{{ID: "1", Title: "First"}}},
 		},
 	}
 	catalog := NewCatalog(source)
@@ -99,8 +101,8 @@ func TestCatalog_ListPersonasCachesEmptyResults(t *testing.T) {
 
 func TestCatalog_PrefetchLoadsBothCatalogs(t *testing.T) {
 	source := &fakePageClient{
-		showPages:    []ShowsPage{{Items: []Show{{ID: "1", Title: "Show"}}}},
-		personaPages: []PersonasPage{{Items: []Persona{{ID: 1, Name: "DJ", Email: "dj@example.com"}}}},
+		showPages:    []ShowsPage{{Items: []appcatalog.Show{{ID: "1", Title: "Show"}}}},
+		personaPages: []PersonasPage{{Items: []appcatalog.Persona{{ID: 1, Name: "DJ", Email: "dj@example.com"}}}},
 	}
 	catalog := NewCatalog(source)
 
@@ -198,7 +200,7 @@ func TestCatalog_FetchPersonasStopsAtPageLimit(t *testing.T) {
 }
 
 func TestCatalog_WithRefreshTimeoutCanBeDisabled(t *testing.T) {
-	source := &fakePageClient{showPages: []ShowsPage{{Items: []Show{{ID: "1", Title: "Show"}}}}}
+	source := &fakePageClient{showPages: []ShowsPage{{Items: []appcatalog.Show{{ID: "1", Title: "Show"}}}}}
 	catalog := NewCatalog(source)
 	catalog.refreshTimeout = 0
 
@@ -209,10 +211,10 @@ func TestCatalog_WithRefreshTimeoutCanBeDisabled(t *testing.T) {
 
 func TestCatalog_ExpiredShowsReturnStaleAndRefresh(t *testing.T) {
 	now := time.Date(2026, time.May, 23, 12, 0, 0, 0, time.UTC)
-	source := &fakePageClient{showPages: []ShowsPage{{Items: []Show{{ID: "1", Title: "Fresh"}}}}}
+	source := &fakePageClient{showPages: []ShowsPage{{Items: []appcatalog.Show{{ID: "1", Title: "Fresh"}}}}}
 	catalog := NewCatalog(source)
 	catalog.nowFunc = func() time.Time { return now }
-	catalog.storeShows([]Show{{ID: "1", Title: "Stale"}})
+	catalog.storeShows([]appcatalog.Show{{ID: "1", Title: "Stale"}})
 
 	now = now.Add(defaultCatalogTTL + time.Second)
 	shows, err := catalog.ListShows(context.Background())
@@ -243,10 +245,10 @@ func TestCatalog_ExpiredShowsReturnStaleAndRefresh(t *testing.T) {
 
 func TestCatalog_ExpiredPersonasReturnStaleAndRefresh(t *testing.T) {
 	now := time.Date(2026, time.May, 23, 12, 0, 0, 0, time.UTC)
-	source := &fakePageClient{personaPages: []PersonasPage{{Items: []Persona{{ID: 1, Name: "Fresh"}}}}}
+	source := &fakePageClient{personaPages: []PersonasPage{{Items: []appcatalog.Persona{{ID: 1, Name: "Fresh"}}}}}
 	catalog := NewCatalog(source)
 	catalog.nowFunc = func() time.Time { return now }
-	catalog.storePersonas([]Persona{{ID: 1, Name: "Stale"}})
+	catalog.storePersonas([]appcatalog.Persona{{ID: 1, Name: "Stale"}})
 
 	now = now.Add(defaultCatalogTTL + time.Second)
 	personas, err := catalog.ListPersonas(context.Background())

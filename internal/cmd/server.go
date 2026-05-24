@@ -18,9 +18,8 @@ import (
 	"air-cover/internal/adapters/sqlite"
 	adminapp "air-cover/internal/app/admin"
 	authapp "air-cover/internal/app/auth"
+	bootstrapapp "air-cover/internal/app/bootstrap"
 	subrequestsapp "air-cover/internal/app/subrequests"
-	"air-cover/internal/apperrors"
-	"air-cover/internal/domain"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -29,7 +28,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"air-cover/internal/adapters/http"
+	httpadapter "air-cover/internal/adapters/http"
 	"air-cover/internal/config"
 	"air-cover/internal/logger"
 )
@@ -39,7 +38,7 @@ var (
 	listenAndServe = func(server *http.Server) error {
 		return server.ListenAndServe()
 	}
-	getSwagger = api.GetSwagger
+	getSwagger = httpadapter.GetSwagger
 )
 
 const (
@@ -56,11 +55,11 @@ type serverDeps struct {
 	newSender        func(apiKey, fromEmail, env string) authapp.Sender
 	newSpinitron     func(apiKey, baseURL string) adapterspinitron.PageClient
 	newCatalog       func(adapterspinitron.PageClient) catalog
-	newRouter        func(*api.Server, *api.AuthHandler) chi.Router
+	newRouter        func(*httpadapter.Server, *httpadapter.AuthHandler) chi.Router
 	listenAndServe   func(*http.Server) error
 	backgroundCtx    func() context.Context
-	newAuthHandler   func(*authapp.Service) *api.AuthHandler
-	newAPIServer     func(*subrequestsapp.Service, *adminapp.Service, *api.AuthHandler) *api.Server
+	newAuthHandler   func(*authapp.Service) *httpadapter.AuthHandler
+	newAPIServer     func(*subrequestsapp.Service, *adminapp.Service, *httpadapter.AuthHandler) *httpadapter.Server
 	newDBRepository  func(*sql.DB) repositories
 	setDefaultLogger func(*config.Config)
 	signalContext    func(context.Context) (context.Context, context.CancelFunc)
@@ -68,13 +67,8 @@ type serverDeps struct {
 	shutdownTimeout  time.Duration
 }
 
-type startupRepository interface {
-	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
-	CreateUser(ctx context.Context, email string, role string) (*domain.User, error)
-}
-
 type repositories struct {
-	startup     startupRepository
+	startup     bootstrapapp.Repository
 	auth        authapp.Repository
 	subRequests subrequestsapp.Repository
 	admin       adminapp.Repository
@@ -111,11 +105,11 @@ func defaultServerDeps() serverDeps {
 		newRouter:      newRouter,
 		listenAndServe: listenAndServe,
 		backgroundCtx:  context.Background,
-		newAuthHandler: func(service *authapp.Service) *api.AuthHandler {
-			return api.NewAuthHandler(service)
+		newAuthHandler: func(service *authapp.Service) *httpadapter.AuthHandler {
+			return httpadapter.NewAuthHandler(service)
 		},
-		newAPIServer: func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *api.AuthHandler) *api.Server {
-			return api.NewServer(authHandler, subRequests, admin)
+		newAPIServer: func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *httpadapter.AuthHandler) *httpadapter.Server {
+			return httpadapter.NewServer(authHandler, subRequests, admin)
 		},
 		newDBRepository: func(database *sql.DB) repositories {
 			repo := sqlite.NewRepository(database)
@@ -139,7 +133,7 @@ func defaultServerDeps() serverDeps {
 	}
 }
 
-func newRouter(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
+func newRouter(apiServer *httpadapter.Server, authHandler *httpadapter.AuthHandler) chi.Router {
 	swagger, err := getSwagger()
 	if err != nil {
 		slog.Error("Failed to load swagger spec", "error", err)
@@ -150,7 +144,7 @@ func newRouter(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
 	// reject requests based on the Host header.
 	swagger.Servers = nil
 
-	wrapper := api.NewWrapper(apiServer)
+	wrapper := httpadapter.NewWrapper(apiServer)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -216,7 +210,7 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 		return err
 	}
 
-	if err := ensureMasterUser(cfg.MasterEmail, infra.repositories.startup, deps.backgroundCtx); err != nil {
+	if err := bootstrapapp.NewService(infra.repositories.startup).EnsureMasterUser(deps.backgroundCtx(), cfg.MasterEmail); err != nil {
 		return err
 	}
 
@@ -267,26 +261,6 @@ func buildHTTPServer(cfg *config.Config, services applicationServices, deps serv
 		WriteTimeout:      serverWriteTimeout,
 		IdleTimeout:       serverIdleTimeout,
 	}
-}
-
-func ensureMasterUser(masterEmail string, repo startupRepository, backgroundCtx func() context.Context) error {
-	if masterEmail == "" {
-		return nil
-	}
-	ctx := backgroundCtx()
-	_, err := repo.GetUserByEmail(ctx, masterEmail)
-	if errors.Is(err, apperrors.ErrNotFound) {
-		slog.Info("Creating master admin user", "email", masterEmail)
-		_, err = repo.CreateUser(ctx, masterEmail, "admin")
-		if err != nil {
-			return fmt.Errorf("failed to create master user: %w", err)
-		}
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("failed to check master user: %w", err)
-	}
-	return nil
 }
 
 func startCatalogPrefetch(catalog catalog, backgroundCtx func() context.Context) {

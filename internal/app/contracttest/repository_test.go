@@ -215,8 +215,21 @@ func TestSplitRepositoryContracts(t *testing.T) {
 		name string
 		run  func(context.Context, Repository) error
 	}{
-		{name: "auth", run: CheckAuthRepository},
-		{name: "admin", run: CheckAdminRepository},
+		{name: "auth", run: func(ctx context.Context, repo Repository) error {
+			return CheckAuthRepository(ctx, repo)
+		}},
+		{name: "user reader", run: func(ctx context.Context, repo Repository) error {
+			return CheckUserReader(ctx, repo)
+		}},
+		{name: "magic link store", run: func(ctx context.Context, repo Repository) error {
+			return CheckMagicLinkStore(ctx, repo)
+		}},
+		{name: "session store", run: func(ctx context.Context, repo Repository) error {
+			return CheckSessionStore(ctx, repo)
+		}},
+		{name: "admin", run: func(ctx context.Context, repo Repository) error {
+			return CheckAdminRepository(ctx, repo)
+		}},
 		{name: "subrequests", run: CheckSubRequestRepository},
 		{name: "subrequest commands", run: func(ctx context.Context, repo Repository) error {
 			return CheckSubRequestCommandRepository(ctx, repo)
