@@ -16,6 +16,7 @@ func TestLoad_Success(t *testing.T) {
 	os.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
 	defer os.Unsetenv("SPINITRON_API_URL")
 	os.Unsetenv("PORT")
+	os.Unsetenv("ENV")
 	os.Setenv("FROM_EMAIL", "noreply@example.com")
 	defer os.Unsetenv("FROM_EMAIL")
 
@@ -29,6 +30,9 @@ func TestLoad_Success(t *testing.T) {
 	}
 	if cfg.Port != 8080 {
 		t.Errorf("expected port to be 8080, got %d", cfg.Port)
+	}
+	if cfg.ENV != "production" {
+		t.Errorf("expected env to default to production, got %s", cfg.ENV)
 	}
 	if cfg.SpinitronAPIURL != "https://proxy.example.test/api" {
 		t.Errorf("expected SPINITRON_API_URL to be loaded, got %s", cfg.SpinitronAPIURL)
@@ -70,6 +74,27 @@ func TestLoad_PortFromEnv(t *testing.T) {
 
 	if cfg.Port != 9090 {
 		t.Errorf("expected port to be 9090, got %d", cfg.Port)
+	}
+}
+
+func TestLoad_EnvFromEnv(t *testing.T) {
+	viper.Reset()
+	os.Setenv("DB_URI", "postgres://localhost/db")
+	defer os.Unsetenv("DB_URI")
+	os.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
+	defer os.Unsetenv("SPINITRON_API_URL")
+	os.Setenv("ENV", "development")
+	defer os.Unsetenv("ENV")
+	os.Setenv("FROM_EMAIL", "noreply@example.com")
+	defer os.Unsetenv("FROM_EMAIL")
+
+	cfg, err := Load(nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if cfg.ENV != "development" {
+		t.Errorf("expected env to be development, got %s", cfg.ENV)
 	}
 }
 
