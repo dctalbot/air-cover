@@ -11,7 +11,6 @@ import (
 
 	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
-	"air-cover/internal/db"
 	"air-cover/internal/models"
 	"air-cover/internal/policy"
 	"air-cover/internal/spinitron"
@@ -218,10 +217,10 @@ func (s *Service) ApplyAction(ctx context.Context, viewer session.CurrentUser, i
 }
 
 func mapRepositoryError(err error) error {
-	if errors.Is(err, db.ErrNotFound) {
+	if errors.Is(err, apperrors.ErrNotFound) {
 		return apperrors.ErrNotFound
 	}
-	if errors.Is(err, db.ErrConflict) {
+	if errors.Is(err, apperrors.ErrConflict) {
 		return apperrors.ErrConflict
 	}
 	return err

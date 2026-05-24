@@ -3,9 +3,6 @@ package api
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,35 +12,36 @@ import (
 	"strings"
 	"time"
 
-	"air-cover/internal/db"
-	"air-cover/internal/email"
-	"air-cover/internal/models"
+	authapp "air-cover/internal/app/auth"
+	"air-cover/internal/apperrors"
+	"air-cover/internal/domain"
 )
-
-type AuthHandler struct {
-	repo           authRepository
-	sender         email.Sender
-	tokenGenerator func(int) (string, error)
-}
 
 var randomRead = rand.Read
 
+type AuthHandler struct {
+	auth           *authapp.Service
+	tokenGenerator func(int) (string, error)
+}
+
 type authRepository interface {
-	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
-	GetUserByID(ctx context.Context, id int) (*models.User, error)
+	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
+	GetUserByID(ctx context.Context, id int) (*domain.User, error)
 	CreateMagicLink(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error
-	UseMagicLink(ctx context.Context, tokenHash string) (*models.MagicLink, error)
+	UseMagicLink(ctx context.Context, tokenHash string) (*domain.MagicLink, error)
 	CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error
-	GetSessionByToken(ctx context.Context, sessionToken string) (*models.Session, error)
+	GetSessionByToken(ctx context.Context, sessionToken string) (*domain.Session, error)
 	DeleteSessionsByUserID(ctx context.Context, userID int) error
 }
 
-func NewAuthHandler(repo authRepository, sender email.Sender) *AuthHandler {
-	return &AuthHandler{
-		repo:           repo,
-		sender:         sender,
-		tokenGenerator: generateRandomToken,
-	}
+func NewAuthHandler(repo authRepository, sender authapp.Sender) *AuthHandler {
+	return NewAuthHandlerWithService(authapp.NewService(repo, sender))
+}
+
+func NewAuthHandlerWithService(service *authapp.Service) *AuthHandler {
+	h := &AuthHandler{auth: service, tokenGenerator: generateRandomToken}
+	h.syncTokenGenerator()
+	return h
 }
 
 func generateRandomToken(n int) (string, error) {
@@ -51,13 +49,11 @@ func generateRandomToken(n int) (string, error) {
 	if _, err := randomRead(b); err != nil {
 		return "", err
 	}
-	return base64.URLEncoding.EncodeToString(b), nil
+	return authapp.EncodeRandomToken(b), nil
 }
 
 func hashToken(token string) string {
-	h := sha256.New()
-	h.Write([]byte(token))
-	return hex.EncodeToString(h.Sum(nil))
+	return authapp.HashToken(token)
 }
 
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
@@ -88,48 +84,20 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	user, err := h.repo.GetUserByEmail(ctx, emailVal)
+	h.syncTokenGenerator()
+	_, err := h.auth.RequestLogin(ctx, authapp.LoginInput{
+		Email: emailVal,
+		MagicLinkURL: func(rawToken string) string {
+			return fmt.Sprintf("%s://%s/auth/verify?token=%s", requestScheme(r), r.Host, rawToken)
+		},
+	})
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, apperrors.ErrNotFound) {
 			slog.Info("Login attempt with unknown email", "email", strconv.Quote(emailVal))
 			h.sendLoginResponse(w, r, "If an account exists, an email has been sent.")
 			return
 		}
-		slog.Error("Database error during login", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-	if !user.IsEnabled {
-		slog.Warn("Login attempt by disabled user", "email", strconv.Quote(emailVal))
-		h.sendLoginResponse(w, r, "If an account exists, an email has been sent.")
-		return
-	}
-
-	rawToken, err := h.tokenGenerator(32)
-	if err != nil {
-		slog.Error("Failed to generate token", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	tokenHash := hashToken(rawToken)
-	expiresAt := time.Now().Add(15 * time.Minute)
-
-	if err := h.repo.CreateMagicLink(ctx, user.ID, tokenHash, expiresAt); err != nil {
-		slog.Error("Failed to save magic link", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	scheme := "http"
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
-	host := r.Host
-	magicLink := fmt.Sprintf("%s://%s/auth/verify?token=%s", scheme, host, rawToken)
-
-	if err := h.sender.SendMagicLink(user.Email, magicLink); err != nil {
-		slog.Error("Failed to send magic link", "error", err)
+		slog.Error("Failed during login", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -155,42 +123,25 @@ func (h *AuthHandler) HandleVerify(w http.ResponseWriter, r *http.Request, rawTo
 		return
 	}
 
-	tokenHash := hashToken(rawToken)
 	ctx := r.Context()
 
-	ml, err := h.repo.UseMagicLink(ctx, tokenHash)
+	h.syncTokenGenerator()
+	session, err := h.auth.VerifyMagicLink(ctx, rawToken)
 	if err != nil {
 		slog.Info("Invalid or expired magic link used", "error", err)
-		http.Error(w, "Invalid or expired link", http.StatusUnauthorized)
-		return
-	}
-
-	sessionID, err := h.tokenGenerator(32)
-	if err != nil {
-		slog.Error("Failed to generate session id", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	sessionToken, err := h.tokenGenerator(32)
-	if err != nil {
-		slog.Error("Failed to generate session token", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	expiresAt := time.Now().Add(24 * time.Hour)
-	if err := h.repo.CreateSession(ctx, sessionID, sessionToken, ml.UserID, expiresAt); err != nil {
-		slog.Error("Failed to create session", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		if errors.Is(err, authapp.ErrInvalidMagicLink) {
+			http.Error(w, "Invalid or expired link", http.StatusUnauthorized)
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
 		return
 	}
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session_id",
-		Value:    sessionToken,
+		Value:    session.Token,
 		Path:     "/",
-		Expires:  expiresAt,
+		Expires:  session.ExpiresAt,
 		HttpOnly: true,
 		Secure:   r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
 		SameSite: http.SameSiteLaxMode,
@@ -207,7 +158,7 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	if err := h.repo.DeleteSessionsByUserID(ctx, userID); err != nil {
+	if err := h.auth.Logout(ctx, userID); err != nil {
 		slog.Error("Failed to delete sessions", "error", err, "user_id", userID) // #nosec G706
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -243,14 +194,8 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		ctx := r.Context()
-		session, err := h.repo.GetSessionByToken(ctx, cookie.Value)
+		user, err := h.auth.AuthenticateSession(ctx, cookie.Value)
 		if err != nil {
-			h.handleAuthError(w, r, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		user, err := h.repo.GetUserByID(ctx, session.UserID)
-		if err != nil || !user.IsEnabled {
 			h.handleAuthError(w, r, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -260,6 +205,20 @@ func (h *AuthHandler) AuthMiddleware(next http.Handler) http.Handler {
 		ctx = context.WithValue(ctx, UserRoleKey, user.Role)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func (h *AuthHandler) syncTokenGenerator() {
+	if h == nil || h.auth == nil {
+		return
+	}
+	h.auth.WithTokenGenerator(h.tokenGenerator)
+}
+
+func requestScheme(r *http.Request) string {
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		return "https"
+	}
+	return "http"
 }
 
 func (h *AuthHandler) RequireAdmin(next http.Handler) http.Handler {

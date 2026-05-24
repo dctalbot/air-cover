@@ -2,19 +2,19 @@ package policy
 
 import (
 	"air-cover/internal/app/session"
-	"air-cover/internal/models"
+	"air-cover/internal/domain"
 )
 
-func CanDeleteSubRequest(viewer session.CurrentUser, sr *models.SubRequest) bool {
-	return sr.PostedByUserID == viewer.ID || viewer.IsAdmin()
+func CanDeleteSubRequest(viewer session.CurrentUser, sr *domain.SubRequest) bool {
+	return sr.CanBeDeletedBy(viewer)
 }
 
-func CanTakeSubRequest(viewer session.CurrentUser, sr *models.SubRequest) bool {
-	return sr.TakenByUserID == nil && (sr.PostedByUserID != viewer.ID || viewer.IsAdmin())
+func CanTakeSubRequest(viewer session.CurrentUser, sr *domain.SubRequest) bool {
+	return sr.CanBeTakenBy(viewer)
 }
 
-func CanUntakeSubRequest(viewer session.CurrentUser, sr *models.SubRequest) bool {
-	return sr.TakenByUserID != nil && *sr.TakenByUserID == viewer.ID
+func CanUntakeSubRequest(viewer session.CurrentUser, sr *domain.SubRequest) bool {
+	return sr.CanBeUntakenBy(viewer)
 }
 
 func CanDeactivateUser(viewer session.CurrentUser, targetUserID int) bool {

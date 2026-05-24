@@ -6,12 +6,13 @@ import (
 	"errors"
 	"time"
 
+	"air-cover/internal/apperrors"
 	"air-cover/internal/models"
 )
 
 var (
-	ErrNotFound = errors.New("record not found")
-	ErrConflict = errors.New("record conflict")
+	ErrNotFound = apperrors.ErrNotFound
+	ErrConflict = apperrors.ErrConflict
 )
 
 type Repository struct {

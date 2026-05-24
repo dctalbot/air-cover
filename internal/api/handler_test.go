@@ -62,6 +62,39 @@ func (f *fakeServerRepo) GetSessionByToken(ctx context.Context, sessionToken str
 	return f.session, nil
 }
 
+func (f *fakeServerRepo) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &models.User{ID: 1, Email: email, Role: "member", IsEnabled: true}, nil
+}
+
+func (f *fakeServerRepo) GetUserByID(ctx context.Context, id int) (*models.User, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &models.User{ID: id, Email: "user@example.com", Role: "member", IsEnabled: true}, nil
+}
+
+func (f *fakeServerRepo) CreateMagicLink(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error {
+	return nil
+}
+
+func (f *fakeServerRepo) UseMagicLink(ctx context.Context, tokenHash string) (*models.MagicLink, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &models.MagicLink{UserID: 1, ExpiresAt: time.Now().Add(time.Hour)}, nil
+}
+
+func (f *fakeServerRepo) CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error {
+	return nil
+}
+
+func (f *fakeServerRepo) DeleteSessionsByUserID(ctx context.Context, userID int) error {
+	return nil
+}
+
 func (f *fakeServerRepo) ListSubRequests(ctx context.Context) ([]*models.SubRequest, error) {
 	if f.err != nil {
 		return nil, f.err
@@ -92,7 +125,7 @@ func (f *fakeServerRepo) GetSubRequestByID(ctx context.Context, id int) (*models
 		return nil, f.err
 	}
 	if f.subRequest == nil {
-		return nil, db.ErrNotFound
+		return nil, apperrors.ErrNotFound
 	}
 	return f.subRequest, nil
 }
@@ -296,6 +329,50 @@ func TestServer_Get(t *testing.T) {
 			t.Error("expected stale session cookie to be cleared")
 		}
 	})
+}
+
+func TestServer_Get_WithAuthHandler(t *testing.T) {
+	repo := setupTestDB(t)
+	user, _ := repo.CreateUser(context.Background(), "withauth@example.com", "member")
+	_ = repo.CreateSession(context.Background(), "with-auth-session", "with-auth-token", user.ID, time.Now().Add(time.Hour))
+	s := NewServerWithServices(NewAuthHandler(repo, nil), nil, nil, nil)
+
+	t.Run("authenticated", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.AddCookie(&http.Cookie{Name: "session_id", Value: "with-auth-token"})
+		rr := httptest.NewRecorder()
+
+		s.Get(rr, req)
+
+		if rr.Code != http.StatusFound {
+			t.Fatalf("expected redirect, got %d", rr.Code)
+		}
+	})
+
+	t.Run("stale session", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.AddCookie(&http.Cookie{Name: "session_id", Value: "stale-with-auth"})
+		rr := httptest.NewRecorder()
+
+		s.Get(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected OK, got %d", rr.Code)
+		}
+	})
+}
+
+func TestServer_Get_DocOnlyRedirect(t *testing.T) {
+	s := NewServerWithServices(nil, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "doc-token"})
+	rr := httptest.NewRecorder()
+
+	s.Get(rr, req)
+
+	if rr.Code != http.StatusFound {
+		t.Fatalf("expected redirect, got %d", rr.Code)
+	}
 }
 
 func TestServer_GetApp(t *testing.T) {
@@ -513,7 +590,7 @@ func TestServer_PatchSubRequestsId_RepositoryErrorsWithFake(t *testing.T) {
 			name: "take conflict",
 			repo: &fakeServerRepo{
 				subRequest: &models.SubRequest{ID: 10, PostedByUserID: 1},
-				takeErr:    db.ErrConflict,
+				takeErr:    apperrors.ErrConflict,
 			},
 			body:       `{"action":"take"}`,
 			userID:     takerID,
@@ -523,7 +600,7 @@ func TestServer_PatchSubRequestsId_RepositoryErrorsWithFake(t *testing.T) {
 			name: "take not found after update",
 			repo: &fakeServerRepo{
 				subRequest: &models.SubRequest{ID: 10, PostedByUserID: 1},
-				takeErr:    db.ErrNotFound,
+				takeErr:    apperrors.ErrNotFound,
 			},
 			body:       `{"action":"take"}`,
 			userID:     takerID,

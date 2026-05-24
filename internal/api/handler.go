@@ -14,7 +14,7 @@ import (
 	"air-cover/internal/app/session"
 	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/apperrors"
-	"air-cover/internal/models"
+	"air-cover/internal/domain"
 	"air-cover/internal/presenter"
 	"air-cover/internal/spinitron"
 	"air-cover/internal/ui"
@@ -25,35 +25,36 @@ type ShowsService interface {
 	ListPersonas(ctx context.Context) ([]spinitron.Persona, error)
 }
 
-type serverRepository interface {
-	GetSessionByToken(ctx context.Context, sessionToken string) (*models.Session, error)
-	ListSubRequests(ctx context.Context) ([]*models.SubRequest, error)
-	ListUsers(ctx context.Context) ([]*models.User, error)
-	CreateUser(ctx context.Context, email string, role string) (*models.User, error)
-	CreateSubRequest(ctx context.Context, sr *models.SubRequest) error
-	GetSubRequestByID(ctx context.Context, id int) (*models.SubRequest, error)
-	DeleteSubRequest(ctx context.Context, id int) error
-	TakeSubRequest(ctx context.Context, id int, userID int) error
-	UntakeSubRequest(ctx context.Context, id int) error
-	UpdateUser(ctx context.Context, id int, role *string, isEnabled *bool) error
-	ImportUsers(ctx context.Context, emails []string) error
-}
-
 type Server struct {
-	repo            serverRepository
-	auth            *AuthHandler
+	auth          *AuthHandler
+	sessionReader interface {
+		GetSessionByToken(ctx context.Context, sessionToken string) (*domain.Session, error)
+	}
 	spinitronClient ShowsService
 	subRequests     *subrequestsapp.Service
 	admin           *adminapp.Service
 }
 
-func NewServer(repo serverRepository, auth *AuthHandler, spinitronClient ShowsService) *Server {
+func NewServer(repo interface {
+	authRepository
+	adminapp.Repository
+	subrequestsapp.Repository
+}, auth *AuthHandler, spinitronClient ShowsService) *Server {
 	return &Server{
-		repo:            repo,
 		auth:            auth,
+		sessionReader:   repo,
 		spinitronClient: spinitronClient,
 		subRequests:     subrequestsapp.NewService(repo, spinitronClient),
 		admin:           adminapp.NewService(repo, spinitronClient),
+	}
+}
+
+func NewServerWithServices(auth *AuthHandler, subRequests *subrequestsapp.Service, admin *adminapp.Service, spinitronClient ShowsService) *Server {
+	return &Server{
+		auth:            auth,
+		spinitronClient: spinitronClient,
+		subRequests:     subRequests,
+		admin:           admin,
 	}
 }
 
@@ -61,7 +62,17 @@ func NewServer(repo serverRepository, auth *AuthHandler, spinitronClient ShowsSe
 // (GET /)
 func (s *Server) Get(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie("session_id"); err == nil && cookie.Value != "" {
-		if _, err := s.repo.GetSessionByToken(r.Context(), cookie.Value); err == nil {
+		if s.auth != nil {
+			if _, err := s.auth.auth.AuthenticateSession(r.Context(), cookie.Value); err == nil {
+				http.Redirect(w, r, "/app", http.StatusFound)
+				return
+			}
+		} else if s.sessionReader != nil {
+			if _, err := s.sessionReader.GetSessionByToken(r.Context(), cookie.Value); err == nil {
+				http.Redirect(w, r, "/app", http.StatusFound)
+				return
+			}
+		} else if s.subRequests == nil && s.admin == nil {
 			http.Redirect(w, r, "/app", http.StatusFound)
 			return
 		}

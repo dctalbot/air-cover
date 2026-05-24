@@ -8,7 +8,6 @@ import (
 
 	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
-	"air-cover/internal/db"
 	"air-cover/internal/models"
 	"air-cover/internal/spinitron"
 )
@@ -127,7 +126,7 @@ func TestUpdateUser(t *testing.T) {
 		t.Errorf("self deactivation error = %v, want forbidden", err)
 	}
 
-	repo.updateErr = db.ErrNotFound
+	repo.updateErr = apperrors.ErrNotFound
 	if err := svc.UpdateUser(context.Background(), viewer, UpdateUserInput{ID: 99}); !errors.Is(err, apperrors.ErrNotFound) {
 		t.Errorf("not found error = %v, want app not found", err)
 	}

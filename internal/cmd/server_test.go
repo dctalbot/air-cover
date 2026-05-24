@@ -10,10 +10,13 @@ import (
 	"testing"
 	"time"
 
+	adapterspinitron "air-cover/internal/adapters/spinitron"
 	"air-cover/internal/api"
+	coreapp "air-cover/internal/app"
+	authapp "air-cover/internal/app/auth"
+	"air-cover/internal/apperrors"
 	"air-cover/internal/config"
 	"air-cover/internal/db"
-	"air-cover/internal/email"
 	"air-cover/internal/models"
 	"air-cover/internal/spinitron"
 
@@ -134,7 +137,7 @@ func (f *fakeStartupRepo) CreateSubRequest(ctx context.Context, sr *models.SubRe
 }
 
 func (f *fakeStartupRepo) GetSubRequestByID(ctx context.Context, id int) (*models.SubRequest, error) {
-	return nil, db.ErrNotFound
+	return nil, apperrors.ErrNotFound
 }
 
 func (f *fakeStartupRepo) DeleteSubRequest(ctx context.Context, id int) error {
@@ -165,13 +168,13 @@ func testServerDeps(cfg *config.Config, repo repository) serverDeps {
 		initDB: func(uri string) (*sql.DB, error) {
 			return nil, nil
 		},
-		newSender: func(apiKey, fromEmail, env string) email.Sender {
+		newSender: func(apiKey, fromEmail, env string) authapp.Sender {
 			return &mockSender{}
 		},
-		newSpinitron: func(apiKey, baseURL string) spinitron.PageClient {
+		newSpinitron: func(apiKey, baseURL string) adapterspinitron.PageClient {
 			return &fakeSpinitronPageClient{}
 		},
-		newCatalog: func(source spinitron.PageClient) api.ShowsService {
+		newCatalog: func(source adapterspinitron.PageClient) api.ShowsService {
 			return &fakeShowsService{}
 		},
 		newRouter: func(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
@@ -181,10 +184,10 @@ func testServerDeps(cfg *config.Config, repo repository) serverDeps {
 			return nil
 		},
 		backgroundCtx: context.Background,
-		newAuthHandler: func(repo apiAuthRepository, sender email.Sender) *api.AuthHandler {
+		newAuthHandler: func(repo authapp.Repository, sender authapp.Sender) *api.AuthHandler {
 			return api.NewAuthHandler(repo, sender)
 		},
-		newAPIServer: func(repo apiServerRepository, authHandler *api.AuthHandler, spinitronClient api.ShowsService) *api.Server {
+		newAPIServer: func(repo coreapp.Repository, authHandler *api.AuthHandler, spinitronClient api.ShowsService) *api.Server {
 			return api.NewServer(repo, authHandler, spinitronClient)
 		},
 		newDBRepository: func(database *sql.DB) repository {
@@ -536,7 +539,7 @@ func TestRunServer_MasterEmailFailures(t *testing.T) {
 		},
 		{
 			name: "create error",
-			repo: &fakeStartupRepo{getUserErr: db.ErrNotFound, createUserErr: errors.New("create failed")},
+			repo: &fakeStartupRepo{getUserErr: apperrors.ErrNotFound, createUserErr: errors.New("create failed")},
 			want: "failed to create master user",
 		},
 	}
@@ -745,7 +748,7 @@ func TestRunServer_DependencyFailures(t *testing.T) {
 	t.Run("prefetch starts in background", func(t *testing.T) {
 		deps := testServerDeps(cfg, &fakeStartupRepo{})
 		service := &fakeShowsService{done: make(chan struct{})}
-		deps.newCatalog = func(source spinitron.PageClient) api.ShowsService {
+		deps.newCatalog = func(source adapterspinitron.PageClient) api.ShowsService {
 			return service
 		}
 

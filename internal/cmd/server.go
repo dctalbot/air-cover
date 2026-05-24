@@ -13,6 +13,14 @@ import (
 	"syscall"
 	"time"
 
+	adapteremail "air-cover/internal/adapters/email"
+	adapterspinitron "air-cover/internal/adapters/spinitron"
+	"air-cover/internal/adapters/sqlite"
+	coreapp "air-cover/internal/app"
+	adminapp "air-cover/internal/app/admin"
+	authapp "air-cover/internal/app/auth"
+	subrequestsapp "air-cover/internal/app/subrequests"
+	"air-cover/internal/apperrors"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -23,11 +31,7 @@ import (
 
 	"air-cover/internal/api"
 	"air-cover/internal/config"
-	"air-cover/internal/db"
-	"air-cover/internal/email"
 	"air-cover/internal/logger"
-	"air-cover/internal/models"
-	"air-cover/internal/spinitron"
 )
 
 var (
@@ -49,14 +53,14 @@ const (
 type serverDeps struct {
 	loadConfig       func(*cobra.Command) (*config.Config, error)
 	initDB           func(string) (*sql.DB, error)
-	newSender        func(apiKey, fromEmail, env string) email.Sender
-	newSpinitron     func(apiKey, baseURL string) spinitron.PageClient
-	newCatalog       func(spinitron.PageClient) api.ShowsService
+	newSender        func(apiKey, fromEmail, env string) authapp.Sender
+	newSpinitron     func(apiKey, baseURL string) adapterspinitron.PageClient
+	newCatalog       func(adapterspinitron.PageClient) api.ShowsService
 	newRouter        func(*api.Server, *api.AuthHandler) chi.Router
 	listenAndServe   func(*http.Server) error
 	backgroundCtx    func() context.Context
-	newAuthHandler   func(apiAuthRepository, email.Sender) *api.AuthHandler
-	newAPIServer     func(apiServerRepository, *api.AuthHandler, api.ShowsService) *api.Server
+	newAuthHandler   func(authapp.Repository, authapp.Sender) *api.AuthHandler
+	newAPIServer     func(coreapp.Repository, *api.AuthHandler, api.ShowsService) *api.Server
 	newDBRepository  func(*sql.DB) repository
 	setDefaultLogger func(*config.Config)
 	signalContext    func(context.Context) (context.Context, context.CancelFunc)
@@ -65,54 +69,36 @@ type serverDeps struct {
 }
 
 type repository interface {
-	apiAuthRepository
-	apiServerRepository
-}
-
-type apiAuthRepository interface {
-	GetUserByEmail(ctx context.Context, email string) (*models.User, error)
-	GetUserByID(ctx context.Context, id int) (*models.User, error)
-	CreateMagicLink(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error
-	UseMagicLink(ctx context.Context, tokenHash string) (*models.MagicLink, error)
-	CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error
-	GetSessionByToken(ctx context.Context, sessionToken string) (*models.Session, error)
-	DeleteSessionsByUserID(ctx context.Context, userID int) error
-}
-
-type apiServerRepository interface {
-	GetSessionByToken(ctx context.Context, sessionToken string) (*models.Session, error)
-	ListSubRequests(ctx context.Context) ([]*models.SubRequest, error)
-	ListUsers(ctx context.Context) ([]*models.User, error)
-	CreateUser(ctx context.Context, email string, role string) (*models.User, error)
-	CreateSubRequest(ctx context.Context, sr *models.SubRequest) error
-	GetSubRequestByID(ctx context.Context, id int) (*models.SubRequest, error)
-	DeleteSubRequest(ctx context.Context, id int) error
-	TakeSubRequest(ctx context.Context, id int, userID int) error
-	UntakeSubRequest(ctx context.Context, id int) error
-	UpdateUser(ctx context.Context, id int, role *string, isEnabled *bool) error
-	ImportUsers(ctx context.Context, emails []string) error
+	coreapp.Repository
 }
 
 func defaultServerDeps() serverDeps {
 	return serverDeps{
 		loadConfig: config.Load,
-		initDB:     db.InitDB,
-		newSender:  email.NewSender,
-		newSpinitron: func(apiKey, baseURL string) spinitron.PageClient {
-			return spinitron.NewClient(apiKey, baseURL)
+		initDB:     sqlite.InitDB,
+		newSender: func(apiKey, fromEmail, env string) authapp.Sender {
+			return adapteremail.NewSender(apiKey, fromEmail, env)
 		},
-		newCatalog:     func(source spinitron.PageClient) api.ShowsService { return spinitron.NewCatalog(source) },
+		newSpinitron: func(apiKey, baseURL string) adapterspinitron.PageClient {
+			return adapterspinitron.NewClient(apiKey, baseURL)
+		},
+		newCatalog:     func(source adapterspinitron.PageClient) api.ShowsService { return adapterspinitron.NewCatalog(source) },
 		newRouter:      newRouter,
 		listenAndServe: listenAndServe,
 		backgroundCtx:  context.Background,
-		newAuthHandler: func(repo apiAuthRepository, sender email.Sender) *api.AuthHandler {
+		newAuthHandler: func(repo authapp.Repository, sender authapp.Sender) *api.AuthHandler {
 			return api.NewAuthHandler(repo, sender)
 		},
-		newAPIServer: func(repo apiServerRepository, authHandler *api.AuthHandler, spinitronClient api.ShowsService) *api.Server {
-			return api.NewServer(repo, authHandler, spinitronClient)
+		newAPIServer: func(repo coreapp.Repository, authHandler *api.AuthHandler, spinitronClient api.ShowsService) *api.Server {
+			return api.NewServerWithServices(
+				authHandler,
+				subrequestsapp.NewService(repo, spinitronClient),
+				adminapp.NewService(repo, spinitronClient),
+				spinitronClient,
+			)
 		},
 		newDBRepository: func(database *sql.DB) repository {
-			return db.NewRepository(database)
+			return sqlite.NewRepository(database)
 		},
 		setDefaultLogger: func(cfg *config.Config) {
 			slog.SetDefault(logger.NewLogger(cfg))
@@ -208,7 +194,7 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 	if cfg.MasterEmail != "" {
 		ctx := deps.backgroundCtx()
 		_, err := repo.GetUserByEmail(ctx, cfg.MasterEmail)
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, apperrors.ErrNotFound) {
 			slog.Info("Creating master admin user", "email", cfg.MasterEmail)
 			_, err = repo.CreateUser(ctx, cfg.MasterEmail, "admin")
 			if err != nil {

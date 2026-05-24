@@ -1,11 +1,5 @@
 package session
 
-type CurrentUser struct {
-	ID    int
-	Email string
-	Role  string
-}
+import "air-cover/internal/domain"
 
-func (u CurrentUser) IsAdmin() bool {
-	return u.Role == "admin"
-}
+type CurrentUser = domain.CurrentUser

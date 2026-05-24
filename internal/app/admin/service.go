@@ -9,7 +9,7 @@ import (
 
 	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
-	"air-cover/internal/db"
+	"air-cover/internal/domain"
 	"air-cover/internal/models"
 	"air-cover/internal/policy"
 	"air-cover/internal/spinitron"
@@ -68,14 +68,14 @@ func (s *Service) CreateUser(ctx context.Context, input CreateUserInput) error {
 }
 
 func (s *Service) UpdateUser(ctx context.Context, viewer session.CurrentUser, input UpdateUserInput) error {
-	if input.Role != nil && !validRole(*input.Role) {
+	if input.Role != nil && !domain.Role(*input.Role).Valid() {
 		return apperrors.ErrInvalid
 	}
 	if input.IsEnabled != nil && !*input.IsEnabled && !policy.CanDeactivateUser(viewer, input.ID) {
 		return apperrors.ErrForbidden
 	}
 	if err := s.repo.UpdateUser(ctx, input.ID, input.Role, input.IsEnabled); err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, apperrors.ErrNotFound) {
 			return apperrors.ErrNotFound
 		}
 		return err
@@ -121,5 +121,5 @@ func sortUsers(users []*models.User) {
 }
 
 func validRole(role string) bool {
-	return role == "admin" || role == "member"
+	return domain.Role(role).Valid()
 }

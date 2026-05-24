@@ -461,6 +461,11 @@ func TestHashToken(t *testing.T) {
 	}
 }
 
+func TestAuthHandlerSyncTokenGeneratorNilReceiver(t *testing.T) {
+	var handler *AuthHandler
+	handler.syncTokenGenerator()
+}
+
 type failSender struct{}
 
 func (f *failSender) SendMagicLink(toEmail, magicLink string) error {

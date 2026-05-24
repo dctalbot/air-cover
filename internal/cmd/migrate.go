@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"air-cover/internal/adapters/sqlite"
 	"air-cover/internal/config"
-	"air-cover/internal/db"
 	"air-cover/internal/logger"
 )
 
@@ -67,7 +67,7 @@ func runMigrate(cmd *cobra.Command, action string) {
 	}
 	defer database.Close()
 
-	if err := db.RunMigration(database, action); err != nil {
+	if err := sqlite.RunMigration(database, action); err != nil {
 		slog.Error("Migration failed", "action", action, "error", err)
 		osExit(1)
 	}

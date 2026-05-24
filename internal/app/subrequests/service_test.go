@@ -9,7 +9,6 @@ import (
 
 	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
-	"air-cover/internal/db"
 	"air-cover/internal/models"
 	"air-cover/internal/spinitron"
 )
@@ -208,13 +207,13 @@ func TestDelete(t *testing.T) {
 		t.Errorf("forbidden delete error = %v, want forbidden", err)
 	}
 
-	repo.getErr = db.ErrNotFound
+	repo.getErr = apperrors.ErrNotFound
 	if err := svc.Delete(context.Background(), viewer, 3); !errors.Is(err, apperrors.ErrNotFound) {
 		t.Errorf("not found delete error = %v, want app not found", err)
 	}
 	repo.getErr = nil
 	repo.subRequest = &models.SubRequest{ID: 1, PostedByUserID: 1}
-	repo.deleteErr = db.ErrConflict
+	repo.deleteErr = apperrors.ErrConflict
 	if err := svc.Delete(context.Background(), viewer, 1); !errors.Is(err, apperrors.ErrConflict) {
 		t.Errorf("delete conflict error = %v, want conflict", err)
 	}
@@ -254,17 +253,17 @@ func TestApplyAction(t *testing.T) {
 		t.Errorf("untake forbidden error = %v, want forbidden", err)
 	}
 
-	repo.takeErr = db.ErrConflict
+	repo.takeErr = apperrors.ErrConflict
 	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionTake); !errors.Is(err, apperrors.ErrConflict) {
 		t.Errorf("take conflict error = %v, want conflict", err)
 	}
 	repo.takeErr = nil
-	repo.getErr = db.ErrNotFound
+	repo.getErr = apperrors.ErrNotFound
 	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionTake); !errors.Is(err, apperrors.ErrNotFound) {
 		t.Errorf("take lookup error = %v, want not found", err)
 	}
 	repo.getErr = nil
-	repo.untakeErr = db.ErrNotFound
+	repo.untakeErr = apperrors.ErrNotFound
 	repo.subRequest = &models.SubRequest{ID: 1, PostedByUserID: 1, TakenByUserID: &takerID}
 	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionUntake); !errors.Is(err, apperrors.ErrNotFound) {
 		t.Errorf("untake error = %v, want not found", err)
