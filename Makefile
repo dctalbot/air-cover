@@ -1,27 +1,24 @@
 GO_VERSION := 1.26.0
 GO := GOTOOLCHAIN=go$(GO_VERSION) go
-AIR_VERSION := v1.65.3
-GOLANGCI_LINT_VERSION := v2.11.4
-OAPI_CODEGEN_VERSION := v2.6.0
-TEMPL_VERSION := v0.3.1020
+include tools.mk
 
 .PHONY: setup start build lint test check generate codecov-html coverage-summary db-reset db-down db-status
 
 setup:
-	$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	GOBIN="$$(pwd)/bin" $(GO) install $(GOLANGCI_LINT)
 
 build:
 	$(GO) build -o bin/aircover cmd/aircover/main.go
 
 start:
 	@lsof -ti :8080 | xargs -r kill -TERM 2>/dev/null || true
-	$(GO) run github.com/air-verse/air@$(AIR_VERSION) -c .air.toml
+	$(GO) run $(AIR) -c .air.toml
 
 generate:
 	@mkdir -p docs
-	@$(GO) run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@$(OAPI_CODEGEN_VERSION) -package api -generate chi-server,types,spec api/openapi.yaml > internal/api/api.gen.go
+	@$(GO) run $(OAPI_CODEGEN) -package api -generate chi-server,types,spec api/openapi.yaml > internal/api/api.gen.go
 	@$(GO) run cmd/aircover/main.go doc > docs/routes.json
-	@$(GO) run github.com/a-h/templ/cmd/templ@$(TEMPL_VERSION) generate
+	@$(GO) run $(TEMPL) generate
 
 db-reset:
 	$(GO) run cmd/aircover/main.go migrate reset
@@ -33,7 +30,7 @@ db-status:
 	$(GO) run cmd/aircover/main.go migrate status
 
 lint:
-	@GOBIN="$$(pwd)/bin" $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	@GOBIN="$$(pwd)/bin" $(GO) install $(GOLANGCI_LINT)
 	@./bin/golangci-lint config verify
 	@$(GO) mod tidy
 	@$(GO) vet ./...
