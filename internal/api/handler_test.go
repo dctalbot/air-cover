@@ -132,8 +132,8 @@ func TestServer_PostSubRequests(t *testing.T) {
 			name: "valid request",
 			formData: url.Values{
 				"show":       {"1"},
-				"start_time": {"2026-05-01T10:00"},
-				"end_time":   {"2026-05-01T12:00"},
+				"start_time": {"2036-05-01T10:00"},
+				"end_time":   {"2036-05-01T12:00"},
 				"notes":      {"Help please!"},
 			},
 			userID:     u.ID,
@@ -143,8 +143,8 @@ func TestServer_PostSubRequests(t *testing.T) {
 			name: "missing user id",
 			formData: url.Values{
 				"show":       {"1"},
-				"start_time": {"2026-05-01T10:00"},
-				"end_time":   {"2026-05-01T12:00"},
+				"start_time": {"2036-05-01T10:00"},
+				"end_time":   {"2036-05-01T12:00"},
 			},
 			userID:     nil,
 			wantStatus: http.StatusUnauthorized,
@@ -153,8 +153,8 @@ func TestServer_PostSubRequests(t *testing.T) {
 			name: "invalid show id",
 			formData: url.Values{
 				"show":       {"abc"},
-				"start_time": {"2026-05-01T10:00"},
-				"end_time":   {"2026-05-01T12:00"},
+				"start_time": {"2036-05-01T10:00"},
+				"end_time":   {"2036-05-01T12:00"},
 			},
 			userID:     u.ID,
 			wantStatus: http.StatusBadRequest,
@@ -164,7 +164,7 @@ func TestServer_PostSubRequests(t *testing.T) {
 			formData: url.Values{
 				"show":       {"1"},
 				"start_time": {"invalid"},
-				"end_time":   {"2026-05-01T12:00"},
+				"end_time":   {"2036-05-01T12:00"},
 			},
 			userID:     u.ID,
 			wantStatus: http.StatusBadRequest,
@@ -173,8 +173,39 @@ func TestServer_PostSubRequests(t *testing.T) {
 			name: "invalid end time",
 			formData: url.Values{
 				"show":       {"1"},
-				"start_time": {"2026-05-01T10:00"},
+				"start_time": {"2036-05-01T10:00"},
 				"end_time":   {"invalid"},
+			},
+			userID:     u.ID,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name: "end time before start time",
+			formData: url.Values{
+				"show":       {"1"},
+				"start_time": {"2036-05-01T12:00"},
+				"end_time":   {"2036-05-01T10:00"},
+			},
+			userID:     u.ID,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name: "unknown catalog show",
+			formData: url.Values{
+				"show":       {"2"},
+				"start_time": {"2036-05-01T10:00"},
+				"end_time":   {"2036-05-01T12:00"},
+			},
+			userID:     u.ID,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name: "notes too long",
+			formData: url.Values{
+				"show":       {"1"},
+				"start_time": {"2036-05-01T10:00"},
+				"end_time":   {"2036-05-01T12:00"},
+				"notes":      {strings.Repeat("a", 1001)},
 			},
 			userID:     u.ID,
 			wantStatus: http.StatusBadRequest,
@@ -196,6 +227,27 @@ func TestServer_PostSubRequests(t *testing.T) {
 				t.Errorf("expected status %v, got %v", tt.wantStatus, rr.Code)
 			}
 		})
+	}
+}
+
+func TestServer_PostSubRequests_CatalogError(t *testing.T) {
+	repo := setupTestDB(t)
+	u, _ := repo.CreateUser(context.Background(), "catalogerr@example.com", "member")
+	s := NewServer(repo, nil, &faultyShowsService{})
+
+	req := httptest.NewRequest(http.MethodPost, "/sub-requests", nil)
+	req.PostForm = url.Values{
+		"show":       {"1"},
+		"start_time": {"2036-05-01T10:00"},
+		"end_time":   {"2036-05-01T12:00"},
+	}
+	ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+	s.PostSubRequests(rr, req)
+
+	if rr.Code != http.StatusBadGateway {
+		t.Errorf("expected 502 for catalog validation error, got %d", rr.Code)
 	}
 }
 
@@ -1051,7 +1103,7 @@ func TestHandlerWithMiddleware(t *testing.T) {
 		{http.MethodPost, "/auth/login", `{"email":"x@y.com"}`, "application/json"},
 		{http.MethodPost, "/auth/logout", "", ""},
 		{http.MethodGet, "/auth/verify", "", ""}, // Missing token → 400 but middleware still runs
-		{http.MethodPost, "/sub-requests", "show=1&start_time=2026-01-01T10%3A00&end_time=2026-01-01T12%3A00", "application/x-www-form-urlencoded"},
+		{http.MethodPost, "/sub-requests", "show=1&start_time=2036-01-01T10%3A00&end_time=2036-01-01T12%3A00", "application/x-www-form-urlencoded"},
 		{http.MethodDelete, "/sub-requests/123", "", ""},
 		{http.MethodPatch, "/sub-requests/123", `{"action":"take"}`, "application/json"},
 		{http.MethodPost, "/users/123", `{"role":"admin"}`, "application/json"},
@@ -1208,8 +1260,8 @@ func TestServer_PostSubRequests_DBError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/sub-requests", nil)
 	req.PostForm = url.Values{
 		"show":       {"1"},
-		"start_time": {"2026-05-01T10:00"},
-		"end_time":   {"2026-05-01T12:00"},
+		"start_time": {"2036-05-01T10:00"},
+		"end_time":   {"2036-05-01T12:00"},
 	}
 	ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
 	req = req.WithContext(ctx)
@@ -1325,7 +1377,7 @@ func (f *faultyShowsService) ListPersonas(ctx context.Context) ([]spinitron.Pers
 
 func TestServer_PostSubRequests_LargeBody(t *testing.T) {
 	s := NewServer(nil, nil, nil)
-	largeBody := "show=1&start_time=2026-05-01T10:00&end_time=2026-05-01T12:00&notes=" + strings.Repeat("a", 1024*1024+100)
+	largeBody := "show=1&start_time=2036-05-01T10:00&end_time=2036-05-01T12:00&notes=" + strings.Repeat("a", 1024*1024+100)
 	req := httptest.NewRequest(http.MethodPost, "/sub-requests", strings.NewReader(largeBody))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rr := httptest.NewRecorder()

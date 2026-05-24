@@ -223,6 +223,14 @@ func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.subRequests.Create(r.Context(), viewer, input); err != nil {
+		if writeAppError(w, err) {
+			return
+		}
+		if errors.Is(err, subrequestsapp.ErrCatalog) {
+			slog.Error("Failed to validate sub request against catalog", "error", err)
+			http.Error(w, "Unable to validate show", http.StatusBadGateway)
+			return
+		}
 		slog.Error("Failed to create sub request", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return

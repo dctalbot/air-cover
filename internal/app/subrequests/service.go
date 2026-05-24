@@ -19,6 +19,8 @@ import (
 
 var ErrCatalog = errors.New("show catalog error")
 
+const maxCreateNotesLength = 1000
+
 type Repository interface {
 	ListSubRequests(ctx context.Context) ([]*models.SubRequest, error)
 	CreateSubRequest(ctx context.Context, sr *models.SubRequest) error
@@ -130,8 +132,12 @@ func (s *Service) ListDashboard(ctx context.Context, viewer session.CurrentUser)
 }
 
 func (s *Service) Create(ctx context.Context, viewer session.CurrentUser, input CreateInput) error {
+	if err := s.validateCreateInput(ctx, input); err != nil {
+		return err
+	}
+
 	now := s.now()
-	return s.repo.CreateSubRequest(ctx, &models.SubRequest{
+	if err := s.repo.CreateSubRequest(ctx, &models.SubRequest{
 		ShowID:         input.ShowID,
 		PostedByUserID: viewer.ID,
 		StartTime:      input.StartTime,
@@ -139,7 +145,36 @@ func (s *Service) Create(ctx context.Context, viewer session.CurrentUser, input 
 		Notes:          input.Notes,
 		CreatedAt:      now,
 		UpdatedAt:      now,
-	})
+	}); err != nil {
+		return mapRepositoryError(err)
+	}
+	return nil
+}
+
+func (s *Service) validateCreateInput(ctx context.Context, input CreateInput) error {
+	now := s.now()
+	switch {
+	case input.ShowID <= 0:
+		return apperrors.ErrInvalid
+	case !input.StartTime.After(now):
+		return apperrors.ErrInvalid
+	case !input.EndTime.After(input.StartTime):
+		return apperrors.ErrInvalid
+	case len(input.Notes) > maxCreateNotesLength:
+		return apperrors.ErrInvalid
+	}
+
+	if s.catalog == nil {
+		return nil
+	}
+	shows, err := s.catalog.ListShows(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrCatalog, err)
+	}
+	if !showExists(shows, input.ShowID) {
+		return apperrors.ErrInvalid
+	}
+	return nil
 }
 
 func (s *Service) Delete(ctx context.Context, viewer session.CurrentUser, id int) error {
@@ -209,6 +244,19 @@ func showTitle(showMap map[int]string, showID int) string {
 		return title
 	}
 	return "Unknown Show"
+}
+
+func showExists(shows []spinitron.Show, showID int) bool {
+	for _, show := range shows {
+		id, err := strconv.Atoi(show.ID)
+		if err != nil {
+			continue
+		}
+		if id == showID {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) now() time.Time {

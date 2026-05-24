@@ -3,6 +3,7 @@ package subrequests
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -123,7 +124,7 @@ func TestListDashboardErrors(t *testing.T) {
 func TestCreate(t *testing.T) {
 	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
 	repo := &fakeRepository{}
-	svc := NewService(repo, nil)
+	svc := NewService(repo, &fakeCatalog{shows: []spinitron.Show{{ID: "1", Title: "Test Show"}}})
 	svc.nowFunc = func() time.Time { return now }
 	input := CreateInput{
 		ShowID:    1,
@@ -139,10 +140,55 @@ func TestCreate(t *testing.T) {
 		t.Errorf("unexpected created request: %+v", repo.created)
 	}
 
+	catalogErrSvc := NewService(&fakeRepository{}, &fakeCatalog{err: errors.New("catalog down")})
+	catalogErrSvc.nowFunc = func() time.Time { return now }
+	if err := catalogErrSvc.Create(context.Background(), session.CurrentUser{ID: 7}, input); !errors.Is(err, ErrCatalog) {
+		t.Errorf("catalog error = %v, want ErrCatalog", err)
+	}
+
 	wantErr := errors.New("create failed")
-	if err := NewService(&fakeRepository{createErr: wantErr}, nil).
-		Create(context.Background(), session.CurrentUser{ID: 7}, input); !errors.Is(err, wantErr) {
+	createErrSvc := NewService(&fakeRepository{createErr: wantErr}, nil)
+	createErrSvc.nowFunc = func() time.Time { return now }
+	if err := createErrSvc.Create(context.Background(), session.CurrentUser{ID: 7}, input); !errors.Is(err, wantErr) {
 		t.Errorf("create error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestCreateValidation(t *testing.T) {
+	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
+	valid := CreateInput{
+		ShowID:    1,
+		StartTime: now.Add(time.Hour),
+		EndTime:   now.Add(2 * time.Hour),
+		Notes:     "please help",
+	}
+
+	tests := []struct {
+		name  string
+		input CreateInput
+	}{
+		{name: "missing show id", input: CreateInput{ShowID: 0, StartTime: valid.StartTime, EndTime: valid.EndTime}},
+		{name: "past start time", input: CreateInput{ShowID: 1, StartTime: now.Add(-time.Minute), EndTime: valid.EndTime}},
+		{name: "start time equal now", input: CreateInput{ShowID: 1, StartTime: now, EndTime: valid.EndTime}},
+		{name: "end time equal start time", input: CreateInput{ShowID: 1, StartTime: valid.StartTime, EndTime: valid.StartTime}},
+		{name: "end time before start time", input: CreateInput{ShowID: 1, StartTime: valid.StartTime, EndTime: valid.StartTime.Add(-time.Minute)}},
+		{name: "notes too long", input: CreateInput{ShowID: 1, StartTime: valid.StartTime, EndTime: valid.EndTime, Notes: strings.Repeat("a", maxCreateNotesLength+1)}},
+		{name: "unknown catalog show", input: CreateInput{ShowID: 2, StartTime: valid.StartTime, EndTime: valid.EndTime}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &fakeRepository{}
+			svc := NewService(repo, &fakeCatalog{shows: []spinitron.Show{{ID: "1", Title: "Test Show"}, {ID: "bad", Title: "Bad ID"}}})
+			svc.nowFunc = func() time.Time { return now }
+
+			if err := svc.Create(context.Background(), session.CurrentUser{ID: 7}, tt.input); !errors.Is(err, apperrors.ErrInvalid) {
+				t.Fatalf("Create error = %v, want ErrInvalid", err)
+			}
+			if repo.created != nil {
+				t.Errorf("invalid input should not create request: %+v", repo.created)
+			}
+		})
 	}
 }
 
