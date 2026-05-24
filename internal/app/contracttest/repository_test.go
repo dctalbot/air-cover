@@ -128,8 +128,8 @@ func (r *memoryRepository) DeleteSessionsByUserID(ctx context.Context, userID in
 	return nil
 }
 
-func (r *memoryRepository) ListDashboardSubRequests(ctx context.Context) ([]subrequestsapp.DashboardRecord, error) {
-	requests := make([]subrequestsapp.DashboardRecord, 0, len(r.subRequests))
+func (r *memoryRepository) ListDashboardSubRequests(ctx context.Context) ([]subrequestsapp.DashboardReadModel, error) {
+	requests := make([]subrequestsapp.DashboardReadModel, 0, len(r.subRequests))
 	for _, request := range r.subRequests {
 		requesterEmail := ""
 		if requester, err := r.GetUserByID(ctx, request.PostedByUserID); err == nil {
@@ -141,7 +141,7 @@ func (r *memoryRepository) ListDashboardSubRequests(ctx context.Context) ([]subr
 				takerEmail = taker.Email
 			}
 		}
-		requests = append(requests, subrequestsapp.DashboardRecord{
+		requests = append(requests, subrequestsapp.DashboardReadModel{
 			Request:        request,
 			RequesterEmail: requesterEmail,
 			TakerEmail:     takerEmail,
@@ -272,7 +272,7 @@ func TestMustNoErrPanics(t *testing.T) {
 }
 
 func TestIndexOfSummaryMissing(t *testing.T) {
-	summaries := []subrequestsapp.DashboardRecord{
+	summaries := []subrequestsapp.DashboardReadModel{
 		{Request: &domain.SubRequest{ID: 1}},
 		{Request: nil},
 	}

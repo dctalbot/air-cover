@@ -118,8 +118,8 @@ func subRequestFromSQL(row dbgen.SubRequest) *domain.SubRequest {
 	}
 }
 
-func subRequestSummaryFromSQL(row dbgen.ListSubRequestsRow) subrequestsapp.DashboardRecord {
-	return subrequestsapp.DashboardRecord{
+func subRequestSummaryFromSQL(row dbgen.ListSubRequestsRow) subrequestsapp.DashboardReadModel {
+	return subrequestsapp.DashboardReadModel{
 		Request: &domain.SubRequest{
 			ID:             int(row.ID),
 			ShowID:         int(row.ShowID),

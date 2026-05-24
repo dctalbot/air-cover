@@ -45,7 +45,7 @@ func (b *badShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Person
 
 type fakeServerRepo struct {
 	session       *domain.Session
-	subRequests   []subrequestsapp.DashboardRecord
+	subRequests   []subrequestsapp.DashboardReadModel
 	subRequest    *domain.SubRequest
 	users         []*domain.User
 	err           error
@@ -98,7 +98,7 @@ func (f *fakeServerRepo) DeleteSessionsByUserID(ctx context.Context, userID int)
 	return nil
 }
 
-func (f *fakeServerRepo) ListDashboardSubRequests(ctx context.Context) ([]subrequestsapp.DashboardRecord, error) {
+func (f *fakeServerRepo) ListDashboardSubRequests(ctx context.Context) ([]subrequestsapp.DashboardReadModel, error) {
 	if f.err != nil {
 		return nil, f.err
 	}

@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"io/fs"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -19,7 +20,14 @@ func TestHexagonalImportBoundaries(t *testing.T) {
 	for _, pkg := range packages {
 		switch {
 		case pkg.ImportPath == "air-cover/internal/domain":
-			forbidImports(t, pkg, "air-cover/internal/app", "air-cover/internal/adapters")
+			forbidImports(t, pkg,
+				"air-cover/internal/app",
+				"air-cover/internal/adapters",
+				"air-cover/internal/config",
+				"air-cover/internal/logger",
+				"database/sql",
+				"net/http",
+			)
 		case strings.HasPrefix(pkg.ImportPath, "air-cover/internal/app"):
 			forbidImports(t, pkg, "air-cover/internal/adapters")
 		case pkg.ImportPath == "air-cover/internal/adapters/http/presenter":
@@ -139,9 +147,10 @@ func TestLegacyDeliveryPackagesStayRemoved(t *testing.T) {
 		t.Fatalf("list packages: %v", err)
 	}
 	for _, pkg := range packages {
-		switch pkg.ImportPath {
-		case "air-cover/internal/api", "air-cover/internal/ui", "air-cover/internal/presenter":
-			t.Errorf("legacy delivery package %s should live under internal/adapters/http", pkg.ImportPath)
+		for _, legacy := range []string{"air-cover/internal/api", "air-cover/internal/ui", "air-cover/internal/presenter"} {
+			if pkg.ImportPath == legacy || strings.HasPrefix(pkg.ImportPath, legacy+"/") {
+				t.Errorf("legacy delivery package %s should live under internal/adapters/http", pkg.ImportPath)
+			}
 		}
 	}
 }
@@ -216,8 +225,12 @@ func listPackages(options ...packageListOption) ([]listedPackage, error) {
 		for imported := range imports {
 			pkg.Imports = append(pkg.Imports, imported)
 		}
+		sort.Strings(pkg.Imports)
 		listed = append(listed, pkg)
 	}
+	sort.Slice(listed, func(i, j int) bool {
+		return listed[i].ImportPath < listed[j].ImportPath
+	})
 	return listed, nil
 }
 

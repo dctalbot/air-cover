@@ -124,7 +124,7 @@ func (f *fakeAuthRepo) DeleteSessionsByUserID(ctx context.Context, userID int) e
 
 type fakeSubRequestsRepo struct{}
 
-func (f *fakeSubRequestsRepo) ListDashboardSubRequests(ctx context.Context) ([]subrequestsapp.DashboardRecord, error) {
+func (f *fakeSubRequestsRepo) ListDashboardSubRequests(ctx context.Context) ([]subrequestsapp.DashboardReadModel, error) {
 	return nil, nil
 }
 

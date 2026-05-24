@@ -368,8 +368,8 @@ func boolPtr(value bool) *bool {
 	return &value
 }
 
-func summariesByID(summaries []subrequestsapp.DashboardRecord) map[int]*subrequestsapp.DashboardRecord {
-	byID := make(map[int]*subrequestsapp.DashboardRecord, len(summaries))
+func summariesByID(summaries []subrequestsapp.DashboardReadModel) map[int]*subrequestsapp.DashboardReadModel {
+	byID := make(map[int]*subrequestsapp.DashboardReadModel, len(summaries))
 	for i := range summaries {
 		if summaries[i].Request != nil {
 			byID[summaries[i].Request.ID] = &summaries[i]
@@ -378,7 +378,7 @@ func summariesByID(summaries []subrequestsapp.DashboardRecord) map[int]*subreque
 	return byID
 }
 
-func indexOfSummary(summaries []subrequestsapp.DashboardRecord, id int) int {
+func indexOfSummary(summaries []subrequestsapp.DashboardReadModel, id int) int {
 	for index, summary := range summaries {
 		if summary.Request != nil && summary.Request.ID == id {
 			return index
