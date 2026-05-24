@@ -2,13 +2,38 @@
 
 Air Cover is a Spinitron integration that allows DJs (Personas) to request substitutes to cover their shows, and in turn, allows them to pick up other substitution requests.
 
-## Development setup
-
-```
-make setup
-```
 
 ## Architecture
+
+
+### Hexagonal diagam
+
+```mermaid
+flowchart LR
+    user["DJs and admins"] --> router["HTTP router and OpenAPI validation<br/>internal/cmd"]
+    router --> http["Inbound HTTP adapter<br/>internal/adapters/http"]
+
+    subgraph core["Application core"]
+        direction TB
+        services{{"Application services<br/>auth, subrequests, admin, bootstrap"}}
+        domain["Domain model<br/>users, sessions, sub requests"]
+        ports["Ports<br/>Repository, Sender, Catalog"]
+
+        services --> domain
+        services --> ports
+    end
+
+    http --> services
+    ports --> sqlite["SQLite repository adapter<br/>internal/adapters/sqlite"]
+    ports --> email["Email sender adapter<br/>internal/adapters/email"]
+    ports --> spinitron["Spinitron catalog adapter<br/>internal/adapters/spinitron"]
+
+    sqlite --> db[("SQLite database")]
+    email --> sendgrid["SendGrid API<br/>or console sender"]
+    spinitron --> spinitronApi["Spinitron API"]
+```
+
+### File organization
 
 This project is built using Go. The general structure follows standard Go project layouts:
 
@@ -18,20 +43,3 @@ This project is built using Go. The general structure follows standard Go projec
   - `internal/app/`: Application services and ports.
   - `internal/adapters/`: Outbound adapters for SQLite, email, and Spinitron.
   - `internal/adapters/http/`: Handlers for the application's HTTP API.
-
-## Getting Started
-
-1. Ensure you have Go 1.26.0 or later installed.
-2. Clone the repository.
-3. Run the application:
-   ```sh
-   go run cmd/aircover/main.go
-   ```
-
-Set required environment variables before running:
-- `DB_URI`
-- `SPINITRON_API_URL`
-
-## Spinitron Integration
-
-(WIP) Documentation on how to configure Spinitron API keys and webhooks.
