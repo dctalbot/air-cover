@@ -82,13 +82,13 @@ func (s *Service) UpdateUser(ctx context.Context, viewer session.CurrentUser, in
 	return nil
 }
 
-func (s *Service) ImportSpinitronUsers(ctx context.Context) error {
+func (s *Service) ImportCatalogUsers(ctx context.Context) error {
 	if s.catalog == nil {
 		return nil
 	}
 	personas, err := s.catalog.ListPersonas(ctx)
 	if err != nil {
-		slog.Error("Failed to load personas from spinitron", "error", err)
+		slog.Error("Failed to load personas from catalog", "error", err)
 		return nil
 	}
 

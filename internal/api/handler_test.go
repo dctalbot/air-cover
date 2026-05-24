@@ -153,7 +153,7 @@ func (f *fakeServerRepo) ImportUsers(ctx context.Context, emails []string) error
 func TestServer_PostSubRequests(t *testing.T) {
 	repo := setupTestDB(t)
 	u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
-	s := NewServer(repo, nil, &MockShowsService{})
+	s := newTestServer(repo, nil, &MockShowsService{})
 
 	tests := []struct {
 		name       string
@@ -266,7 +266,7 @@ func TestServer_PostSubRequests(t *testing.T) {
 func TestServer_PostSubRequests_CatalogError(t *testing.T) {
 	repo := setupTestDB(t)
 	u, _ := repo.CreateUser(context.Background(), "catalogerr@example.com", "member")
-	s := NewServer(repo, nil, &faultyShowsService{})
+	s := newTestServer(repo, nil, &faultyShowsService{})
 
 	req := httptest.NewRequest(http.MethodPost, "/sub-requests", nil)
 	req.PostForm = url.Values{
@@ -286,7 +286,7 @@ func TestServer_PostSubRequests_CatalogError(t *testing.T) {
 
 func TestServer_Get(t *testing.T) {
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 
 	t.Run("unauthenticated", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -335,7 +335,7 @@ func TestServer_Get_WithAuthHandler(t *testing.T) {
 	repo := setupTestDB(t)
 	user, _ := repo.CreateUser(context.Background(), "withauth@example.com", "member")
 	_ = repo.CreateSession(context.Background(), "with-auth-session", "with-auth-token", user.ID, time.Now().Add(time.Hour))
-	s := NewServerWithServices(NewAuthHandler(repo, nil), nil, nil, nil)
+	s := NewServer(NewAuthHandler(repo, nil), nil, nil)
 
 	t.Run("authenticated", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -363,7 +363,7 @@ func TestServer_Get_WithAuthHandler(t *testing.T) {
 }
 
 func TestServer_Get_DocOnlyRedirect(t *testing.T) {
-	s := NewServerWithServices(nil, nil, nil, nil)
+	s := newTestServer(nil, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: "session_id", Value: "doc-token"})
 	rr := httptest.NewRecorder()
@@ -378,7 +378,7 @@ func TestServer_Get_DocOnlyRedirect(t *testing.T) {
 func TestServer_GetApp(t *testing.T) {
 	repo := setupTestDB(t)
 	u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
-	s := NewServer(repo, nil, &MockShowsService{})
+	s := newTestServer(repo, nil, &MockShowsService{})
 
 	// Create a future request
 	_ = repo.CreateSubRequest(context.Background(), &domain.SubRequest{
@@ -442,7 +442,7 @@ func TestServer_GetApp(t *testing.T) {
 func TestServer_GetApp_BadShowID(t *testing.T) {
 	// Tests the branch where show ID cannot be parsed as int
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, &badShowsService{})
+	s := newTestServer(repo, nil, &badShowsService{})
 
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
 	ctx := context.WithValue(req.Context(), UserEmailKey, "test@example.com")
@@ -457,7 +457,7 @@ func TestServer_GetApp_BadShowID(t *testing.T) {
 }
 
 func TestServer_GetApp_ListSubRequestsErrorClosedDB(t *testing.T) {
-	s := NewServer(&fakeServerRepo{err: errors.New("list failed")}, nil, &MockShowsService{})
+	s := newTestServer(&fakeServerRepo{err: errors.New("list failed")}, nil, &MockShowsService{})
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
 	rr := httptest.NewRecorder()
 
@@ -469,7 +469,7 @@ func TestServer_GetApp_ListSubRequestsErrorClosedDB(t *testing.T) {
 }
 
 func TestServer_GetApp_AppError(t *testing.T) {
-	s := NewServer(&fakeServerRepo{err: apperrors.ErrNotFound}, nil, &MockShowsService{})
+	s := newTestServer(&fakeServerRepo{err: apperrors.ErrNotFound}, nil, &MockShowsService{})
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
 	rr := httptest.NewRecorder()
 
@@ -481,7 +481,7 @@ func TestServer_GetApp_AppError(t *testing.T) {
 }
 
 func TestServer_GetAdmin_ListUsersError(t *testing.T) {
-	s := NewServer(&fakeServerRepo{err: errors.New("list users failed")}, nil, nil)
+	s := newTestServer(&fakeServerRepo{err: errors.New("list users failed")}, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 	rr := httptest.NewRecorder()
 
@@ -493,7 +493,7 @@ func TestServer_GetAdmin_ListUsersError(t *testing.T) {
 }
 
 func TestServer_GetApp_RenderErrorWithFakeRepo(t *testing.T) {
-	s := NewServer(&fakeServerRepo{}, nil, &MockShowsService{})
+	s := newTestServer(&fakeServerRepo{}, nil, &MockShowsService{})
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
 	req = req.WithContext(context.WithValue(req.Context(), UserEmailKey, "test@example.com"))
 
@@ -501,7 +501,7 @@ func TestServer_GetApp_RenderErrorWithFakeRepo(t *testing.T) {
 }
 
 func TestServer_GetAdmin_RenderErrorWithDisabledUsers(t *testing.T) {
-	s := NewServer(&fakeServerRepo{
+	s := newTestServer(&fakeServerRepo{
 		users: []*domain.User{
 			{ID: 1, Email: "disabled-b@example.com", Role: "member", IsEnabled: false},
 			{ID: 2, Email: "disabled-a@example.com", Role: "member", IsEnabled: false},
@@ -542,7 +542,7 @@ func TestServer_DeleteSubRequestsId_RepositoryErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer(tt.repo, nil, nil)
+			s := newTestServer(tt.repo, nil, nil)
 			req := httptest.NewRequest(http.MethodDelete, "/sub-requests/10", nil)
 			ctx := context.WithValue(req.Context(), UserIDKey, tt.userID)
 			if tt.role != "" {
@@ -620,7 +620,7 @@ func TestServer_PatchSubRequestsId_RepositoryErrorsWithFake(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer(tt.repo, nil, nil)
+			s := newTestServer(tt.repo, nil, nil)
 			req := httptest.NewRequest(http.MethodPatch, "/sub-requests/10", strings.NewReader(tt.body))
 			req = req.WithContext(context.WithValue(req.Context(), UserIDKey, tt.userID))
 			rr := httptest.NewRecorder()
@@ -636,7 +636,7 @@ func TestServer_PatchSubRequestsId_RepositoryErrorsWithFake(t *testing.T) {
 
 func TestServer_PostUsersAndImport_RepositoryErrors(t *testing.T) {
 	t.Run("create user error", func(t *testing.T) {
-		s := NewServer(&fakeServerRepo{createUserErr: errors.New("create failed")}, nil, nil)
+		s := newTestServer(&fakeServerRepo{createUserErr: errors.New("create failed")}, nil, nil)
 		req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader("email=test@example.com&role=member"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		rr := httptest.NewRecorder()
@@ -650,7 +650,7 @@ func TestServer_PostUsersAndImport_RepositoryErrors(t *testing.T) {
 
 	t.Run("import users error", func(t *testing.T) {
 		service := &importMockShowsService{fail: false}
-		s := NewServer(&fakeServerRepo{importErr: errors.New("import failed")}, nil, service)
+		s := newTestServer(&fakeServerRepo{importErr: errors.New("import failed")}, nil, service)
 		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
 		rr := httptest.NewRecorder()
 
@@ -665,7 +665,7 @@ func TestServer_PostUsersAndImport_RepositoryErrors(t *testing.T) {
 func TestServer_AuthDelegation(t *testing.T) {
 	repo := setupTestDB(t)
 	auth := NewAuthHandler(repo, &MockSender{})
-	s := NewServer(repo, auth, nil)
+	s := newTestServer(repo, auth, nil)
 
 	t.Run("PostAuthLogin", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{}`))
@@ -696,7 +696,7 @@ func TestServer_AuthDelegation(t *testing.T) {
 }
 
 func TestServer_GetHealth(t *testing.T) {
-	s := NewServer(nil, nil, nil)
+	s := newTestServer(nil, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rr := httptest.NewRecorder()
 	s.GetHealth(rr, req)
@@ -714,7 +714,7 @@ func TestServer_DeleteSubRequestsId(t *testing.T) {
 	u1, _ := repo.CreateUser(context.Background(), "user1@example.com", "member")
 	u2, _ := repo.CreateUser(context.Background(), "user2@example.com", "member")
 	admin, _ := repo.CreateUser(context.Background(), "admin@example.com", "admin")
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 
 	sr := &domain.SubRequest{
 		ShowID:         1,
@@ -803,7 +803,7 @@ func TestServer_DeleteSubRequestsId(t *testing.T) {
 			EndTime:        time.Now().Add(time.Hour),
 		}
 		_ = repo.CreateSubRequest(context.Background(), sr)
-		s := NewServer(repo, nil, nil)
+		s := newTestServer(repo, nil, nil)
 		_ = repo.DB().Close()
 
 		req := httptest.NewRequest(http.MethodDelete, "/sub-requests/1", nil)
@@ -885,7 +885,7 @@ func TestUnimplemented(t *testing.T) {
 func TestHandlerWithOptions(t *testing.T) {
 	repo := setupTestDB(t)
 	auth := NewAuthHandler(repo, &MockSender{})
-	s := NewServer(repo, auth, &MockShowsService{})
+	s := newTestServer(repo, auth, &MockShowsService{})
 
 	// Test Handler (nil base router → creates new chi router)
 	h := Handler(s)
@@ -912,7 +912,7 @@ func TestHandlerWithOptions(t *testing.T) {
 func TestHandlerViaHTTP(t *testing.T) {
 	repo := setupTestDB(t)
 	auth := NewAuthHandler(repo, &MockSender{})
-	s := NewServer(repo, auth, &MockShowsService{})
+	s := newTestServer(repo, auth, &MockShowsService{})
 
 	h := Handler(s)
 	ts := httptest.NewServer(h)
@@ -1043,7 +1043,7 @@ func TestHandlerViaHTTP(t *testing.T) {
 
 // TestHandlerWithOptions_CustomErrorHandler tests that the custom error handler is called.
 func TestHandlerWithOptions_CustomErrorHandler(t *testing.T) {
-	s := NewServer(nil, nil, nil)
+	s := newTestServer(nil, nil, nil)
 	customErrorCalled := false
 
 	h := HandlerWithOptions(s, ChiServerOptions{
@@ -1150,7 +1150,7 @@ func TestGetSwagger(t *testing.T) {
 func TestHandlerWithMiddleware(t *testing.T) {
 	repo := setupTestDB(t)
 	auth := NewAuthHandler(repo, &MockSender{})
-	s := NewServer(repo, auth, &MockShowsService{})
+	s := newTestServer(repo, auth, &MockShowsService{})
 
 	callCount := 0
 	mw := MiddlewareFunc(func(next http.Handler) http.Handler {
@@ -1218,7 +1218,7 @@ func TestServer_GetApp_ListSubRequestsError(t *testing.T) {
 	repo := sqlite.NewRepository(dbConn)
 	dbConn.Close() // Force ListSubRequests to fail
 
-	s := NewServer(repo, nil, &MockShowsService{})
+	s := newTestServer(repo, nil, &MockShowsService{})
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
 	ctx := context.WithValue(req.Context(), UserEmailKey, "test@example.com")
 	ctx = context.WithValue(ctx, UserIDKey, 1)
@@ -1250,7 +1250,7 @@ func (m *listingShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Pe
 func TestServer_GetApp_LoadsShowList(t *testing.T) {
 	repo := setupTestDB(t)
 	svc := &listingShowsService{}
-	s := NewServer(repo, nil, svc)
+	s := newTestServer(repo, nil, svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
 	ctx := context.WithValue(req.Context(), UserEmailKey, "test@example.com")
@@ -1269,7 +1269,7 @@ func TestServer_GetApp_LoadsShowList(t *testing.T) {
 
 // TestServer_GetHealth_WriteError covers the write error path in GetHealth.
 func TestServer_GetHealth_WriteError(t *testing.T) {
-	s := NewServer(nil, nil, nil)
+	s := newTestServer(nil, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	ew := &errorResponseWriter{}
 	s.GetHealth(ew, req)
@@ -1311,7 +1311,7 @@ func TestServer_DeleteSubRequestsId_DBError(t *testing.T) {
 	_ = repo.CreateSubRequest(context.Background(), sr)
 	dbConn.Close() // Force GetSubRequestByID to fail
 
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/1", nil)
 	ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
 	req = req.WithContext(ctx)
@@ -1333,7 +1333,7 @@ func TestServer_PostSubRequests_DBError(t *testing.T) {
 	u, _ := repo.CreateUser(context.Background(), "postreqerr@example.com", "member")
 	dbConn.Close() // Force CreateSubRequest to fail
 
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/sub-requests", nil)
 	req.PostForm = url.Values{
 		"show":       {"1"},
@@ -1388,7 +1388,7 @@ func TestDecodeSpec_Errors(t *testing.T) {
 }
 
 func TestServer_PostSubRequests_ParseFormError(t *testing.T) {
-	s := NewServer(nil, nil, nil)
+	s := newTestServer(nil, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/sub-requests", strings.NewReader("!!invalid!!"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rr := httptest.NewRecorder()
@@ -1414,7 +1414,7 @@ func TestServer_DeleteSubRequestsId_DeleteError(t *testing.T) {
 	_ = repo.CreateSubRequest(context.Background(), sr)
 	dbConn.Close() // Force GetSubRequestByID to fail
 
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/1", nil)
 	ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
 	req = req.WithContext(ctx)
@@ -1428,7 +1428,7 @@ func TestServer_DeleteSubRequestsId_DeleteError(t *testing.T) {
 
 func TestServer_GetApp_SpinitronError(t *testing.T) {
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, &faultyShowsService{})
+	s := newTestServer(repo, nil, &faultyShowsService{})
 
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
 	ctx := context.WithValue(req.Context(), UserEmailKey, "test@example.com")
@@ -1453,7 +1453,7 @@ func (f *faultyShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Per
 }
 
 func TestServer_PostSubRequests_LargeBody(t *testing.T) {
-	s := NewServer(nil, nil, nil)
+	s := newTestServer(nil, nil, nil)
 	largeBody := "show=1&start_time=2036-05-01T10:00&end_time=2036-05-01T12:00&notes=" + strings.Repeat("a", 1024*1024+100)
 	req := httptest.NewRequest(http.MethodPost, "/sub-requests", strings.NewReader(largeBody))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1481,7 +1481,7 @@ func TestServer_DeleteSubRequestsId_Unauthorized(t *testing.T) {
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
 
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/1", nil)
 	ctx := context.WithValue(req.Context(), UserIDKey, u2.ID)
 	req = req.WithContext(ctx)
@@ -1501,7 +1501,7 @@ func TestServer_DeleteSubRequestsId_NotFound(t *testing.T) {
 	repo := sqlite.NewRepository(dbConn)
 	u1, _ := repo.CreateUser(context.Background(), "u1@example.com", "member")
 
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/999", nil)
 	ctx := context.WithValue(req.Context(), UserIDKey, u1.ID)
 	req = req.WithContext(ctx)
@@ -1528,7 +1528,7 @@ func TestServer_DeleteSubRequestsId_NoUserInContext(t *testing.T) {
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
 
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/1", nil)
 	rr := httptest.NewRecorder()
 	s.DeleteSubRequestsId(rr, req, sr.ID)
@@ -1565,7 +1565,7 @@ func TestServer_PostUsersImportSpinitron(t *testing.T) {
 	repo := sqlite.NewRepository(dbConn)
 
 	t.Run("success", func(t *testing.T) {
-		s := NewServer(repo, nil, &importMockShowsService{fail: false})
+		s := newTestServer(repo, nil, &importMockShowsService{fail: false})
 		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
 		rr := httptest.NewRecorder()
 		s.PostUsersImportSpinitron(rr, req)
@@ -1581,7 +1581,7 @@ func TestServer_PostUsersImportSpinitron(t *testing.T) {
 	})
 
 	t.Run("spinitron error handled gracefully", func(t *testing.T) {
-		s := NewServer(repo, nil, &importMockShowsService{fail: true})
+		s := newTestServer(repo, nil, &importMockShowsService{fail: true})
 		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
 		rr := httptest.NewRecorder()
 		s.PostUsersImportSpinitron(rr, req)
@@ -1594,7 +1594,7 @@ func TestServer_PostUsersImportSpinitron(t *testing.T) {
 	t.Run("db import error", func(t *testing.T) {
 		// Drop users table to force repo.ImportUsers to fail
 		_ = dbConn.Close()
-		s := NewServer(repo, nil, &importMockShowsService{fail: false})
+		s := newTestServer(repo, nil, &importMockShowsService{fail: false})
 		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
 		rr := httptest.NewRecorder()
 		s.PostUsersImportSpinitron(rr, req)
@@ -1607,7 +1607,7 @@ func TestServer_PostUsersImportSpinitron(t *testing.T) {
 
 func TestServer_GetAdmin_Sorting(t *testing.T) {
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 
 	_, _ = repo.CreateUser(context.Background(), "a@example.com", "member")
 	_, _ = repo.CreateUser(context.Background(), "b@example.com", "admin")
@@ -1626,7 +1626,7 @@ func TestServer_GetAdmin_Sorting(t *testing.T) {
 
 func TestServer_PostUsersId_Errors(t *testing.T) {
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 
 	u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
 
@@ -1667,7 +1667,7 @@ func TestServer_PostUsersId_Errors(t *testing.T) {
 
 	t.Run("form success", func(t *testing.T) {
 		repo := setupTestDB(t) // fresh DB
-		s := NewServer(repo, nil, nil)
+		s := newTestServer(repo, nil, nil)
 		u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
 		target, _ := repo.CreateUser(context.Background(), "target@example.com", "member")
 
@@ -1710,7 +1710,7 @@ func TestServer_PostUsersId_Errors(t *testing.T) {
 
 func TestAppHandler_UnknownShowTitle(t *testing.T) {
 	repo := setupTestDB(t)
-	server := NewServer(repo, nil, &MockShowsService{})
+	server := newTestServer(repo, nil, &MockShowsService{})
 
 	// Create a sub request with a show ID not in the spinitron response
 	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
@@ -1736,7 +1736,7 @@ func TestAppHandler_UnknownShowTitle(t *testing.T) {
 
 func TestAppHandler_AdminCanTakeOwnRequest(t *testing.T) {
 	repo := setupTestDB(t)
-	server := NewServer(repo, nil, &MockShowsService{})
+	server := newTestServer(repo, nil, &MockShowsService{})
 
 	admin, _ := repo.CreateUser(context.Background(), "admin@example.com", "admin")
 	_ = repo.CreateSubRequest(context.Background(), &domain.SubRequest{
@@ -1772,7 +1772,7 @@ func TestServer_GetAdmin_DBError(t *testing.T) {
 	repo := sqlite.NewRepository(dbConn)
 	dbConn.Close() // Force ListUsers to fail
 
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 	ctx := context.WithValue(req.Context(), UserIDKey, 1)
 	ctx = context.WithValue(ctx, UserEmailKey, "admin@example.com")
@@ -1787,7 +1787,7 @@ func TestServer_GetAdmin_DBError(t *testing.T) {
 
 func TestServer_GetAdmin_RenderError(t *testing.T) {
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 	ctx := context.WithValue(req.Context(), UserIDKey, 1)
@@ -1800,7 +1800,7 @@ func TestServer_GetAdmin_RenderError(t *testing.T) {
 
 func TestServer_Get_RenderError(t *testing.T) {
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	ew := &errorResponseWriter{}
@@ -1810,7 +1810,7 @@ func TestServer_Get_RenderError(t *testing.T) {
 
 func TestServer_GetApp_RenderError(t *testing.T) {
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, &MockShowsService{})
+	s := newTestServer(repo, nil, &MockShowsService{})
 
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
 	ctx := context.WithValue(req.Context(), UserEmailKey, "test@example.com")
@@ -1823,7 +1823,7 @@ func TestServer_GetApp_RenderError(t *testing.T) {
 
 func TestServer_PostUsersId_NoUserInContext(t *testing.T) {
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/users/1", strings.NewReader(`{"is_enabled":false}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -1836,7 +1836,7 @@ func TestServer_PostUsersId_NoUserInContext(t *testing.T) {
 
 func TestServer_PostUsersId_InvalidRole(t *testing.T) {
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/users/1", strings.NewReader(`{"role":"superadmin"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -1851,7 +1851,7 @@ func TestServer_PostUsersId_InvalidRole(t *testing.T) {
 
 func TestServer_PostUsersId_NotFound(t *testing.T) {
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/users/99999", strings.NewReader(`{"role":"admin"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -1872,7 +1872,7 @@ func TestServer_PostUsers_CreateError(t *testing.T) {
 	repo := sqlite.NewRepository(dbConn)
 	_, _ = repo.CreateUser(context.Background(), "dup@example.com", "member")
 
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/users", nil)
 	req.PostForm = url.Values{
 		"email": {"dup@example.com"},
@@ -1885,7 +1885,7 @@ func TestServer_PostUsers_CreateError(t *testing.T) {
 }
 
 func TestServer_PostUsers_EmptyEmail(t *testing.T) {
-	s := NewServer(nil, nil, nil)
+	s := newTestServer(nil, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/users", nil)
 	req.PostForm = url.Values{
 		"email": {""},
@@ -1898,7 +1898,7 @@ func TestServer_PostUsers_EmptyEmail(t *testing.T) {
 }
 
 func TestServer_PostUsers_InvalidRole(t *testing.T) {
-	s := NewServer(nil, nil, nil)
+	s := newTestServer(nil, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/users", nil)
 	req.PostForm = url.Values{
 		"email": {"test@example.com"},
@@ -1912,7 +1912,7 @@ func TestServer_PostUsers_InvalidRole(t *testing.T) {
 }
 
 func TestServer_PostUsers_ParseFormError(t *testing.T) {
-	s := NewServer(nil, nil, nil)
+	s := newTestServer(nil, nil, nil)
 	largeBody := "email=test@example.com&" + strings.Repeat("a", 1024*1024+100)
 	req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(largeBody))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1928,7 +1928,7 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 	u1, _ := repo.CreateUser(context.Background(), "poster@example.com", "member")
 	u2, _ := repo.CreateUser(context.Background(), "taker@example.com", "member")
 	u3, _ := repo.CreateUser(context.Background(), "other@example.com", "member")
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 
 	sr := &domain.SubRequest{
 		ShowID:         1,
@@ -2110,7 +2110,7 @@ func TestServer_PatchSubRequestsId_DBError(t *testing.T) {
 	_ = repo.CreateSubRequest(context.Background(), sr)
 	dbConn.Close()
 
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 	req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
 		strings.NewReader(`{"action":"take"}`))
 	ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
@@ -2138,7 +2138,7 @@ func TestServer_PatchSubRequestsId_TakeDBError(t *testing.T) {
 	// Close the DB after creating the sub request to force TakeSubRequest to fail
 	_ = repo.DB().Close()
 
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 	req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
 		strings.NewReader(`{"action":"take"}`))
 	ctx := context.WithValue(req.Context(), UserIDKey, u2.ID)
@@ -2168,7 +2168,7 @@ func TestServer_PatchSubRequestsId_UntakeDBError(t *testing.T) {
 	// Close the DB after taking the sub request
 	_ = repo.DB().Close()
 
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 	req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1",
 		strings.NewReader(`{"action":"untake"}`))
 	ctx := context.WithValue(req.Context(), UserIDKey, u2.ID)

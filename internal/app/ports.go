@@ -15,7 +15,7 @@ type Repository interface {
 	subrequestsapp.Repository
 }
 
-type ShowCatalog interface {
+type Catalog interface {
 	adminapp.Catalog
 	subrequestsapp.Catalog
 	ListPersonas(ctx context.Context) ([]appcatalog.Persona, error)

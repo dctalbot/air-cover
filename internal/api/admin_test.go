@@ -67,7 +67,7 @@ func TestAuthHandler_RequireAdmin(t *testing.T) {
 
 func TestServer_GetAdmin(t *testing.T) {
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 
 	_, _ = repo.CreateUser(context.Background(), "admin@example.com", "admin")
 	_, _ = repo.CreateUser(context.Background(), "member@example.com", "member")
@@ -109,7 +109,7 @@ func TestServer_GetAdmin(t *testing.T) {
 
 func TestServer_GetAdmin_DeactivatedUsersSortedByEmail(t *testing.T) {
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 
 	_, _ = repo.CreateUser(context.Background(), "admin@example.com", "admin")
 	zUser, _ := repo.CreateUser(context.Background(), "zeta@example.com", "member")
@@ -147,7 +147,7 @@ func TestServer_GetAdmin_DeactivatedUsersSortedByEmail(t *testing.T) {
 
 func TestServer_GetApp_AdminLinkVisibility(t *testing.T) {
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, &MockShowsService{})
+	s := newTestServer(repo, nil, &MockShowsService{})
 
 	tests := []struct {
 		name     string
@@ -179,7 +179,7 @@ func TestServer_GetApp_AdminLinkVisibility(t *testing.T) {
 
 func TestServer_PostUsers(t *testing.T) {
 	repo := setupTestDB(t)
-	s := NewServer(repo, nil, nil)
+	s := newTestServer(repo, nil, nil)
 	h := Handler(s)
 
 	tests := []struct {
@@ -256,7 +256,7 @@ func TestServer_PostUsers(t *testing.T) {
 	// Test database error
 	t.Run("database error", func(t *testing.T) {
 		repo = setupTestDB(t)
-		s = NewServer(repo, nil, nil)
+		s = newTestServer(repo, nil, nil)
 		dbConn := repo.DB()
 		dbConn.Close()
 
@@ -365,7 +365,7 @@ func TestServer_PostUsersId(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := setupTestDB(t)
-			s := NewServer(repo, nil, nil)
+			s := newTestServer(repo, nil, nil)
 			h := Handler(s)
 
 			admin, _ := repo.CreateUser(context.Background(), "admin@example.com", "admin")

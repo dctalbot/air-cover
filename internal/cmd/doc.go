@@ -18,7 +18,7 @@ var docCmd = &cobra.Command{
 		// Minimal setup for docgen
 		// We don't need real dependencies for docgen as it only inspects the router structure
 		authHandler := api.NewAuthHandler(nil, nil)
-		apiServer := api.NewServerWithServices(authHandler, nil, nil, nil)
+		apiServer := api.NewServer(authHandler, nil, nil)
 
 		r := newRouter(apiServer, authHandler)
 		fmt.Println(docgen.JSONRoutesDoc(r.(*chi.Mux))) // nolint:forbidigo

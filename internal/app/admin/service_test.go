@@ -138,34 +138,34 @@ func TestUpdateUser(t *testing.T) {
 	}
 }
 
-func TestImportSpinitronUsers(t *testing.T) {
+func TestImportCatalogUsers(t *testing.T) {
 	repo := &fakeRepository{}
 	svc := NewService(repo, &fakeCatalog{personas: []appcatalog.Persona{
 		{Email: "one@example.com"},
 		{Email: " "},
 		{Email: "two@example.com"},
 	}})
-	if err := svc.ImportSpinitronUsers(context.Background()); err != nil {
-		t.Fatalf("ImportSpinitronUsers returned error: %v", err)
+	if err := svc.ImportCatalogUsers(context.Background()); err != nil {
+		t.Fatalf("ImportCatalogUsers returned error: %v", err)
 	}
 	if len(repo.importEmails) != 2 {
 		t.Fatalf("imported %d emails, want 2", len(repo.importEmails))
 	}
 
-	if err := NewService(repo, &fakeCatalog{err: errors.New("spinitron down")}).ImportSpinitronUsers(context.Background()); err != nil {
-		t.Errorf("spinitron errors should be swallowed, got %v", err)
+	if err := NewService(repo, &fakeCatalog{err: errors.New("catalog down")}).ImportCatalogUsers(context.Background()); err != nil {
+		t.Errorf("catalog errors should be swallowed, got %v", err)
 	}
-	if err := NewService(repo, nil).ImportSpinitronUsers(context.Background()); err != nil {
+	if err := NewService(repo, nil).ImportCatalogUsers(context.Background()); err != nil {
 		t.Errorf("nil catalog should be ignored, got %v", err)
 	}
 	if err := NewService(repo, &fakeCatalog{personas: []appcatalog.Persona{{Email: " "}}}).
-		ImportSpinitronUsers(context.Background()); err != nil {
+		ImportCatalogUsers(context.Background()); err != nil {
 		t.Errorf("empty import should be ignored, got %v", err)
 	}
 
 	importErr := errors.New("import failed")
 	repo.importErr = importErr
-	if err := svc.ImportSpinitronUsers(context.Background()); !errors.Is(err, importErr) {
+	if err := svc.ImportCatalogUsers(context.Background()); !errors.Is(err, importErr) {
 		t.Errorf("import error = %v, want %v", err, importErr)
 	}
 }

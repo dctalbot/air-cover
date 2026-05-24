@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -11,43 +10,20 @@ import (
 	"time"
 
 	adminapp "air-cover/internal/app/admin"
-	appcatalog "air-cover/internal/app/catalog"
 	"air-cover/internal/app/session"
 	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/apperrors"
-	"air-cover/internal/domain"
 	"air-cover/internal/presenter"
 	"air-cover/internal/ui"
 )
 
-type ShowsService interface {
-	ListShows(ctx context.Context) ([]appcatalog.Show, error)
-	ListPersonas(ctx context.Context) ([]appcatalog.Persona, error)
-}
-
 type Server struct {
-	auth          *AuthHandler
-	sessionReader interface {
-		GetSessionByToken(ctx context.Context, sessionToken string) (*domain.Session, error)
-	}
+	auth        *AuthHandler
 	subRequests *subrequestsapp.Service
 	admin       *adminapp.Service
 }
 
-func NewServer(repo interface {
-	authRepository
-	adminapp.Repository
-	subrequestsapp.Repository
-}, auth *AuthHandler, spinitronClient ShowsService) *Server {
-	return &Server{
-		auth:          auth,
-		sessionReader: repo,
-		subRequests:   subrequestsapp.NewService(repo, spinitronClient),
-		admin:         adminapp.NewService(repo, spinitronClient),
-	}
-}
-
-func NewServerWithServices(auth *AuthHandler, subRequests *subrequestsapp.Service, admin *adminapp.Service, spinitronClient ShowsService) *Server {
+func NewServer(auth *AuthHandler, subRequests *subrequestsapp.Service, admin *adminapp.Service) *Server {
 	return &Server{
 		auth:        auth,
 		subRequests: subRequests,
@@ -61,11 +37,6 @@ func (s *Server) Get(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie("session_id"); err == nil && cookie.Value != "" {
 		if s.auth != nil {
 			if _, err := s.auth.auth.AuthenticateSession(r.Context(), cookie.Value); err == nil {
-				http.Redirect(w, r, "/app", http.StatusFound)
-				return
-			}
-		} else if s.sessionReader != nil {
-			if _, err := s.sessionReader.GetSessionByToken(r.Context(), cookie.Value); err == nil {
 				http.Redirect(w, r, "/app", http.StatusFound)
 				return
 			}
@@ -373,7 +344,7 @@ func (s *Server) GetHealth(w http.ResponseWriter, r *http.Request) {
 // Import users from Spinitron
 // (POST /users/import/spinitron)
 func (s *Server) PostUsersImportSpinitron(w http.ResponseWriter, r *http.Request) {
-	if err := s.admin.ImportSpinitronUsers(r.Context()); err != nil {
+	if err := s.admin.ImportCatalogUsers(r.Context()); err != nil {
 		slog.Error("Failed to import users from spinitron", "error", err)
 		http.Error(w, "Failed to import users", http.StatusInternalServerError)
 		return

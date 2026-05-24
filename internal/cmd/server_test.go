@@ -14,8 +14,10 @@ import (
 	"air-cover/internal/adapters/sqlite"
 	"air-cover/internal/api"
 	coreapp "air-cover/internal/app"
+	adminapp "air-cover/internal/app/admin"
 	authapp "air-cover/internal/app/auth"
 	appcatalog "air-cover/internal/app/catalog"
+	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/config"
 	"air-cover/internal/domain"
@@ -160,6 +162,16 @@ func (f *fakeStartupRepo) ImportUsers(ctx context.Context, emails []string) erro
 	return nil
 }
 
+func newTestAPIServer(repo coreapp.Repository, authHandler *api.AuthHandler, catalog coreapp.Catalog) *api.Server {
+	var subRequests *subrequestsapp.Service
+	var admin *adminapp.Service
+	if repo != nil {
+		subRequests = subrequestsapp.NewService(repo, catalog)
+		admin = adminapp.NewService(repo, catalog)
+	}
+	return api.NewServer(authHandler, subRequests, admin)
+}
+
 func testServerDeps(cfg *config.Config, repo repository) serverDeps {
 	return serverDeps{
 		loadConfig: func(cmd *cobra.Command) (*config.Config, error) {
@@ -174,7 +186,7 @@ func testServerDeps(cfg *config.Config, repo repository) serverDeps {
 		newSpinitron: func(apiKey, baseURL string) adapterspinitron.PageClient {
 			return &fakeSpinitronPageClient{}
 		},
-		newCatalog: func(source adapterspinitron.PageClient) api.ShowsService {
+		newCatalog: func(source adapterspinitron.PageClient) coreapp.Catalog {
 			return &fakeShowsService{}
 		},
 		newRouter: func(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
@@ -187,8 +199,8 @@ func testServerDeps(cfg *config.Config, repo repository) serverDeps {
 		newAuthHandler: func(repo authapp.Repository, sender authapp.Sender) *api.AuthHandler {
 			return api.NewAuthHandler(repo, sender)
 		},
-		newAPIServer: func(repo coreapp.Repository, authHandler *api.AuthHandler, spinitronClient api.ShowsService) *api.Server {
-			return api.NewServer(repo, authHandler, spinitronClient)
+		newAPIServer: func(repo coreapp.Repository, authHandler *api.AuthHandler, spinitronClient coreapp.Catalog) *api.Server {
+			return newTestAPIServer(repo, authHandler, spinitronClient)
 		},
 		newDBRepository: func(database *sql.DB) repository {
 			return repo
@@ -239,7 +251,7 @@ func TestIndexHandler(t *testing.T) {
 	}
 
 	auth := api.NewAuthHandler(repo, nil)
-	server := api.NewServer(repo, auth, nil)
+	server := newTestAPIServer(repo, auth, nil)
 
 	handler := server.Get
 
@@ -309,7 +321,7 @@ func TestAppHandler(t *testing.T) {
 	}
 	dbConn, _ := sqlite.InitDB("file::memory:?cache=shared")
 	repo := sqlite.NewRepository(dbConn)
-	server := api.NewServer(repo, nil, service)
+	server := newTestAPIServer(repo, nil, service)
 	handler := server.GetApp
 
 	tests := []struct {
@@ -371,7 +383,7 @@ func TestAppHandler_UpstreamError(t *testing.T) {
 	service := &fakeShowsService{err: errors.New("boom")}
 	dbConn, _ := sqlite.InitDB("file::memory:?cache=shared")
 	repo := sqlite.NewRepository(dbConn)
-	server := api.NewServer(repo, nil, service)
+	server := newTestAPIServer(repo, nil, service)
 	handler := server.GetApp
 
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
@@ -748,7 +760,7 @@ func TestRunServer_DependencyFailures(t *testing.T) {
 	t.Run("prefetch starts in background", func(t *testing.T) {
 		deps := testServerDeps(cfg, &fakeStartupRepo{})
 		service := &fakeShowsService{done: make(chan struct{})}
-		deps.newCatalog = func(source adapterspinitron.PageClient) api.ShowsService {
+		deps.newCatalog = func(source adapterspinitron.PageClient) coreapp.Catalog {
 			return service
 		}
 
@@ -781,7 +793,7 @@ func TestNewRouter(t *testing.T) {
 
 	repo := sqlite.NewRepository(dbConn)
 	auth := api.NewAuthHandler(repo, nil)
-	server := api.NewServer(repo, auth, nil)
+	server := newTestAPIServer(repo, auth, nil)
 
 	r := newRouter(server, auth)
 	if r == nil {
@@ -881,7 +893,7 @@ func TestAuthRateLimiting(t *testing.T) {
 	repo := sqlite.NewRepository(dbConn)
 	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
 	auth := api.NewAuthHandler(repo, &mockSender{})
-	server := api.NewServer(repo, auth, nil)
+	server := newTestAPIServer(repo, auth, nil)
 
 	r := newRouter(server, auth)
 

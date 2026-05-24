@@ -55,12 +55,12 @@ type serverDeps struct {
 	initDB           func(string) (*sql.DB, error)
 	newSender        func(apiKey, fromEmail, env string) authapp.Sender
 	newSpinitron     func(apiKey, baseURL string) adapterspinitron.PageClient
-	newCatalog       func(adapterspinitron.PageClient) api.ShowsService
+	newCatalog       func(adapterspinitron.PageClient) coreapp.Catalog
 	newRouter        func(*api.Server, *api.AuthHandler) chi.Router
 	listenAndServe   func(*http.Server) error
 	backgroundCtx    func() context.Context
 	newAuthHandler   func(authapp.Repository, authapp.Sender) *api.AuthHandler
-	newAPIServer     func(coreapp.Repository, *api.AuthHandler, api.ShowsService) *api.Server
+	newAPIServer     func(coreapp.Repository, *api.AuthHandler, coreapp.Catalog) *api.Server
 	newDBRepository  func(*sql.DB) repository
 	setDefaultLogger func(*config.Config)
 	signalContext    func(context.Context) (context.Context, context.CancelFunc)
@@ -82,19 +82,18 @@ func defaultServerDeps() serverDeps {
 		newSpinitron: func(apiKey, baseURL string) adapterspinitron.PageClient {
 			return adapterspinitron.NewClient(apiKey, baseURL)
 		},
-		newCatalog:     func(source adapterspinitron.PageClient) api.ShowsService { return adapterspinitron.NewCatalog(source) },
+		newCatalog:     func(source adapterspinitron.PageClient) coreapp.Catalog { return adapterspinitron.NewCatalog(source) },
 		newRouter:      newRouter,
 		listenAndServe: listenAndServe,
 		backgroundCtx:  context.Background,
 		newAuthHandler: func(repo authapp.Repository, sender authapp.Sender) *api.AuthHandler {
 			return api.NewAuthHandler(repo, sender)
 		},
-		newAPIServer: func(repo coreapp.Repository, authHandler *api.AuthHandler, spinitronClient api.ShowsService) *api.Server {
-			return api.NewServerWithServices(
+		newAPIServer: func(repo coreapp.Repository, authHandler *api.AuthHandler, catalog coreapp.Catalog) *api.Server {
+			return api.NewServer(
 				authHandler,
-				subrequestsapp.NewService(repo, spinitronClient),
-				adminapp.NewService(repo, spinitronClient),
-				spinitronClient,
+				subrequestsapp.NewService(repo, catalog),
+				adminapp.NewService(repo, catalog),
 			)
 		},
 		newDBRepository: func(database *sql.DB) repository {

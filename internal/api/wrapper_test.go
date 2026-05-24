@@ -7,7 +7,7 @@ import (
 )
 
 func TestNewWrapper(t *testing.T) {
-	server := NewServer(nil, nil, nil)
+	server := newTestServer(nil, nil, nil)
 	wrapper := NewWrapper(server)
 
 	if wrapper == nil {
