@@ -21,6 +21,7 @@ import (
 	authapp "air-cover/internal/app/auth"
 	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/apperrors"
+	"air-cover/internal/domain"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -60,16 +61,24 @@ type serverDeps struct {
 	listenAndServe   func(*http.Server) error
 	backgroundCtx    func() context.Context
 	newAuthHandler   func(authapp.Repository, authapp.Sender) *api.AuthHandler
-	newAPIServer     func(coreapp.Repository, *api.AuthHandler, coreapp.Catalog) *api.Server
-	newDBRepository  func(*sql.DB) repository
+	newAPIServer     func(subrequestsapp.Repository, adminapp.Repository, *api.AuthHandler, coreapp.Catalog) *api.Server
+	newDBRepository  func(*sql.DB) repositories
 	setDefaultLogger func(*config.Config)
 	signalContext    func(context.Context) (context.Context, context.CancelFunc)
 	shutdownServer   func(*http.Server, context.Context) error
 	shutdownTimeout  time.Duration
 }
 
-type repository interface {
-	coreapp.Repository
+type startupRepository interface {
+	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
+	CreateUser(ctx context.Context, email string, role string) (*domain.User, error)
+}
+
+type repositories struct {
+	startup     startupRepository
+	auth        authapp.Repository
+	subRequests subrequestsapp.Repository
+	admin       adminapp.Repository
 }
 
 func defaultServerDeps() serverDeps {
@@ -89,15 +98,21 @@ func defaultServerDeps() serverDeps {
 		newAuthHandler: func(repo authapp.Repository, sender authapp.Sender) *api.AuthHandler {
 			return api.NewAuthHandler(repo, sender)
 		},
-		newAPIServer: func(repo coreapp.Repository, authHandler *api.AuthHandler, catalog coreapp.Catalog) *api.Server {
+		newAPIServer: func(subRequestsRepo subrequestsapp.Repository, adminRepo adminapp.Repository, authHandler *api.AuthHandler, catalog coreapp.Catalog) *api.Server {
 			return api.NewServer(
 				authHandler,
-				subrequestsapp.NewService(repo, catalog),
-				adminapp.NewService(repo, catalog),
+				subrequestsapp.NewService(subRequestsRepo, catalog),
+				adminapp.NewService(adminRepo, catalog),
 			)
 		},
-		newDBRepository: func(database *sql.DB) repository {
-			return sqlite.NewRepository(database)
+		newDBRepository: func(database *sql.DB) repositories {
+			repo := sqlite.NewRepository(database)
+			return repositories{
+				startup:     repo,
+				auth:        repo,
+				subRequests: repo,
+				admin:       repo,
+			}
 		},
 		setDefaultLogger: func(cfg *config.Config) {
 			slog.SetDefault(logger.NewLogger(cfg))
@@ -192,10 +207,10 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 
 	if cfg.MasterEmail != "" {
 		ctx := deps.backgroundCtx()
-		_, err := repo.GetUserByEmail(ctx, cfg.MasterEmail)
+		_, err := repo.startup.GetUserByEmail(ctx, cfg.MasterEmail)
 		if errors.Is(err, apperrors.ErrNotFound) {
 			slog.Info("Creating master admin user", "email", cfg.MasterEmail)
-			_, err = repo.CreateUser(ctx, cfg.MasterEmail, "admin")
+			_, err = repo.startup.CreateUser(ctx, cfg.MasterEmail, "admin")
 			if err != nil {
 				return fmt.Errorf("failed to create master user: %w", err)
 			}
@@ -205,7 +220,7 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 	}
 
 	sender := deps.newSender(cfg.SendGridAPIKey, cfg.FromEmail, cfg.ENV)
-	authHandler := deps.newAuthHandler(repo, sender)
+	authHandler := deps.newAuthHandler(repo.auth, sender)
 	spinitronClient := deps.newSpinitron("", cfg.SpinitronAPIURL)
 	spinitronCatalog := deps.newCatalog(spinitronClient)
 	if prefetcher, ok := spinitronCatalog.(interface{ Prefetch(context.Context) error }); ok {
@@ -217,7 +232,7 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 			}
 		}()
 	}
-	apiServer := deps.newAPIServer(repo, authHandler, spinitronCatalog)
+	apiServer := deps.newAPIServer(repo.subRequests, repo.admin, authHandler, spinitronCatalog)
 
 	r := deps.newRouter(apiServer, authHandler)
 	portStr := strconv.Itoa(cfg.Port)

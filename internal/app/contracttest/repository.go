@@ -6,12 +6,20 @@ import (
 	"fmt"
 	"time"
 
-	"air-cover/internal/app"
+	adminapp "air-cover/internal/app/admin"
+	authapp "air-cover/internal/app/auth"
+	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
 )
 
-func CheckRepository(ctx context.Context, repo app.Repository) (err error) {
+type Repository interface {
+	authapp.Repository
+	adminapp.Repository
+	subrequestsapp.Repository
+}
+
+func CheckRepository(ctx context.Context, repo Repository) (err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -27,7 +35,7 @@ func CheckRepository(ctx context.Context, repo app.Repository) (err error) {
 	return nil
 }
 
-func checkRepository(ctx context.Context, repo app.Repository) {
+func checkRepository(ctx context.Context, repo Repository) {
 	user, err := repo.CreateUser(ctx, "contract@example.com", "member")
 	mustNoErr(err, "CreateUser returned error")
 	must(user.ID != 0 && user.Email == "contract@example.com" && user.IsEnabled, "unexpected created user: %+v", user)

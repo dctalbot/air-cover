@@ -106,63 +106,7 @@ func (f *fakeStartupRepo) CreateUser(ctx context.Context, email string, role str
 	return &domain.User{ID: 1, Email: email, Role: role, IsEnabled: true}, nil
 }
 
-func (f *fakeStartupRepo) CreateMagicLink(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error {
-	return nil
-}
-
-func (f *fakeStartupRepo) UseMagicLink(ctx context.Context, tokenHash string) (*domain.MagicLink, error) {
-	return &domain.MagicLink{UserID: 1, ExpiresAt: time.Now().Add(time.Hour)}, nil
-}
-
-func (f *fakeStartupRepo) CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error {
-	return nil
-}
-
-func (f *fakeStartupRepo) GetSessionByToken(ctx context.Context, sessionToken string) (*domain.Session, error) {
-	return &domain.Session{UserID: 1, ExpiresAt: time.Now().Add(time.Hour)}, nil
-}
-
-func (f *fakeStartupRepo) DeleteSessionsByUserID(ctx context.Context, userID int) error {
-	return nil
-}
-
-func (f *fakeStartupRepo) ListSubRequests(ctx context.Context) ([]*domain.SubRequest, error) {
-	return nil, nil
-}
-
-func (f *fakeStartupRepo) ListUsers(ctx context.Context) ([]*domain.User, error) {
-	return nil, nil
-}
-
-func (f *fakeStartupRepo) CreateSubRequest(ctx context.Context, sr *domain.SubRequest) error {
-	return nil
-}
-
-func (f *fakeStartupRepo) GetSubRequestByID(ctx context.Context, id int) (*domain.SubRequest, error) {
-	return nil, apperrors.ErrNotFound
-}
-
-func (f *fakeStartupRepo) DeleteSubRequest(ctx context.Context, id int) error {
-	return nil
-}
-
-func (f *fakeStartupRepo) TakeSubRequest(ctx context.Context, id int, userID int) error {
-	return nil
-}
-
-func (f *fakeStartupRepo) UntakeSubRequest(ctx context.Context, id int) error {
-	return nil
-}
-
-func (f *fakeStartupRepo) UpdateUser(ctx context.Context, id int, role *string, isEnabled *bool) error {
-	return nil
-}
-
-func (f *fakeStartupRepo) ImportUsers(ctx context.Context, emails []string) error {
-	return nil
-}
-
-func newTestAPIServer(repo coreapp.Repository, authHandler *api.AuthHandler, catalog coreapp.Catalog) *api.Server {
+func newTestAPIServer(repo *sqlite.Repository, authHandler *api.AuthHandler, catalog coreapp.Catalog) *api.Server {
 	var subRequests *subrequestsapp.Service
 	var admin *adminapp.Service
 	if repo != nil {
@@ -172,7 +116,7 @@ func newTestAPIServer(repo coreapp.Repository, authHandler *api.AuthHandler, cat
 	return api.NewServer(authHandler, subRequests, admin)
 }
 
-func testServerDeps(cfg *config.Config, repo repository) serverDeps {
+func testServerDeps(cfg *config.Config, repo startupRepository) serverDeps {
 	return serverDeps{
 		loadConfig: func(cmd *cobra.Command) (*config.Config, error) {
 			return cfg, nil
@@ -199,11 +143,15 @@ func testServerDeps(cfg *config.Config, repo repository) serverDeps {
 		newAuthHandler: func(repo authapp.Repository, sender authapp.Sender) *api.AuthHandler {
 			return api.NewAuthHandler(repo, sender)
 		},
-		newAPIServer: func(repo coreapp.Repository, authHandler *api.AuthHandler, spinitronClient coreapp.Catalog) *api.Server {
-			return newTestAPIServer(repo, authHandler, spinitronClient)
+		newAPIServer: func(subRequestsRepo subrequestsapp.Repository, adminRepo adminapp.Repository, authHandler *api.AuthHandler, catalog coreapp.Catalog) *api.Server {
+			return api.NewServer(
+				authHandler,
+				subrequestsapp.NewService(subRequestsRepo, catalog),
+				adminapp.NewService(adminRepo, catalog),
+			)
 		},
-		newDBRepository: func(database *sql.DB) repository {
-			return repo
+		newDBRepository: func(database *sql.DB) repositories {
+			return repositories{startup: repo}
 		},
 		setDefaultLogger: func(cfg *config.Config) {},
 		signalContext: func(parent context.Context) (context.Context, context.CancelFunc) {
