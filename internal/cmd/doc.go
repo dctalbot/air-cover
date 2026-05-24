@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/docgen"
 	"github.com/spf13/cobra"
 
-	httpadapter "air-cover/internal/adapters/http"
+	httpadapter "air-cover/internal/adapters/inbound/http"
 )
 
 var docCmd = &cobra.Command{

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"air-cover/internal/adapters/http/presenter"
+	"air-cover/internal/adapters/inbound/http/presenter"
 	appcatalog "air-cover/internal/app/catalog"
 )
 

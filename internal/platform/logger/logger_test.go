@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"air-cover/internal/config"
+	"air-cover/internal/platform/config"
 	"go.uber.org/zap"
 )
 

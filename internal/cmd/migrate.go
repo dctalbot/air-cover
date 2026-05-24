@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"air-cover/internal/adapters/sqlite"
-	"air-cover/internal/config"
-	"air-cover/internal/logger"
+	"air-cover/internal/adapters/outbound/sqlite"
+	"air-cover/internal/platform/config"
+	"air-cover/internal/platform/logger"
 )
 
 var sqlOpen = sql.Open

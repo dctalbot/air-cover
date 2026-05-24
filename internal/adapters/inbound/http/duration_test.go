@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"air-cover/internal/adapters/http/presenter"
+	"air-cover/internal/adapters/inbound/http/presenter"
 )
 
 func TestFormatDuration(t *testing.T) {

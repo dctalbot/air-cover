@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"air-cover/internal/adapters/http/presenter"
-	"air-cover/internal/adapters/http/ui"
+	"air-cover/internal/adapters/inbound/http/presenter"
+	"air-cover/internal/adapters/inbound/http/ui"
 	subrequestsapp "air-cover/internal/app/subrequests"
 )
 

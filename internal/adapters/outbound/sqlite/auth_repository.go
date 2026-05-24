@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"air-cover/internal/adapters/sqlite/dbgen"
+	"air-cover/internal/adapters/outbound/sqlite/dbgen"
 	"air-cover/internal/domain"
 )
 

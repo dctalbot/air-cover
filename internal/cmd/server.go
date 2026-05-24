@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	adapteremail "air-cover/internal/adapters/email"
-	adapterspinitron "air-cover/internal/adapters/spinitron"
-	"air-cover/internal/adapters/sqlite"
+	adapteremail "air-cover/internal/adapters/outbound/email"
+	adapterspinitron "air-cover/internal/adapters/outbound/spinitron"
+	"air-cover/internal/adapters/outbound/sqlite"
 	adminapp "air-cover/internal/app/admin"
 	authapp "air-cover/internal/app/auth"
 	bootstrapapp "air-cover/internal/app/bootstrap"
@@ -25,9 +25,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	httpadapter "air-cover/internal/adapters/http"
-	"air-cover/internal/config"
-	"air-cover/internal/logger"
+	httpadapter "air-cover/internal/adapters/inbound/http"
+	"air-cover/internal/platform/config"
+	"air-cover/internal/platform/logger"
 )
 
 var (

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"air-cover/internal/adapters/http/ui"
+	"air-cover/internal/adapters/inbound/http/ui"
 	adminapp "air-cover/internal/app/admin"
 	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/domain"

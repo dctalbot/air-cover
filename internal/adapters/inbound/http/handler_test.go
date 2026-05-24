@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"air-cover/internal/adapters/sqlite"
+	"air-cover/internal/adapters/outbound/sqlite"
 	adminapp "air-cover/internal/app/admin"
 	authapp "air-cover/internal/app/auth"
 	appcatalog "air-cover/internal/app/catalog"

@@ -1,12 +1,12 @@
 version: "2"
 sql:
   - engine: "sqlite"
-    schema: "internal/adapters/sqlite/schema.sql"
-    queries: "internal/adapters/sqlite/queries"
+    schema: "internal/adapters/outbound/sqlite/schema.sql"
+    queries: "internal/adapters/outbound/sqlite/queries"
     gen:
       go:
         package: "dbgen"
-        out: "internal/adapters/sqlite/dbgen"
+        out: "internal/adapters/outbound/sqlite/dbgen"
         emit_json_tags: true
         output_files_suffix: ".gen"
         output_batch_file_name: "batch.gen.go"

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"air-cover/internal/adapters/sqlite"
+	"air-cover/internal/adapters/outbound/sqlite"
 	authapp "air-cover/internal/app/auth"
 	"air-cover/internal/domain"
 )
