@@ -72,26 +72,16 @@ func (r *Repository) CreateMagicLink(ctx context.Context, userID int, tokenHash 
 
 func (r *Repository) UseMagicLink(ctx context.Context, tokenHash string) (*models.MagicLink, error) {
 	var ml models.MagicLink
-	var usedAt sql.NullTime
-	err := r.db.QueryRowContext(ctx, "SELECT id, user_id, token_hash, expires_at, used_at FROM magic_links WHERE token_hash = ?", tokenHash).
-		Scan(&ml.ID, &ml.UserID, &ml.TokenHash, &ml.ExpiresAt, &usedAt)
+	err := r.db.QueryRowContext(ctx, `
+		DELETE FROM magic_links
+		WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?
+		RETURNING id, user_id, token_hash, expires_at
+	`, tokenHash, time.Now()).
+		Scan(&ml.ID, &ml.UserID, &ml.TokenHash, &ml.ExpiresAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
-		return nil, err
-	}
-
-	if usedAt.Valid {
-		ml.UsedAt = &usedAt.Time
-	}
-
-	if ml.UsedAt != nil || ml.ExpiresAt.Before(time.Now()) {
-		return &ml, errors.New("magic link expired or already used")
-	}
-
-	_, err = r.db.ExecContext(ctx, "DELETE FROM magic_links WHERE id = ?", ml.ID)
-	if err != nil {
 		return nil, err
 	}
 

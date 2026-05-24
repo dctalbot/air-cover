@@ -782,22 +782,16 @@ func TestUseMagicLink_AlreadyUsed(t *testing.T) {
 	}
 }
 
-func TestUseMagicLink_DeleteError(t *testing.T) {
+func TestUseMagicLink_ConsumeError(t *testing.T) {
 	dbConn, mock, repo := newMockRepository(t)
 	defer dbConn.Close()
 
-	expiresAt := time.Now().Add(time.Hour)
-	rows := sqlmock.NewRows([]string{"id", "user_id", "token_hash", "expires_at", "used_at"}).
-		AddRow(1, 2, "del-hash", expiresAt, nil)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, user_id, token_hash, expires_at, used_at FROM magic_links WHERE token_hash = ?")).
-		WithArgs("del-hash").
-		WillReturnRows(rows)
-	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM magic_links WHERE id = ?")).
-		WithArgs(1).
-		WillReturnError(errors.New("delete failed"))
+	mock.ExpectQuery("DELETE FROM magic_links").
+		WithArgs("del-hash", sqlmock.AnyArg()).
+		WillReturnError(errors.New("consume failed"))
 
 	if _, err := repo.UseMagicLink(context.Background(), "del-hash"); err == nil {
-		t.Fatal("expected delete error")
+		t.Fatal("expected consume error")
 	}
 }
 
