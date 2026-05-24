@@ -14,7 +14,7 @@ import (
 
 // Config holds the application configuration.
 type Config struct {
-	Port            int    `validate:"required,gte=1,lte=65535"`
+	Port            int    `validate:"gte=1,lte=65535"`
 	DBURI           string `mapstructure:"db_uri" validate:"required"`
 	ENV             string `validate:"oneof=production development test"`
 	MasterEmail     string `validate:"omitempty,email"`
@@ -43,9 +43,11 @@ func Load(cmd *cobra.Command) (*Config, error) {
 	cfg.SpinitronAPIURL = os.Getenv("SPINITRON_API_URL") // nolint:forbidigo
 
 	if osEnvPort != "" {
-		if p, err := strconv.Atoi(osEnvPort); err == nil {
-			cfg.Port = p
+		p, err := strconv.Atoi(osEnvPort)
+		if err != nil {
+			return nil, fmt.Errorf("invalid PORT: %w", err)
 		}
+		cfg.Port = p
 	}
 
 	// Default values
