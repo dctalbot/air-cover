@@ -72,6 +72,7 @@ type repositories struct {
 }
 
 type infrastructure struct {
+	database     *sql.DB
 	repositories repositories
 	catalog      catalog
 	sender       authapp.Sender
@@ -154,6 +155,9 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 	if err != nil {
 		return err
 	}
+	if infra.database != nil {
+		defer infra.database.Close()
+	}
 
 	if err := bootstrapapp.NewService(infra.repositories.startup).EnsureMasterUser(deps.backgroundCtx(), cfg.MasterEmail); err != nil {
 		return err
@@ -177,6 +181,7 @@ func buildInfrastructure(cfg *config.Config, deps serverDeps) (infrastructure, e
 	repo := deps.newDBRepository(database)
 	spinitronClient := deps.newSpinitron("", cfg.SpinitronAPIURL)
 	return infrastructure{
+		database:     database,
 		repositories: repo,
 		catalog:      deps.newCatalog(spinitronClient),
 		sender:       deps.newSender(cfg.SendGridAPIKey, cfg.FromEmail, cfg.ENV),

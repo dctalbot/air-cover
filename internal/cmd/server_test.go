@@ -243,6 +243,28 @@ func testServerDeps(cfg *config.Config, repo bootstrapapp.Repository) serverDeps
 	}
 }
 
+func newClosableTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	database, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("failed to open test db: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = database.Close()
+	})
+	if err := database.Ping(); err != nil {
+		t.Fatalf("failed to ping test db: %v", err)
+	}
+	return database
+}
+
+func assertDBClosed(t *testing.T, database *sql.DB) {
+	t.Helper()
+	if err := database.Ping(); err == nil {
+		t.Fatal("expected database to be closed")
+	}
+}
+
 func TestHealthHandler(t *testing.T) {
 	server := httpadapter.NewServer(nil, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -591,6 +613,45 @@ func TestRunServer_MasterEmailFailures(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunServer_ClosesDatabase(t *testing.T) {
+	cfg := &config.Config{
+		Port:            8080,
+		DBURI:           "file::memory:",
+		ENV:             "test",
+		FromEmail:       "noreply@example.com",
+		SpinitronAPIURL: "https://proxy.example.test/api",
+	}
+
+	t.Run("normal exit", func(t *testing.T) {
+		database := newClosableTestDB(t)
+		deps := testServerDeps(cfg, &fakeStartupRepo{})
+		deps.initDB = func(uri string) (*sql.DB, error) {
+			return database, nil
+		}
+
+		if err := runServer(&cobra.Command{}, deps); err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		assertDBClosed(t, database)
+	})
+
+	t.Run("post-infrastructure error", func(t *testing.T) {
+		database := newClosableTestDB(t)
+		cfgWithMaster := *cfg
+		cfgWithMaster.MasterEmail = "admin@example.com"
+		deps := testServerDeps(&cfgWithMaster, &fakeStartupRepo{getUserErr: errors.New("check failed")})
+		deps.initDB = func(uri string) (*sql.DB, error) {
+			return database, nil
+		}
+
+		err := runServer(&cobra.Command{}, deps)
+		if err == nil || !strings.Contains(err.Error(), "failed to check master user") {
+			t.Fatalf("expected master user error, got %v", err)
+		}
+		assertDBClosed(t, database)
+	})
 }
 
 func TestRunServer_DependencyFailures(t *testing.T) {
