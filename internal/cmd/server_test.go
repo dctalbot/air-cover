@@ -1015,6 +1015,177 @@ func TestNewRouter(t *testing.T) {
 	}
 }
 
+func TestNewRouter_RouteAuthorization(t *testing.T) {
+	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("failed to init db: %v", err)
+	}
+	defer dbConn.Close()
+
+	repo := sqlite.NewRepository(dbConn)
+	auth := httpadapter.NewAuthHandler(authapp.NewService(repo, nil))
+	server := newTestAPIServer(repo, auth, &fakeShowsService{
+		shows: []appcatalog.Show{
+			{ID: "show-1", Title: "Authorization Test Show"},
+		},
+	})
+	r := newRouter(server, auth)
+
+	ctx := context.Background()
+	member, err := repo.CreateUser(ctx, "route-member@example.com", "member")
+	if err != nil {
+		t.Fatalf("failed to create member user: %v", err)
+	}
+	admin, err := repo.CreateUser(ctx, "route-admin@example.com", "admin")
+	if err != nil {
+		t.Fatalf("failed to create admin user: %v", err)
+	}
+	disabled, err := repo.CreateUser(ctx, "route-disabled@example.com", "member")
+	if err != nil {
+		t.Fatalf("failed to create disabled user: %v", err)
+	}
+	disabledEnabled := false
+	if err := repo.UpdateUser(ctx, disabled.ID, nil, &disabledEnabled); err != nil {
+		t.Fatalf("failed to disable user: %v", err)
+	}
+	expired, err := repo.CreateUser(ctx, "route-expired@example.com", "member")
+	if err != nil {
+		t.Fatalf("failed to create expired-session user: %v", err)
+	}
+
+	sessions := map[string]struct {
+		userID    int
+		rawToken  string
+		expiresAt time.Time
+	}{
+		"member": {
+			userID:    member.ID,
+			rawToken:  "route-member-token",
+			expiresAt: time.Now().Add(time.Hour),
+		},
+		"admin": {
+			userID:    admin.ID,
+			rawToken:  "route-admin-token",
+			expiresAt: time.Now().Add(time.Hour),
+		},
+		"disabled": {
+			userID:    disabled.ID,
+			rawToken:  "route-disabled-token",
+			expiresAt: time.Now().Add(time.Hour),
+		},
+		"expired": {
+			userID:    expired.ID,
+			rawToken:  "route-expired-token",
+			expiresAt: time.Now().Add(-time.Hour),
+		},
+	}
+	for name, session := range sessions {
+		if err := repo.CreateSession(ctx, "route-"+name+"-session", authapp.HashToken(session.rawToken), session.userID, session.expiresAt); err != nil {
+			t.Fatalf("failed to create %s session: %v", name, err)
+		}
+	}
+
+	tests := []struct {
+		name         string
+		path         string
+		sessionToken string
+		wantStatus   int
+		wantLocation string
+		wantBody     string
+	}{
+		{
+			name:         "app unauthenticated",
+			path:         "/app",
+			wantStatus:   http.StatusFound,
+			wantLocation: "/",
+		},
+		{
+			name:         "app member",
+			path:         "/app",
+			sessionToken: sessions["member"].rawToken,
+			wantStatus:   http.StatusOK,
+			wantBody:     "Authorization Test Show",
+		},
+		{
+			name:         "app admin",
+			path:         "/app",
+			sessionToken: sessions["admin"].rawToken,
+			wantStatus:   http.StatusOK,
+			wantBody:     "Authorization Test Show",
+		},
+		{
+			name:         "app disabled user",
+			path:         "/app",
+			sessionToken: sessions["disabled"].rawToken,
+			wantStatus:   http.StatusFound,
+			wantLocation: "/",
+		},
+		{
+			name:         "app expired session",
+			path:         "/app",
+			sessionToken: sessions["expired"].rawToken,
+			wantStatus:   http.StatusFound,
+			wantLocation: "/",
+		},
+		{
+			name:         "admin unauthenticated",
+			path:         "/admin",
+			wantStatus:   http.StatusFound,
+			wantLocation: "/",
+		},
+		{
+			name:         "admin member",
+			path:         "/admin",
+			sessionToken: sessions["member"].rawToken,
+			wantStatus:   http.StatusFound,
+			wantLocation: "/",
+		},
+		{
+			name:         "admin admin",
+			path:         "/admin",
+			sessionToken: sessions["admin"].rawToken,
+			wantStatus:   http.StatusOK,
+			wantBody:     "route-admin@example.com",
+		},
+		{
+			name:         "admin disabled user",
+			path:         "/admin",
+			sessionToken: sessions["disabled"].rawToken,
+			wantStatus:   http.StatusFound,
+			wantLocation: "/",
+		},
+		{
+			name:         "admin expired session",
+			path:         "/admin",
+			sessionToken: sessions["expired"].rawToken,
+			wantStatus:   http.StatusFound,
+			wantLocation: "/",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			if tt.sessionToken != "" {
+				req.AddCookie(&http.Cookie{Name: "session_id", Value: tt.sessionToken})
+			}
+			rr := httptest.NewRecorder()
+
+			r.ServeHTTP(rr, req)
+
+			if rr.Code != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d", tt.wantStatus, rr.Code)
+			}
+			if tt.wantLocation != "" && rr.Header().Get("Location") != tt.wantLocation {
+				t.Fatalf("expected Location header %q, got %q", tt.wantLocation, rr.Header().Get("Location"))
+			}
+			if tt.wantBody != "" && !strings.Contains(rr.Body.String(), tt.wantBody) {
+				t.Fatalf("expected body to contain %q", tt.wantBody)
+			}
+		})
+	}
+}
+
 func TestNewRouter_RejectsCrossSiteMutations(t *testing.T) {
 	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
 	if err != nil {
