@@ -22,10 +22,46 @@ func TestInitDB(t *testing.T) {
 	}
 	defer db.Close()
 
+	assertIndexesExist(t, db, "magic_links", "idx_magic_links_token_hash", "idx_magic_links_user_id")
+	assertIndexesExist(t, db, "sessions", "idx_sessions_session_token", "idx_sessions_user_id")
+	assertIndexesExist(t, db, "sub_requests", "idx_sub_requests_start_time", "idx_sub_requests_posted_by_user_id", "idx_sub_requests_taken_by_user_id")
+
 	// test errors
 	_, err = InitDB("invalid-uri://")
 	if err == nil {
 		t.Fatal("expected error with invalid uri")
+	}
+}
+
+func assertIndexesExist(t *testing.T, db *sql.DB, table string, expectedNames ...string) {
+	t.Helper()
+
+	rows, err := db.Query("PRAGMA index_list(" + table + ")")
+	if err != nil {
+		t.Fatalf("failed to list indexes for %s: %v", table, err)
+	}
+	defer rows.Close()
+
+	found := make(map[string]bool)
+	for rows.Next() {
+		var seq int
+		var name string
+		var unique int
+		var origin string
+		var partial int
+		if err := rows.Scan(&seq, &name, &unique, &origin, &partial); err != nil {
+			t.Fatalf("failed to scan index for %s: %v", table, err)
+		}
+		found[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("failed to iterate indexes for %s: %v", table, err)
+	}
+
+	for _, name := range expectedNames {
+		if !found[name] {
+			t.Fatalf("expected index %s on %s", name, table)
+		}
 	}
 }
 

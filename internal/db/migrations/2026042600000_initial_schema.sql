@@ -38,6 +38,13 @@ CREATE TABLE IF NOT EXISTS sub_requests (
     FOREIGN KEY(taken_by_user_id) REFERENCES users(id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_magic_links_token_hash ON magic_links(token_hash);
+CREATE INDEX IF NOT EXISTS idx_magic_links_user_id ON magic_links(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_session_token ON sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sub_requests_start_time ON sub_requests(start_time);
+CREATE INDEX IF NOT EXISTS idx_sub_requests_posted_by_user_id ON sub_requests(posted_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_sub_requests_taken_by_user_id ON sub_requests(taken_by_user_id);
 
 -- +goose Down
 DROP TABLE IF EXISTS sub_requests;
