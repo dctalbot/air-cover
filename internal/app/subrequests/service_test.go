@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
+	appcatalog "air-cover/internal/app/catalog"
 	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
-	"air-cover/internal/spinitron"
 )
 
 type fakeRepository struct {
@@ -62,11 +62,11 @@ func (f *fakeRepository) UntakeSubRequest(ctx context.Context, id int) error {
 }
 
 type fakeCatalog struct {
-	shows []spinitron.Show
+	shows []appcatalog.Show
 	err   error
 }
 
-func (f *fakeCatalog) ListShows(ctx context.Context) ([]spinitron.Show, error) {
+func (f *fakeCatalog) ListShows(ctx context.Context) ([]appcatalog.Show, error) {
 	return f.shows, f.err
 }
 
@@ -78,7 +78,7 @@ func TestListDashboard(t *testing.T) {
 		{ID: 2, ShowID: 999, PostedByUserID: 1, TakenByUserID: &takerID, StartTime: now.Add(-2 * time.Hour), EndTime: now.Add(-1 * time.Hour)},
 		{ID: 3, ShowID: 1, PostedByUserID: 3, StartTime: now.Add(-4 * time.Hour), EndTime: now.Add(-3 * time.Hour)},
 	}}
-	svc := NewService(repo, &fakeCatalog{shows: []spinitron.Show{
+	svc := NewService(repo, &fakeCatalog{shows: []appcatalog.Show{
 		{ID: "2", Title: "Beta"},
 		{ID: "bad", Title: "Bad ID"},
 		{ID: "1", Title: "Alpha"},
@@ -123,7 +123,7 @@ func TestListDashboardErrors(t *testing.T) {
 func TestCreate(t *testing.T) {
 	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
 	repo := &fakeRepository{}
-	svc := NewService(repo, &fakeCatalog{shows: []spinitron.Show{{ID: "1", Title: "Test Show"}}})
+	svc := NewService(repo, &fakeCatalog{shows: []appcatalog.Show{{ID: "1", Title: "Test Show"}}})
 	svc.nowFunc = func() time.Time { return now }
 	input := CreateInput{
 		ShowID:    1,
@@ -178,7 +178,7 @@ func TestCreateValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &fakeRepository{}
-			svc := NewService(repo, &fakeCatalog{shows: []spinitron.Show{{ID: "1", Title: "Test Show"}, {ID: "bad", Title: "Bad ID"}}})
+			svc := NewService(repo, &fakeCatalog{shows: []appcatalog.Show{{ID: "1", Title: "Test Show"}, {ID: "bad", Title: "Bad ID"}}})
 			svc.nowFunc = func() time.Time { return now }
 
 			if err := svc.Create(context.Background(), session.CurrentUser{ID: 7}, tt.input); !errors.Is(err, apperrors.ErrInvalid) {

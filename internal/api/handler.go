@@ -11,18 +11,18 @@ import (
 	"time"
 
 	adminapp "air-cover/internal/app/admin"
+	appcatalog "air-cover/internal/app/catalog"
 	"air-cover/internal/app/session"
 	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
 	"air-cover/internal/presenter"
-	"air-cover/internal/spinitron"
 	"air-cover/internal/ui"
 )
 
 type ShowsService interface {
-	ListShows(ctx context.Context) ([]spinitron.Show, error)
-	ListPersonas(ctx context.Context) ([]spinitron.Persona, error)
+	ListShows(ctx context.Context) ([]appcatalog.Show, error)
+	ListPersonas(ctx context.Context) ([]appcatalog.Persona, error)
 }
 
 type Server struct {
@@ -30,9 +30,8 @@ type Server struct {
 	sessionReader interface {
 		GetSessionByToken(ctx context.Context, sessionToken string) (*domain.Session, error)
 	}
-	spinitronClient ShowsService
-	subRequests     *subrequestsapp.Service
-	admin           *adminapp.Service
+	subRequests *subrequestsapp.Service
+	admin       *adminapp.Service
 }
 
 func NewServer(repo interface {
@@ -41,20 +40,18 @@ func NewServer(repo interface {
 	subrequestsapp.Repository
 }, auth *AuthHandler, spinitronClient ShowsService) *Server {
 	return &Server{
-		auth:            auth,
-		sessionReader:   repo,
-		spinitronClient: spinitronClient,
-		subRequests:     subrequestsapp.NewService(repo, spinitronClient),
-		admin:           adminapp.NewService(repo, spinitronClient),
+		auth:          auth,
+		sessionReader: repo,
+		subRequests:   subrequestsapp.NewService(repo, spinitronClient),
+		admin:         adminapp.NewService(repo, spinitronClient),
 	}
 }
 
 func NewServerWithServices(auth *AuthHandler, subRequests *subrequestsapp.Service, admin *adminapp.Service, spinitronClient ShowsService) *Server {
 	return &Server{
-		auth:            auth,
-		spinitronClient: spinitronClient,
-		subRequests:     subRequests,
-		admin:           admin,
+		auth:        auth,
+		subRequests: subRequests,
+		admin:       admin,
 	}
 }
 

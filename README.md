@@ -15,7 +15,8 @@ This project is built using Go. The general structure follows standard Go projec
 - `cmd/aircover/`: Contains the main application entry point.
 - `internal/`: Contains private application code.
   - `internal/domain/`: Domain entities and behavior (users, auth, substitution requests, etc.)
-  - `internal/spinitron/`: Client for interacting with the Spinitron API.
+  - `internal/app/`: Application services and ports.
+  - `internal/adapters/`: Outbound adapters for SQLite, email, and Spinitron.
   - `internal/api/`: Handlers for the application's HTTP API.
 
 ## Getting Started

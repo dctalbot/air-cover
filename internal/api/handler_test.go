@@ -12,31 +12,31 @@ import (
 	"testing"
 	"time"
 
+	"air-cover/internal/adapters/sqlite"
+	appcatalog "air-cover/internal/app/catalog"
 	"air-cover/internal/apperrors"
-	"air-cover/internal/db"
 	"air-cover/internal/domain"
-	"air-cover/internal/spinitron"
 
 	"github.com/go-chi/chi/v5"
 )
 
 type MockShowsService struct{}
 
-func (m *MockShowsService) ListShows(ctx context.Context) ([]spinitron.Show, error) {
-	return []spinitron.Show{{ID: "1", Title: "Test Show"}}, nil
+func (m *MockShowsService) ListShows(ctx context.Context) ([]appcatalog.Show, error) {
+	return []appcatalog.Show{{ID: "1", Title: "Test Show"}}, nil
 }
 
-func (m *MockShowsService) ListPersonas(ctx context.Context) ([]spinitron.Persona, error) {
+func (m *MockShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Persona, error) {
 	return nil, nil
 }
 
 type badShowsService struct{}
 
-func (b *badShowsService) ListShows(ctx context.Context) ([]spinitron.Show, error) {
-	return []spinitron.Show{{ID: "not-a-number", Title: "Bad ID Show"}}, nil
+func (b *badShowsService) ListShows(ctx context.Context) ([]appcatalog.Show, error) {
+	return []appcatalog.Show{{ID: "not-a-number", Title: "Bad ID Show"}}, nil
 }
 
-func (b *badShowsService) ListPersonas(ctx context.Context) ([]spinitron.Persona, error) {
+func (b *badShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Persona, error) {
 	return nil, nil
 }
 
@@ -1211,11 +1211,11 @@ func TestHandlerWithMiddleware(t *testing.T) {
 
 // TestServer_GetApp_ListSubRequestsError covers the ListSubRequests error path in GetApp.
 func TestServer_GetApp_ListSubRequestsError(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	dbConn.Close() // Force ListSubRequests to fail
 
 	s := NewServer(repo, nil, &MockShowsService{})
@@ -1235,15 +1235,15 @@ type listingShowsService struct {
 	calls int
 }
 
-func (m *listingShowsService) ListShows(ctx context.Context) ([]spinitron.Show, error) {
+func (m *listingShowsService) ListShows(ctx context.Context) ([]appcatalog.Show, error) {
 	m.calls++
-	return []spinitron.Show{
+	return []appcatalog.Show{
 		{ID: "1", Title: "Show A"},
 		{ID: "2", Title: "Show B"},
 	}, nil
 }
 
-func (m *listingShowsService) ListPersonas(ctx context.Context) ([]spinitron.Persona, error) {
+func (m *listingShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Persona, error) {
 	return nil, nil
 }
 
@@ -1296,11 +1296,11 @@ func (e *errorResponseWriter) WriteHeader(code int) {}
 
 // TestServer_DeleteSubRequestsId_DBError covers the GetSubRequestByID DB error path.
 func TestServer_DeleteSubRequestsId_DBError(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "dberr@example.com", "member")
 	sr := &domain.SubRequest{
 		ShowID:         1,
@@ -1325,11 +1325,11 @@ func TestServer_DeleteSubRequestsId_DBError(t *testing.T) {
 
 // TestServer_PostSubRequests_DBError covers the CreateSubRequest DB error path.
 func TestServer_PostSubRequests_DBError(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "postreqerr@example.com", "member")
 	dbConn.Close() // Force CreateSubRequest to fail
 
@@ -1399,11 +1399,11 @@ func TestServer_PostSubRequests_ParseFormError(t *testing.T) {
 }
 
 func TestServer_DeleteSubRequestsId_DeleteError(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "deleterr@example.com", "member")
 	sr := &domain.SubRequest{
 		ShowID:         1,
@@ -1444,11 +1444,11 @@ func TestServer_GetApp_SpinitronError(t *testing.T) {
 
 type faultyShowsService struct{}
 
-func (f *faultyShowsService) ListShows(ctx context.Context) ([]spinitron.Show, error) {
+func (f *faultyShowsService) ListShows(ctx context.Context) ([]appcatalog.Show, error) {
 	return nil, errors.New("spinitron down")
 }
 
-func (f *faultyShowsService) ListPersonas(ctx context.Context) ([]spinitron.Persona, error) {
+func (f *faultyShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Persona, error) {
 	return nil, nil
 }
 
@@ -1465,11 +1465,11 @@ func TestServer_PostSubRequests_LargeBody(t *testing.T) {
 }
 
 func TestServer_DeleteSubRequestsId_Unauthorized(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	u1, _ := repo.CreateUser(context.Background(), "u1@example.com", "member")
 	u2, _ := repo.CreateUser(context.Background(), "u2@example.com", "member")
 
@@ -1494,11 +1494,11 @@ func TestServer_DeleteSubRequestsId_Unauthorized(t *testing.T) {
 }
 
 func TestServer_DeleteSubRequestsId_NotFound(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	u1, _ := repo.CreateUser(context.Background(), "u1@example.com", "member")
 
 	s := NewServer(repo, nil, nil)
@@ -1514,11 +1514,11 @@ func TestServer_DeleteSubRequestsId_NotFound(t *testing.T) {
 }
 
 func TestServer_DeleteSubRequestsId_NoUserInContext(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	u1, _ := repo.CreateUser(context.Background(), "u1@example.com", "member")
 	sr := &domain.SubRequest{
 		ShowID:         1,
@@ -1542,15 +1542,15 @@ type importMockShowsService struct {
 	fail bool
 }
 
-func (m *importMockShowsService) ListShows(ctx context.Context) ([]spinitron.Show, error) {
+func (m *importMockShowsService) ListShows(ctx context.Context) ([]appcatalog.Show, error) {
 	return nil, nil
 }
 
-func (m *importMockShowsService) ListPersonas(ctx context.Context) ([]spinitron.Persona, error) {
+func (m *importMockShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Persona, error) {
 	if m.fail {
 		return nil, errors.New("spinitron error")
 	}
-	return []spinitron.Persona{
+	return []appcatalog.Persona{
 		{ID: 1, Name: "DJ One", Email: "one@example.com"},
 		{ID: 2, Name: "DJ Empty", Email: "  "}, // should be skipped
 		{ID: 3, Name: "DJ Two", Email: "two@example.com"},
@@ -1558,11 +1558,11 @@ func (m *importMockShowsService) ListPersonas(ctx context.Context) ([]spinitron.
 }
 
 func TestServer_PostUsersImportSpinitron(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 
 	t.Run("success", func(t *testing.T) {
 		s := NewServer(repo, nil, &importMockShowsService{fail: false})
@@ -1765,11 +1765,11 @@ func TestAppHandler_AdminCanTakeOwnRequest(t *testing.T) {
 }
 
 func TestServer_GetAdmin_DBError(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	dbConn.Close() // Force ListUsers to fail
 
 	s := NewServer(repo, nil, nil)
@@ -1865,11 +1865,11 @@ func TestServer_PostUsersId_NotFound(t *testing.T) {
 }
 
 func TestServer_PostUsers_CreateError(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	_, _ = repo.CreateUser(context.Background(), "dup@example.com", "member")
 
 	s := NewServer(repo, nil, nil)
@@ -2095,11 +2095,11 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 }
 
 func TestServer_PatchSubRequestsId_DBError(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "dberr@example.com", "member")
 	sr := &domain.SubRequest{
 		ShowID:         1,

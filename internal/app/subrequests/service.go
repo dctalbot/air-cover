@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
+	appcatalog "air-cover/internal/app/catalog"
 	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
 	"air-cover/internal/policy"
-	"air-cover/internal/spinitron"
 )
 
 var ErrCatalog = errors.New("show catalog error")
@@ -30,7 +30,7 @@ type Repository interface {
 }
 
 type Catalog interface {
-	ListShows(ctx context.Context) ([]spinitron.Show, error)
+	ListShows(ctx context.Context) ([]appcatalog.Show, error)
 }
 
 type Service struct {
@@ -48,7 +48,7 @@ func NewService(repo Repository, catalog Catalog) *Service {
 }
 
 type Dashboard struct {
-	Shows    []spinitron.Show
+	Shows    []appcatalog.Show
 	Upcoming []SubRequest
 	Past     []SubRequest
 }
@@ -226,7 +226,7 @@ func mapRepositoryError(err error) error {
 	return err
 }
 
-func showTitlesByID(shows []spinitron.Show) map[int]string {
+func showTitlesByID(shows []appcatalog.Show) map[int]string {
 	showMap := make(map[int]string)
 	for _, show := range shows {
 		id, err := strconv.Atoi(show.ID)
@@ -245,7 +245,7 @@ func showTitle(showMap map[int]string, showID int) string {
 	return "Unknown Show"
 }
 
-func showExists(shows []spinitron.Show, showID int) bool {
+func showExists(shows []appcatalog.Show, showID int) bool {
 	for _, show := range shows {
 		id, err := strconv.Atoi(show.ID)
 		if err != nil {

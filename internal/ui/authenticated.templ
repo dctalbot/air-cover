@@ -2,10 +2,10 @@ package ui
 
 import (
 	"strconv"
-	"air-cover/internal/spinitron"
+	appcatalog "air-cover/internal/app/catalog"
 )
 
-templ Authenticated(shows []spinitron.Show, email string, upcoming []SubRequestView, past []SubRequestView, isAdmin bool) {
+templ Authenticated(shows []appcatalog.Show, email string, upcoming []SubRequestView, past []SubRequestView, isAdmin bool) {
 	@Layout("Air Cover") {
 		@BaseStyles()
 		@TableStyles()

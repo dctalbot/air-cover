@@ -7,11 +7,11 @@ import (
 	"sort"
 	"strings"
 
+	appcatalog "air-cover/internal/app/catalog"
 	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
 	"air-cover/internal/policy"
-	"air-cover/internal/spinitron"
 )
 
 type Repository interface {
@@ -22,7 +22,7 @@ type Repository interface {
 }
 
 type Catalog interface {
-	ListPersonas(ctx context.Context) ([]spinitron.Persona, error)
+	ListPersonas(ctx context.Context) ([]appcatalog.Persona, error)
 }
 
 type Service struct {

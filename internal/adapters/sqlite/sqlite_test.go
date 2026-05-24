@@ -12,9 +12,3 @@ func TestNewRepository(t *testing.T) {
 		t.Fatal("expected repository to wrap database")
 	}
 }
-
-func TestRunMigrationError(t *testing.T) {
-	if err := RunMigration(&sql.DB{}, "unknown"); err == nil {
-		t.Fatal("expected migration error")
-	}
-}

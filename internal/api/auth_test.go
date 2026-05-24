@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"air-cover/internal/db"
+	"air-cover/internal/adapters/sqlite"
 )
 
 type MockSender struct{}
@@ -30,14 +30,14 @@ func (s *recordingSender) SendMagicLink(toEmail, magicLink string) error {
 	return nil
 }
 
-func setupTestDB(t *testing.T) *db.Repository {
+func setupTestDB(t *testing.T) *sqlite.Repository {
 	// Using a unique name for each test to avoid conflicts when tests run in parallel or share a process.
 	// Actually, just using ":memory:" without shared cache is enough for a single *sql.DB.
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return db.NewRepository(dbConn)
+	return sqlite.NewRepository(dbConn)
 }
 
 func TestAuthHandler_Login(t *testing.T) {
@@ -476,11 +476,11 @@ var errSendFailed = errors.New("send failed")
 
 func TestAuthHandler_Login_DBError(t *testing.T) {
 	// Force DB error by using a closed DB connection
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	// Create user first, then close the DB to force errors on subsequent operations
 	_, err = repo.CreateUser(context.Background(), "dberror@example.com", "member")
 	if err != nil {
@@ -516,11 +516,11 @@ func TestAuthHandler_Login_SendError(t *testing.T) {
 
 func TestAuthHandler_Verify_CreateSessionError(t *testing.T) {
 	// Create a magic link, then close DB before CreateSession can run
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "sessionfail@example.com", "member")
 
 	rawToken, _ := generateRandomToken(32)
@@ -545,11 +545,11 @@ func TestAuthHandler_Verify_CreateSessionError(t *testing.T) {
 }
 
 func TestAuthHandler_Logout_DBError(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "logouterr@example.com", "member")
 	dbConn.Close() // Force DeleteSessionsByUserID to fail
 
@@ -567,11 +567,11 @@ func TestAuthHandler_Logout_DBError(t *testing.T) {
 
 func TestAuthMiddleware_UserNotFound(t *testing.T) {
 	// Session token exists but user has been deleted → GetUserByID fails
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "deleteduser@example.com", "member")
 	_ = repo.CreateSession(context.Background(), "sid-del", "stoken-del", u.ID, time.Now().Add(1*time.Hour))
 	// Close DB to force GetUserByID to fail
@@ -593,11 +593,11 @@ func TestAuthMiddleware_UserNotFound(t *testing.T) {
 }
 
 func TestAuthMiddleware_GetUserByIDError(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "miderr@example.com", "member")
 	_ = repo.CreateSession(context.Background(), "sid-mid", "stoken-mid", u.ID, time.Now().Add(1*time.Hour))
 
@@ -668,11 +668,11 @@ func TestAuthHandler_Login_Form_ParseError(t *testing.T) {
 }
 
 func TestAuthHandler_Login_CreateMagicLink_Error(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
 
 	// Drop magic_links table to force CreateMagicLink to fail
@@ -692,11 +692,11 @@ func TestAuthHandler_Login_CreateMagicLink_Error(t *testing.T) {
 }
 
 func TestAuthHandler_Verify_CreateSession_Error(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:")
+	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
 
 	// Create a magic link

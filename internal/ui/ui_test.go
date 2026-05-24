@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"air-cover/internal/spinitron"
+	appcatalog "air-cover/internal/app/catalog"
 )
 
 func TestLayout(t *testing.T) {
@@ -132,7 +132,7 @@ func TestAdmin_Empty(t *testing.T) {
 }
 
 func TestAuthenticated(t *testing.T) {
-	shows := []spinitron.Show{
+	shows := []appcatalog.Show{
 		{ID: "1", Title: "Test Show"},
 	}
 	upcoming := []SubRequestView{
@@ -178,7 +178,7 @@ func TestAuthenticated(t *testing.T) {
 }
 
 func TestAuthenticated_AdminLinkAndFallbackShowTitle(t *testing.T) {
-	shows := []spinitron.Show{{ID: "99"}}
+	shows := []appcatalog.Show{{ID: "99"}}
 	buf := new(bytes.Buffer)
 	component := Authenticated(shows, "admin@example.com", nil, nil, true)
 	if err := component.Render(context.Background(), buf); err != nil {

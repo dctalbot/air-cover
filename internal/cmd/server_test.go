@@ -11,14 +11,14 @@ import (
 	"time"
 
 	adapterspinitron "air-cover/internal/adapters/spinitron"
+	"air-cover/internal/adapters/sqlite"
 	"air-cover/internal/api"
 	coreapp "air-cover/internal/app"
 	authapp "air-cover/internal/app/auth"
+	appcatalog "air-cover/internal/app/catalog"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/config"
-	"air-cover/internal/db"
 	"air-cover/internal/domain"
-	"air-cover/internal/spinitron"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
@@ -38,14 +38,14 @@ func (w *errorWriter) Write(b []byte) (int, error) {
 func (w *errorWriter) WriteHeader(statusCode int) {}
 
 type fakeShowsService struct {
-	shows    []spinitron.Show
+	shows    []appcatalog.Show
 	err      error
 	calls    int
 	prefetch bool
 	done     chan struct{}
 }
 
-func (f *fakeShowsService) ListShows(ctx context.Context) ([]spinitron.Show, error) {
+func (f *fakeShowsService) ListShows(ctx context.Context) ([]appcatalog.Show, error) {
 	f.calls++
 	if f.err != nil {
 		return nil, f.err
@@ -53,7 +53,7 @@ func (f *fakeShowsService) ListShows(ctx context.Context) ([]spinitron.Show, err
 	return f.shows, nil
 }
 
-func (f *fakeShowsService) ListPersonas(ctx context.Context) ([]spinitron.Persona, error) {
+func (f *fakeShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Persona, error) {
 	return nil, f.err
 }
 
@@ -67,12 +67,12 @@ func (f *fakeShowsService) Prefetch(ctx context.Context) error {
 
 type fakeSpinitronPageClient struct{}
 
-func (f *fakeSpinitronPageClient) GetShowsPage(ctx context.Context, page int) (spinitron.ShowsPage, error) {
-	return spinitron.ShowsPage{}, nil
+func (f *fakeSpinitronPageClient) GetShowsPage(ctx context.Context, page int) (adapterspinitron.ShowsPage, error) {
+	return adapterspinitron.ShowsPage{}, nil
 }
 
-func (f *fakeSpinitronPageClient) GetPersonasPage(ctx context.Context, page int) (spinitron.PersonasPage, error) {
-	return spinitron.PersonasPage{}, nil
+func (f *fakeSpinitronPageClient) GetPersonasPage(ctx context.Context, page int) (adapterspinitron.PersonasPage, error) {
+	return adapterspinitron.PersonasPage{}, nil
 }
 
 type mockSender struct{}
@@ -219,7 +219,7 @@ func TestHealthHandler(t *testing.T) {
 }
 
 func TestIndexHandler(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:?cache=shared")
+	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
 	if err != nil {
 		t.Fatalf("failed to init test db: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestIndexHandler(t *testing.T) {
 		_ = dbConn.Close()
 	})
 
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	ctx := context.Background()
 	user, err := repo.CreateUser(ctx, "test@example.com", "member")
 	if err != nil {
@@ -302,13 +302,13 @@ func TestIndexHandler(t *testing.T) {
 
 func TestAppHandler(t *testing.T) {
 	service := &fakeShowsService{
-		shows: []spinitron.Show{
+		shows: []appcatalog.Show{
 			{ID: "2", Title: "Zebra Show"},
 			{ID: "1", Title: "Apple Show"},
 		},
 	}
-	dbConn, _ := db.InitDB("file::memory:?cache=shared")
-	repo := db.NewRepository(dbConn)
+	dbConn, _ := sqlite.InitDB("file::memory:?cache=shared")
+	repo := sqlite.NewRepository(dbConn)
 	server := api.NewServer(repo, nil, service)
 	handler := server.GetApp
 
@@ -369,8 +369,8 @@ func TestAppHandler(t *testing.T) {
 
 func TestAppHandler_UpstreamError(t *testing.T) {
 	service := &fakeShowsService{err: errors.New("boom")}
-	dbConn, _ := db.InitDB("file::memory:?cache=shared")
-	repo := db.NewRepository(dbConn)
+	dbConn, _ := sqlite.InitDB("file::memory:?cache=shared")
+	repo := sqlite.NewRepository(dbConn)
 	server := api.NewServer(repo, nil, service)
 	handler := server.GetApp
 
@@ -499,12 +499,12 @@ func TestServerCmd_MasterEmail(t *testing.T) {
 	serverCmd.Run(serverCmd, nil)
 
 	// Verify the user was created with admin role
-	dbConn, err := db.InitDB("file::memory:?cache=shared")
+	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer dbConn.Close()
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	u, err := repo.GetUserByEmail(context.Background(), "admin@example.com")
 	if err != nil {
 		t.Fatalf("failed to find master user: %v", err)
@@ -773,13 +773,13 @@ func TestDocCmd(t *testing.T) {
 }
 
 func TestNewRouter(t *testing.T) {
-	dbConn, err := db.InitDB("file::memory:?cache=shared")
+	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
 	if err != nil {
 		t.Fatalf("failed to init db: %v", err)
 	}
 	defer dbConn.Close()
 
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	auth := api.NewAuthHandler(repo, nil)
 	server := api.NewServer(repo, auth, nil)
 
@@ -875,10 +875,10 @@ func TestNewRouter_SwaggerError(t *testing.T) {
 }
 
 func TestAuthRateLimiting(t *testing.T) {
-	dbConn, _ := db.InitDB("file::memory:?cache=shared")
+	dbConn, _ := sqlite.InitDB("file::memory:?cache=shared")
 	defer dbConn.Close()
 
-	repo := db.NewRepository(dbConn)
+	repo := sqlite.NewRepository(dbConn)
 	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
 	auth := api.NewAuthHandler(repo, &mockSender{})
 	server := api.NewServer(repo, auth, nil)
@@ -939,7 +939,7 @@ func TestServerCmd_MasterEmailCheckError(t *testing.T) {
 
 	// We need to make repo.GetUserByEmail fail.
 	// This is hard since we can't inject the repo into serverCmd easily.
-	// But serverCmd.Run calls db.InitDB(cfg.DBURI).
+	// But serverCmd.Run calls sqlite.InitDB(cfg.DBURI).
 	// If we close the DB connection after InitDB but before GetUserByEmail?
 	// There's no hook for that.
 }

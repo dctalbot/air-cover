@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
+	appcatalog "air-cover/internal/app/catalog"
 	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
-	"air-cover/internal/spinitron"
 )
 
 type fakeRepository struct {
@@ -49,11 +49,11 @@ func (f *fakeRepository) ImportUsers(ctx context.Context, emails []string) error
 }
 
 type fakeCatalog struct {
-	personas []spinitron.Persona
+	personas []appcatalog.Persona
 	err      error
 }
 
-func (f *fakeCatalog) ListPersonas(ctx context.Context) ([]spinitron.Persona, error) {
+func (f *fakeCatalog) ListPersonas(ctx context.Context) ([]appcatalog.Persona, error) {
 	return f.personas, f.err
 }
 
@@ -140,7 +140,7 @@ func TestUpdateUser(t *testing.T) {
 
 func TestImportSpinitronUsers(t *testing.T) {
 	repo := &fakeRepository{}
-	svc := NewService(repo, &fakeCatalog{personas: []spinitron.Persona{
+	svc := NewService(repo, &fakeCatalog{personas: []appcatalog.Persona{
 		{Email: "one@example.com"},
 		{Email: " "},
 		{Email: "two@example.com"},
@@ -158,7 +158,7 @@ func TestImportSpinitronUsers(t *testing.T) {
 	if err := NewService(repo, nil).ImportSpinitronUsers(context.Background()); err != nil {
 		t.Errorf("nil catalog should be ignored, got %v", err)
 	}
-	if err := NewService(repo, &fakeCatalog{personas: []spinitron.Persona{{Email: " "}}}).
+	if err := NewService(repo, &fakeCatalog{personas: []appcatalog.Persona{{Email: " "}}}).
 		ImportSpinitronUsers(context.Background()); err != nil {
 		t.Errorf("empty import should be ignored, got %v", err)
 	}
