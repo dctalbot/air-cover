@@ -1,4 +1,4 @@
-package httpadapter
+package api
 
 import (
 	"bytes"
@@ -74,7 +74,7 @@ func TestServer_GetAdmin(t *testing.T) {
 	_, _ = repo.CreateUser(context.Background(), "admin@example.com", "admin")
 	_, _ = repo.CreateUser(context.Background(), "member@example.com", "member")
 
-	// Use full handler to cover httpadapter.gen.go wrappers
+	// Use full handler to cover api.gen.go wrappers
 	h := Handler(s)
 
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)

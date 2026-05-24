@@ -9,7 +9,15 @@ Adapter paths make direction explicit:
 - `inbound` adapters drive the application from the outside.
 - `outbound` adapters are driven by the application through app-owned ports.
 
-`internal/adapters/inbound/http` is the inbound HTTP adapter:
+`internal/adapters/inbound/http` is the inbound HTTP adapter. Its packages keep
+API behavior, view models, and rendering separate:
+
+- `internal/adapters/inbound/http/api` owns the OpenAPI spec, generated API
+  types, HTTP handlers, middleware, and router;
+- `internal/adapters/inbound/http/presenter` owns HTTP view-model formatting;
+- `internal/adapters/inbound/http/ui` owns templ rendering.
+
+The HTTP adapter should:
 
 - parse HTTP requests, cookies, headers, and route params;
 - call app-owned use-case interfaces;

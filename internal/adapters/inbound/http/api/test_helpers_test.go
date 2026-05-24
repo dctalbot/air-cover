@@ -1,4 +1,4 @@
-package httpadapter
+package api
 
 import (
 	adminapp "air-cover/internal/app/admin"

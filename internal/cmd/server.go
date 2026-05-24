@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"air-cover/internal/adapters/inbound/http/api"
 	adapteremail "air-cover/internal/adapters/outbound/email"
 	adapterspinitron "air-cover/internal/adapters/outbound/spinitron"
 	"air-cover/internal/adapters/outbound/sqlite"
@@ -20,14 +21,12 @@ import (
 	authapp "air-cover/internal/app/auth"
 	bootstrapapp "air-cover/internal/app/bootstrap"
 	subrequestsapp "air-cover/internal/app/subrequests"
+	"air-cover/internal/platform/config"
+	"air-cover/internal/platform/logger"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/go-chi/chi/v5"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-
-	httpadapter "air-cover/internal/adapters/inbound/http"
-	"air-cover/internal/platform/config"
-	"air-cover/internal/platform/logger"
 )
 
 var (
@@ -35,7 +34,6 @@ var (
 	listenAndServe = func(server *http.Server) error {
 		return server.ListenAndServe()
 	}
-	getSwagger = httpadapter.GetSwagger
 )
 
 const (
@@ -52,11 +50,11 @@ type serverDeps struct {
 	newSender        func(apiKey, fromEmail, env string) authapp.Sender
 	newSpinitron     func(apiKey, baseURL string) adapterspinitron.PageClient
 	newCatalog       func(adapterspinitron.PageClient) catalog
-	newRouter        func(*httpadapter.Server, *httpadapter.AuthHandler) chi.Router
+	newRouter        func(*api.Server, *api.AuthHandler) chi.Router
 	listenAndServe   func(*http.Server) error
 	backgroundCtx    func() context.Context
-	newAuthHandler   func(*authapp.Service) *httpadapter.AuthHandler
-	newAPIServer     func(*subrequestsapp.Service, *adminapp.Service, *httpadapter.AuthHandler) *httpadapter.Server
+	newAuthHandler   func(*authapp.Service) *api.AuthHandler
+	newAPIServer     func(*subrequestsapp.Service, *adminapp.Service, *api.AuthHandler) *api.Server
 	newDBRepository  func(*sql.DB) repositories
 	setDefaultLogger func(*config.Config)
 	signalContext    func(context.Context) (context.Context, context.CancelFunc)
@@ -100,14 +98,14 @@ func defaultServerDeps() serverDeps {
 			return adapterspinitron.NewClient(apiKey, baseURL)
 		},
 		newCatalog:     func(source adapterspinitron.PageClient) catalog { return adapterspinitron.NewCatalog(source) },
-		newRouter:      newRouter,
+		newRouter:      api.NewRouter,
 		listenAndServe: listenAndServe,
 		backgroundCtx:  context.Background,
-		newAuthHandler: func(service *authapp.Service) *httpadapter.AuthHandler {
-			return httpadapter.NewAuthHandler(service)
+		newAuthHandler: func(service *authapp.Service) *api.AuthHandler {
+			return api.NewAuthHandler(service)
 		},
-		newAPIServer: func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *httpadapter.AuthHandler) *httpadapter.Server {
-			return httpadapter.NewServer(authHandler, subRequests, admin)
+		newAPIServer: func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *api.AuthHandler) *api.Server {
+			return api.NewServer(authHandler, subRequests, admin)
 		},
 		newDBRepository: func(database *sql.DB) repositories {
 			repo := sqlite.NewRepository(database)

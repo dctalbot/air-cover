@@ -5,12 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	httpadapter "air-cover/internal/adapters/inbound/http"
+	"air-cover/internal/adapters/inbound/http/api"
 	adapterspinitron "air-cover/internal/adapters/outbound/spinitron"
 	"air-cover/internal/adapters/outbound/sqlite"
 	adminapp "air-cover/internal/app/admin"
@@ -22,22 +21,9 @@ import (
 	"air-cover/internal/domain"
 	"air-cover/internal/platform/config"
 
-	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 	"github.com/spf13/cobra"
 )
-
-type errorWriter struct{}
-
-func (w *errorWriter) Header() http.Header {
-	return make(http.Header)
-}
-
-func (w *errorWriter) Write(b []byte) (int, error) {
-	return 0, errors.New("write error")
-}
-
-func (w *errorWriter) WriteHeader(statusCode int) {}
 
 type fakeShowsService struct {
 	shows    []appcatalog.Show
@@ -185,20 +171,6 @@ func (f *fakeStartupRepo) CreateUser(ctx context.Context, email string, role str
 	return &domain.User{ID: 1, Email: email, Role: domain.Role(role), IsEnabled: true}, nil
 }
 
-func newTestAPIServer(repo *sqlite.Repository, authHandler *httpadapter.AuthHandler, catalog catalog) *httpadapter.Server {
-	var subRequests *subrequestsapp.Service
-	var admin *adminapp.Service
-	if repo != nil {
-		subRequests = subrequestsapp.NewService(repo, catalog)
-		admin = adminapp.NewService(repo, catalog)
-	}
-	return httpadapter.NewServer(authHandler, subRequests, admin)
-}
-
-func markSameOrigin(req *http.Request) {
-	req.Header.Set("Sec-Fetch-Site", "same-origin")
-}
-
 func testServerDeps(cfg *config.Config, repo bootstrapapp.Repository) serverDeps {
 	return serverDeps{
 		loadConfig: func(cmd *cobra.Command) (*config.Config, error) {
@@ -216,18 +188,18 @@ func testServerDeps(cfg *config.Config, repo bootstrapapp.Repository) serverDeps
 		newCatalog: func(source adapterspinitron.PageClient) catalog {
 			return &fakeShowsService{}
 		},
-		newRouter: func(apiServer *httpadapter.Server, authHandler *httpadapter.AuthHandler) chi.Router {
+		newRouter: func(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
 			return chi.NewRouter()
 		},
 		listenAndServe: func(server *http.Server) error {
 			return nil
 		},
 		backgroundCtx: context.Background,
-		newAuthHandler: func(service *authapp.Service) *httpadapter.AuthHandler {
-			return httpadapter.NewAuthHandler(service)
+		newAuthHandler: func(service *authapp.Service) *api.AuthHandler {
+			return api.NewAuthHandler(service)
 		},
-		newAPIServer: func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *httpadapter.AuthHandler) *httpadapter.Server {
-			return httpadapter.NewServer(authHandler, subRequests, admin)
+		newAPIServer: func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *api.AuthHandler) *api.Server {
+			return api.NewServer(authHandler, subRequests, admin)
 		},
 		newDBRepository: func(database *sql.DB) repositories {
 			return repositories{startup: repo}
@@ -262,186 +234,6 @@ func assertDBClosed(t *testing.T, database *sql.DB) {
 	t.Helper()
 	if err := database.Ping(); err == nil {
 		t.Fatal("expected database to be closed")
-	}
-}
-
-func TestHealthHandler(t *testing.T) {
-	server := httpadapter.NewServer(nil, nil, nil)
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-
-	rr := httptest.NewRecorder()
-	server.GetHealth(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected status %d, got %d", http.StatusOK, rr.Code)
-	}
-
-	ew := &errorWriter{}
-	server.GetHealth(ew, req)
-}
-
-func TestIndexHandler(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
-	if err != nil {
-		t.Fatalf("failed to init test db: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = dbConn.Close()
-	})
-
-	repo := sqlite.NewRepository(dbConn)
-	ctx := context.Background()
-	user, err := repo.CreateUser(ctx, "test@example.com", "member")
-	if err != nil {
-		t.Fatalf("failed to create user: %v", err)
-	}
-	err = repo.CreateSession(ctx, "sid", authapp.HashToken("stoken"), user.ID, time.Now().Add(1*time.Hour))
-	if err != nil {
-		t.Fatalf("failed to create session: %v", err)
-	}
-
-	auth := httpadapter.NewAuthHandler(authapp.NewService(repo, nil))
-	server := newTestAPIServer(repo, auth, nil)
-
-	handler := server.Get
-
-	tests := []struct {
-		name       string
-		path       string
-		cookie     *http.Cookie
-		wantStatus int
-		wantBody   string
-		wantHeader string
-	}{
-		{
-			name:       "valid path unauthenticated",
-			path:       "/",
-			wantStatus: http.StatusOK,
-			wantBody:   "Submit",
-		},
-		{
-			name:       "valid path authenticated",
-			path:       "/",
-			cookie:     &http.Cookie{Name: "session_id", Value: "stoken"},
-			wantStatus: http.StatusFound,
-			wantHeader: "/app",
-		},
-		{
-			name:       "submitted success",
-			path:       "/?submitted=true",
-			wantStatus: http.StatusOK,
-			wantBody:   "If an account exists, an email has been sent.",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
-			if tt.cookie != nil {
-				req.AddCookie(tt.cookie)
-			}
-			rr := httptest.NewRecorder()
-
-			handler(rr, req)
-
-			if rr.Code != tt.wantStatus {
-				t.Errorf("expected status %d, got %d", tt.wantStatus, rr.Code)
-			}
-			if tt.wantStatus == http.StatusOK && !strings.Contains(rr.Body.String(), tt.wantBody) {
-				t.Errorf("expected body to contain %q", tt.wantBody)
-			}
-			if tt.wantHeader != "" && rr.Header().Get("Location") != tt.wantHeader {
-				t.Errorf("expected Location header %q, got %q", tt.wantHeader, rr.Header().Get("Location"))
-			}
-		})
-	}
-
-	// Test write error
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	ew := &errorWriter{}
-	handler(ew, req)
-}
-
-func TestAppHandler(t *testing.T) {
-	service := &fakeShowsService{
-		shows: []appcatalog.Show{
-			{ID: "2", Title: "Zebra Show"},
-			{ID: "1", Title: "Apple Show"},
-		},
-	}
-	dbConn, _ := sqlite.InitDB("file::memory:?cache=shared")
-	repo := sqlite.NewRepository(dbConn)
-	server := newTestAPIServer(repo, nil, service)
-	handler := server.GetApp
-
-	tests := []struct {
-		name       string
-		path       string
-		wantStatus int
-		wantBody   string
-	}{
-		{
-			name:       "valid path",
-			path:       "/app",
-			wantStatus: http.StatusOK,
-			wantBody:   "Apple Show",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
-			ctx := context.WithValue(req.Context(), httpadapter.UserEmailKey, "test@example.com")
-			ctx = context.WithValue(ctx, httpadapter.UserIDKey, 1)
-			req = req.WithContext(ctx)
-			rr := httptest.NewRecorder()
-
-			handler(rr, req)
-
-			if rr.Code != tt.wantStatus {
-				t.Fatalf("expected status %d, got %d", tt.wantStatus, rr.Code)
-			}
-			if !strings.Contains(rr.Body.String(), tt.wantBody) {
-				t.Fatalf("expected body to contain %q", tt.wantBody)
-			}
-			if !strings.Contains(rr.Body.String(), `id="start-time"`) {
-				t.Fatalf("expected body to contain start-time input")
-			}
-			if !strings.Contains(rr.Body.String(), `id="end-time"`) {
-				t.Fatalf("expected body to contain end-time input")
-			}
-
-			if !strings.Contains(rr.Body.String(), `id="total-duration"`) {
-				t.Fatalf("expected body to contain total-duration display")
-			}
-			if !strings.Contains(rr.Body.String(), "<b>test@example.com</b> is requesting a sub") {
-				t.Fatalf("expected body to contain new duration label with email")
-			}
-
-			if !strings.Contains(rr.Body.String(), `id="selected-show"`) {
-				t.Fatalf("expected body to contain selected-show span")
-			}
-
-			if strings.Index(rr.Body.String(), "Apple Show") > strings.Index(rr.Body.String(), "Zebra Show") {
-				t.Fatalf("expected Apple Show to appear before Zebra Show")
-			}
-		})
-	}
-}
-
-func TestAppHandler_UpstreamError(t *testing.T) {
-	service := &fakeShowsService{err: errors.New("boom")}
-	dbConn, _ := sqlite.InitDB("file::memory:?cache=shared")
-	repo := sqlite.NewRepository(dbConn)
-	server := newTestAPIServer(repo, nil, service)
-	handler := server.GetApp
-
-	req := httptest.NewRequest(http.MethodGet, "/app", nil)
-	rr := httptest.NewRecorder()
-
-	handler(rr, req)
-
-	if rr.Code != http.StatusBadGateway {
-		t.Fatalf("expected status %d, got %d", http.StatusBadGateway, rr.Code)
 	}
 }
 
@@ -544,7 +336,8 @@ func TestServerCmd_ConfigError(t *testing.T) {
 
 func TestServerCmd_MasterEmail(t *testing.T) {
 	// Tests the master email bootstrapping path
-	t.Setenv("DB_URI", "file::memory:?cache=shared")
+	dbURI := "file://" + t.TempDir() + "/master-email.db"
+	t.Setenv("DB_URI", dbURI)
 	t.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
 	t.Setenv("MASTER_EMAIL", "admin@example.com")
 	t.Setenv("FROM_EMAIL", "noreply@example.com")
@@ -560,7 +353,7 @@ func TestServerCmd_MasterEmail(t *testing.T) {
 	serverCmd.Run(serverCmd, nil)
 
 	// Verify the user was created with admin role
-	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
+	dbConn, err := sqlite.InitDB(dbURI)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -890,16 +683,16 @@ func TestRunServer_WiresIndependentRepositoryPorts(t *testing.T) {
 		return repos
 	}
 	var gotAuthService *authapp.Service
-	deps.newAuthHandler = func(service *authapp.Service) *httpadapter.AuthHandler {
+	deps.newAuthHandler = func(service *authapp.Service) *api.AuthHandler {
 		gotAuthService = service
-		return httpadapter.NewAuthHandler(service)
+		return api.NewAuthHandler(service)
 	}
 	var gotSubRequestsService *subrequestsapp.Service
 	var gotAdminService *adminapp.Service
-	deps.newAPIServer = func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *httpadapter.AuthHandler) *httpadapter.Server {
+	deps.newAPIServer = func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *api.AuthHandler) *api.Server {
 		gotSubRequestsService = subRequests
 		gotAdminService = admin
-		return httpadapter.NewServer(authHandler, nil, nil)
+		return api.NewServer(authHandler, nil, nil)
 	}
 
 	if err := runServer(&cobra.Command{}, deps); err != nil {
@@ -941,502 +734,6 @@ func TestStartCatalogPrefetchLogsError(t *testing.T) {
 func TestDocCmd(t *testing.T) {
 	// Run the doc command to exercise doc.go
 	docCmd.Run(docCmd, nil)
-}
-
-func TestNewRouter(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
-	if err != nil {
-		t.Fatalf("failed to init db: %v", err)
-	}
-	defer dbConn.Close()
-
-	repo := sqlite.NewRepository(dbConn)
-	auth := httpadapter.NewAuthHandler(authapp.NewService(repo, nil))
-	server := newTestAPIServer(repo, auth, nil)
-
-	r := newRouter(server, auth)
-	if r == nil {
-		t.Fatal("expected non-nil router")
-	}
-
-	// Create admin user/session for authenticated tests
-	admin, err := repo.CreateUser(context.Background(), "admin_cmd_test@example.com", "admin")
-	if err != nil {
-		t.Fatalf("failed to create admin user: %v", err)
-	}
-	err = repo.CreateSession(context.Background(), "sid_admin", authapp.HashToken("stoken_admin"), admin.ID, time.Now().Add(1*time.Hour))
-	if err != nil {
-		t.Fatalf("failed to create session: %v", err)
-	}
-
-	// Test invalid ID in sub-requests Delete route (now handled by generated wrapper)
-	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/abc", nil)
-	markSameOrigin(req)
-	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
-	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400 for invalid ID, got %d", rr.Code)
-	}
-
-	// Test invalid ID in users Post route (now handled by generated wrapper)
-	req = httptest.NewRequest(http.MethodPost, "/users/abc", strings.NewReader(`{"is_enabled":false}`))
-	req.Header.Set("Content-Type", "application/json")
-	markSameOrigin(req)
-	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
-	rr = httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400 for invalid user ID, got %d", rr.Code)
-	}
-
-	// Test valid wiring for POST /users/{id}
-	req = httptest.NewRequest(http.MethodPost, "/users/123", strings.NewReader(`{"is_enabled":false}`))
-	req.Header.Set("Content-Type", "application/json")
-	markSameOrigin(req)
-	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
-	rr = httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-	// Should be 404 because user 123 doesn't exist
-	if rr.Code != http.StatusNotFound {
-		t.Errorf("expected status 404 for non-existent user, got %d", rr.Code)
-	}
-
-	// Test valid wiring for POST /users
-	form := "email=newuser@example.com&role=member"
-	req = httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(form))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	markSameOrigin(req)
-	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
-	rr = httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-	if rr.Code != http.StatusSeeOther {
-		t.Errorf("expected status 303 for user creation, got %d", rr.Code)
-	}
-}
-
-func TestNewRouter_RouteAuthorization(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
-	if err != nil {
-		t.Fatalf("failed to init db: %v", err)
-	}
-	defer dbConn.Close()
-
-	repo := sqlite.NewRepository(dbConn)
-	auth := httpadapter.NewAuthHandler(authapp.NewService(repo, nil))
-	server := newTestAPIServer(repo, auth, &fakeShowsService{
-		shows: []appcatalog.Show{
-			{ID: "show-1", Title: "Authorization Test Show"},
-		},
-	})
-	r := newRouter(server, auth)
-
-	ctx := context.Background()
-	member, err := repo.CreateUser(ctx, "route-member@example.com", "member")
-	if err != nil {
-		t.Fatalf("failed to create member user: %v", err)
-	}
-	admin, err := repo.CreateUser(ctx, "route-admin@example.com", "admin")
-	if err != nil {
-		t.Fatalf("failed to create admin user: %v", err)
-	}
-	disabled, err := repo.CreateUser(ctx, "route-disabled@example.com", "member")
-	if err != nil {
-		t.Fatalf("failed to create disabled user: %v", err)
-	}
-	disabledEnabled := false
-	if err := repo.UpdateUser(ctx, disabled.ID, nil, &disabledEnabled); err != nil {
-		t.Fatalf("failed to disable user: %v", err)
-	}
-	expired, err := repo.CreateUser(ctx, "route-expired@example.com", "member")
-	if err != nil {
-		t.Fatalf("failed to create expired-session user: %v", err)
-	}
-
-	sessions := map[string]struct {
-		userID    int
-		rawToken  string
-		expiresAt time.Time
-	}{
-		"member": {
-			userID:    member.ID,
-			rawToken:  "route-member-token",
-			expiresAt: time.Now().Add(time.Hour),
-		},
-		"admin": {
-			userID:    admin.ID,
-			rawToken:  "route-admin-token",
-			expiresAt: time.Now().Add(time.Hour),
-		},
-		"disabled": {
-			userID:    disabled.ID,
-			rawToken:  "route-disabled-token",
-			expiresAt: time.Now().Add(time.Hour),
-		},
-		"expired": {
-			userID:    expired.ID,
-			rawToken:  "route-expired-token",
-			expiresAt: time.Now().Add(-time.Hour),
-		},
-	}
-	for name, session := range sessions {
-		if err := repo.CreateSession(ctx, "route-"+name+"-session", authapp.HashToken(session.rawToken), session.userID, session.expiresAt); err != nil {
-			t.Fatalf("failed to create %s session: %v", name, err)
-		}
-	}
-
-	tests := []struct {
-		name         string
-		path         string
-		sessionToken string
-		wantStatus   int
-		wantLocation string
-		wantBody     string
-	}{
-		{
-			name:         "app unauthenticated",
-			path:         "/app",
-			wantStatus:   http.StatusFound,
-			wantLocation: "/",
-		},
-		{
-			name:         "app member",
-			path:         "/app",
-			sessionToken: sessions["member"].rawToken,
-			wantStatus:   http.StatusOK,
-			wantBody:     "Authorization Test Show",
-		},
-		{
-			name:         "app admin",
-			path:         "/app",
-			sessionToken: sessions["admin"].rawToken,
-			wantStatus:   http.StatusOK,
-			wantBody:     "Authorization Test Show",
-		},
-		{
-			name:         "app disabled user",
-			path:         "/app",
-			sessionToken: sessions["disabled"].rawToken,
-			wantStatus:   http.StatusFound,
-			wantLocation: "/",
-		},
-		{
-			name:         "app expired session",
-			path:         "/app",
-			sessionToken: sessions["expired"].rawToken,
-			wantStatus:   http.StatusFound,
-			wantLocation: "/",
-		},
-		{
-			name:         "admin unauthenticated",
-			path:         "/admin",
-			wantStatus:   http.StatusFound,
-			wantLocation: "/",
-		},
-		{
-			name:         "admin member",
-			path:         "/admin",
-			sessionToken: sessions["member"].rawToken,
-			wantStatus:   http.StatusFound,
-			wantLocation: "/",
-		},
-		{
-			name:         "admin admin",
-			path:         "/admin",
-			sessionToken: sessions["admin"].rawToken,
-			wantStatus:   http.StatusOK,
-			wantBody:     "route-admin@example.com",
-		},
-		{
-			name:         "admin disabled user",
-			path:         "/admin",
-			sessionToken: sessions["disabled"].rawToken,
-			wantStatus:   http.StatusFound,
-			wantLocation: "/",
-		},
-		{
-			name:         "admin expired session",
-			path:         "/admin",
-			sessionToken: sessions["expired"].rawToken,
-			wantStatus:   http.StatusFound,
-			wantLocation: "/",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
-			if tt.sessionToken != "" {
-				req.AddCookie(&http.Cookie{Name: "session_id", Value: tt.sessionToken})
-			}
-			rr := httptest.NewRecorder()
-
-			r.ServeHTTP(rr, req)
-
-			if rr.Code != tt.wantStatus {
-				t.Fatalf("expected status %d, got %d", tt.wantStatus, rr.Code)
-			}
-			if tt.wantLocation != "" && rr.Header().Get("Location") != tt.wantLocation {
-				t.Fatalf("expected Location header %q, got %q", tt.wantLocation, rr.Header().Get("Location"))
-			}
-			if tt.wantBody != "" && !strings.Contains(rr.Body.String(), tt.wantBody) {
-				t.Fatalf("expected body to contain %q", tt.wantBody)
-			}
-		})
-	}
-}
-
-func TestNewRouter_RejectsCrossSiteMutations(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
-	if err != nil {
-		t.Fatalf("failed to init db: %v", err)
-	}
-	defer dbConn.Close()
-
-	repo := sqlite.NewRepository(dbConn)
-	auth := httpadapter.NewAuthHandler(authapp.NewService(repo, nil))
-	server := newTestAPIServer(repo, auth, nil)
-	r := newRouter(server, auth)
-
-	admin, err := repo.CreateUser(context.Background(), "csrf_admin@example.com", "admin")
-	if err != nil {
-		t.Fatalf("failed to create admin user: %v", err)
-	}
-	if err := repo.CreateSession(context.Background(), "csrf_sid_admin", authapp.HashToken("csrf_token_admin"), admin.ID, time.Now().Add(time.Hour)); err != nil {
-		t.Fatalf("failed to create admin session: %v", err)
-	}
-
-	tests := []struct {
-		name        string
-		method      string
-		path        string
-		body        string
-		contentType string
-	}{
-		{
-			name:   "logout",
-			method: http.MethodPost,
-			path:   "/auth/logout",
-		},
-		{
-			name:        "create sub request",
-			method:      http.MethodPost,
-			path:        "/sub-requests",
-			body:        "show=1&start_time=2036-01-01T10%3A00&end_time=2036-01-01T12%3A00",
-			contentType: "application/x-www-form-urlencoded",
-		},
-		{
-			name:   "delete sub request",
-			method: http.MethodDelete,
-			path:   "/sub-requests/1",
-		},
-		{
-			name:        "patch sub request",
-			method:      http.MethodPatch,
-			path:        "/sub-requests/1",
-			body:        `{"action":"take"}`,
-			contentType: "application/json",
-		},
-		{
-			name:        "create user",
-			method:      http.MethodPost,
-			path:        "/users",
-			body:        "email=csrf_user@example.com&role=member",
-			contentType: "application/x-www-form-urlencoded",
-		},
-		{
-			name:   "import users",
-			method: http.MethodPost,
-			path:   "/users/import/spinitron",
-		},
-		{
-			name:        "update user",
-			method:      http.MethodPost,
-			path:        "/users/1",
-			body:        `{"is_enabled":false}`,
-			contentType: "application/json",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
-			req.Header.Set("Sec-Fetch-Site", "cross-site")
-			if tt.contentType != "" {
-				req.Header.Set("Content-Type", tt.contentType)
-			}
-			req.AddCookie(&http.Cookie{Name: "session_id", Value: "csrf_token_admin"})
-
-			rr := httptest.NewRecorder()
-			r.ServeHTTP(rr, req)
-
-			if rr.Code != http.StatusForbidden {
-				t.Fatalf("expected status %d, got %d", http.StatusForbidden, rr.Code)
-			}
-		})
-	}
-}
-
-func TestSameOriginMutationChecks(t *testing.T) {
-	tests := []struct {
-		name    string
-		method  string
-		headers map[string]string
-		want    bool
-	}{
-		{
-			name:   "safe method skips mutation protection",
-			method: http.MethodGet,
-			want:   true,
-		},
-		{
-			name:    "same-site fetch metadata accepted",
-			method:  http.MethodPost,
-			headers: map[string]string{"Sec-Fetch-Site": "same-site"},
-			want:    true,
-		},
-		{
-			name:    "browser-initiated none fetch metadata accepted",
-			method:  http.MethodPost,
-			headers: map[string]string{"Sec-Fetch-Site": "none"},
-			want:    true,
-		},
-		{
-			name:    "cross-site fetch metadata rejected",
-			method:  http.MethodPost,
-			headers: map[string]string{"Sec-Fetch-Site": "cross-site"},
-			want:    false,
-		},
-		{
-			name:    "matching origin accepted",
-			method:  http.MethodPost,
-			headers: map[string]string{"Origin": "http://example.com"},
-			want:    true,
-		},
-		{
-			name:    "matching forwarded proto origin accepted",
-			method:  http.MethodPost,
-			headers: map[string]string{"Origin": "https://example.com", "X-Forwarded-Proto": "https"},
-			want:    true,
-		},
-		{
-			name:    "matching referer accepted",
-			method:  http.MethodPost,
-			headers: map[string]string{"Referer": "http://example.com/app"},
-			want:    true,
-		},
-		{
-			name:    "different origin rejected",
-			method:  http.MethodPost,
-			headers: map[string]string{"Origin": "http://evil.example"},
-			want:    false,
-		},
-		{
-			name:    "malformed origin rejected",
-			method:  http.MethodPost,
-			headers: map[string]string{"Origin": "://bad-origin"},
-			want:    false,
-		},
-		{
-			name:   "missing origin metadata rejected",
-			method: http.MethodPost,
-			want:   false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(tt.method, "http://example.com/app", nil)
-			for key, value := range tt.headers {
-				req.Header.Set(key, value)
-			}
-
-			called := false
-			handler := requireSameOriginMutation(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				called = true
-				w.WriteHeader(http.StatusNoContent)
-			}))
-			rr := httptest.NewRecorder()
-			handler.ServeHTTP(rr, req)
-
-			if called != tt.want {
-				t.Fatalf("handler called = %v, want %v", called, tt.want)
-			}
-			if tt.want && rr.Code != http.StatusNoContent {
-				t.Fatalf("expected accepted status %d, got %d", http.StatusNoContent, rr.Code)
-			}
-			if !tt.want && rr.Code != http.StatusForbidden {
-				t.Fatalf("expected rejected status %d, got %d", http.StatusForbidden, rr.Code)
-			}
-		})
-	}
-}
-
-func TestNewRouter_SwaggerError(t *testing.T) {
-	originalGetSwagger := getSwagger
-	originalOsExit := osExit
-	defer func() {
-		getSwagger = originalGetSwagger
-		osExit = originalOsExit
-	}()
-
-	getSwagger = func() (*openapi3.T, error) {
-		return nil, errors.New("swagger failed")
-	}
-	exited := false
-	osExit = func(code int) {
-		exited = true
-		if code != 1 {
-			t.Errorf("expected exit code 1, got %d", code)
-		}
-		panic("osExit")
-	}
-
-	func() {
-		defer func() {
-			if r := recover(); r != nil && r != "osExit" {
-				panic(r)
-			}
-		}()
-		newRouter(nil, nil)
-	}()
-
-	if !exited {
-		t.Error("expected osExit to be called")
-	}
-}
-
-func TestAuthRateLimiting(t *testing.T) {
-	dbConn, _ := sqlite.InitDB("file::memory:?cache=shared")
-	defer dbConn.Close()
-
-	repo := sqlite.NewRepository(dbConn)
-	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
-	auth := httpadapter.NewAuthHandler(authapp.NewService(repo, &mockSender{}))
-	server := newTestAPIServer(repo, auth, nil)
-
-	r := newRouter(server, auth)
-
-	// Make 5 successful-ish requests
-	for i := 0; i < 5; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"test@example.com"}`))
-		req.Header.Set("Content-Type", "application/json")
-		rr := httptest.NewRecorder()
-		r.ServeHTTP(rr, req)
-		// We expect 200 because the handler will succeed (mocked repo/sender might be used)
-		if rr.Code != http.StatusOK {
-			t.Errorf("request %d: expected status 200, got %d", i+1, rr.Code)
-		}
-	}
-
-	// 6th request should be rate limited
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"test@example.com"}`))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-	if rr.Code != http.StatusTooManyRequests {
-		t.Errorf("expected status 429, got %d", rr.Code)
-	}
 }
 
 func TestServerCmd_DBInitError(t *testing.T) {

@@ -1,20 +1,25 @@
-package cmd
+package api
 
 import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
-	httpadapter "air-cover/internal/adapters/inbound/http"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
 	nethttp_middleware "github.com/oapi-codegen/nethttp-middleware"
 )
 
-func newRouter(apiServer *httpadapter.Server, authHandler *httpadapter.AuthHandler) chi.Router {
+var (
+	osExit     = os.Exit
+	getSwagger = GetSwagger
+)
+
+func NewRouter(apiServer *Server, authHandler *AuthHandler) chi.Router {
 	swagger, err := getSwagger()
 	if err != nil {
 		slog.Error("Failed to load swagger spec", "error", err)
@@ -25,7 +30,7 @@ func newRouter(apiServer *httpadapter.Server, authHandler *httpadapter.AuthHandl
 	// reject requests based on the Host header.
 	swagger.Servers = nil
 
-	wrapper := httpadapter.NewWrapper(apiServer)
+	wrapper := NewWrapper(apiServer)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -102,11 +107,4 @@ func requestOriginMatches(r *http.Request, rawURL string) bool {
 		return false
 	}
 	return strings.EqualFold(u.Scheme, requestScheme(r)) && strings.EqualFold(u.Host, r.Host)
-}
-
-func requestScheme(r *http.Request) string {
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		return "https"
-	}
-	return "http"
 }

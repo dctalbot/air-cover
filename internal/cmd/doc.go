@@ -3,11 +3,10 @@ package cmd
 import (
 	"fmt"
 
+	"air-cover/internal/adapters/inbound/http/api"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/docgen"
 	"github.com/spf13/cobra"
-
-	httpadapter "air-cover/internal/adapters/inbound/http"
 )
 
 var docCmd = &cobra.Command{
@@ -17,10 +16,10 @@ var docCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// Minimal setup for docgen
 		// We don't need real dependencies for docgen as it only inspects the router structure
-		authHandler := httpadapter.NewAuthHandler(nil)
-		apiServer := httpadapter.NewServer(authHandler, nil, nil)
+		authHandler := api.NewAuthHandler(nil)
+		apiServer := api.NewServer(authHandler, nil, nil)
 
-		r := newRouter(apiServer, authHandler)
+		r := api.NewRouter(apiServer, authHandler)
 		fmt.Println(docgen.JSONRoutesDoc(r.(*chi.Mux))) // nolint:forbidigo
 	},
 }
