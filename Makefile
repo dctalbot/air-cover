@@ -20,6 +20,7 @@ generate:
 	@$(GO) run $(SQLC) generate
 	@$(GO) run $(OAPI_CODEGEN) -package httpadapter -generate chi-server,types,spec api/openapi.yaml > internal/adapters/http/api.gen.go
 	@$(GO) run cmd/aircover/main.go doc > docs/routes.json
+	@$(GO) run $(TEMPL) fmt .
 	@$(GO) run $(TEMPL) generate
 
 db-reset:

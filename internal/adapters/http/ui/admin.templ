@@ -10,100 +10,110 @@ templ Admin(users []UserView, email string) {
 		@PageHeader("Admin Dashboard") {
 			@UserMenu(email)
 		}
-
 		<hr/>
 		<div style="display: flex; justify-content: flex-end; margin-bottom: 1rem">
 			<form action="/users/import/spinitron" method="POST" style="margin: 0">
-				<button type="submit" style="
+				<button
+					type="submit"
+					style="
 					background: #2563eb;
 					color: white;
 					border: none;
 					padding: 0.5rem 1rem;
 					border-radius: 4px;
 					cursor: pointer;
-				  ">
+				  "
+				>
 					Import all Spinitron DJs
 				</button>
 			</form>
 		</div>
-		<section style="
+		<section
+			style="
 				margin-bottom: 2rem;
 				background: #f0f9ff;
 				border: 1px solid #bae6fd;
 				border-radius: 8px;
 				padding: 0.5rem;
-			  ">
+			  "
+		>
 			<form action="/users" method="POST">
 				<div style="flex: 1; min-width: 200px; margin-bottom: 0.5rem">
 					<label for="email">Add a user</label>
-					<input type="email" id="email" name="email" required placeholder="dj@example.com" style="
+					<input
+						type="email"
+						id="email"
+						name="email"
+						required
+						placeholder="dj@example.com"
+						style="
 					  width: 100%;
 					  padding: 0.5rem;
 					  border: 1px solid #ccc;
 					  box-sizing: border-box;
-					"/>
+					"
+					/>
 				</div>
 				<button type="submit">Add user</button>
 			</form>
 		</section>
-
 		<div id="users-list">
 			if len(users) == 0 {
-			<p>No users found.</p>
+				<p>No users found.</p>
 			} else {
-			<table class="data-table">
-				<thead>
-					<tr>
-						<th>Email</th>
-						<th>Role</th>
-						<th>Actions</th>
-					</tr>
-				</thead>
-				<tbody>
-					for _, user := range users {
-					<tr id={ "user-row-" + strconv.Itoa(user.ID) }>
-						<td>{ user.Email }</td>
-						<td>
-							if user.IsEnabled {
-							<span class={ "role-badge role-" + user.Role }>{ user.Role }</span>
-							}
-						</td>
-						<td class="actions-cell">
-							if user.CanDeactivate {
-							<form action={ templ.SafeURL("/users/" + strconv.Itoa(user.ID)) } method="POST" style="display: inline">
-								<input type="hidden" name="is_enabled" value={ strconv.FormatBool(!user.IsEnabled) }/>
-								<button type="submit" class={ "btn-action", templ.KV("btn-action-danger", user.IsEnabled), templ.KV("btn-action-success", !user.IsEnabled) }>
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Email</th>
+							<th>Role</th>
+							<th>Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, user := range users {
+							<tr id={ "user-row-" + strconv.Itoa(user.ID) }>
+								<td>{ user.Email }</td>
+								<td>
 									if user.IsEnabled {
-									Deactivate
-									} else {
-									Reinstate
+										<span class={ "role-badge role-" + user.Role }>{ user.Role }</span>
 									}
-								</button>
-							</form>
-							if user.IsEnabled {
-							<form action={ templ.SafeURL("/users/" + strconv.Itoa(user.ID)) } method="POST" style="display: inline">
-								if user.Role == "admin" {
-								<input type="hidden" name="role" value="member"/>
-								} else {
-								<input type="hidden" name="role" value="admin"/>
-								}
-								<button type="submit" class="btn-action btn-action-primary">
-									if user.Role == "admin" {
-									{ "Make Member" }
-									} else {
-									{ "Make Admin" }
+								</td>
+								<td class="actions-cell">
+									if user.CanDeactivate {
+										<form action={ templ.SafeURL("/users/" + strconv.Itoa(user.ID)) } method="POST" style="display: inline">
+											<input type="hidden" name="is_enabled" value={ strconv.FormatBool(!user.IsEnabled) }/>
+											<button type="submit" class={ "btn-action", templ.KV("btn-action-danger", user.IsEnabled), templ.KV("btn-action-success", !user.IsEnabled) }>
+												if user.IsEnabled {
+													Deactivate
+												} else {
+													Reinstate
+												}
+											</button>
+										</form>
+										if user.IsEnabled {
+											<form action={ templ.SafeURL("/users/" + strconv.Itoa(user.ID)) } method="POST" style="display: inline">
+												if user.Role == "admin" {
+													<input type="hidden" name="role" value="member"/>
+												} else {
+													<input type="hidden" name="role" value="admin"/>
+												}
+												<button type="submit" class="btn-action btn-action-primary">
+													if user.Role == "admin" {
+														{ "Make Member" }
+													} else {
+														{ "Make Admin" }
+													}
+												</button>
+											</form>
+										}
 									}
-								</button>
-							</form>
-							} }
-						</td>
-					</tr>
-					}
-				</tbody>
-			</table>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
 			}
 		</div>
-
 		<style>
 			.role-badge {
 				display: inline-block;
