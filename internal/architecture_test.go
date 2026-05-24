@@ -1,6 +1,7 @@
 package internal_test
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -18,17 +19,15 @@ func TestHexagonalImportBoundaries(t *testing.T) {
 	for _, pkg := range packages {
 		switch {
 		case pkg.ImportPath == "air-cover/internal/domain":
-			forbidImports(t, pkg, "air-cover/internal/app", "air-cover/internal/adapters", "air-cover/internal/api", "air-cover/internal/ui", "air-cover/internal/presenter")
+			forbidImports(t, pkg, "air-cover/internal/app", "air-cover/internal/adapters")
 		case strings.HasPrefix(pkg.ImportPath, "air-cover/internal/app"):
-			forbidImports(t, pkg, "air-cover/internal/adapters", "air-cover/internal/api", "air-cover/internal/ui", "air-cover/internal/presenter")
-		case pkg.ImportPath == "air-cover/internal/policy":
-			forbidImports(t, pkg, "air-cover/internal/app", "air-cover/internal/adapters", "air-cover/internal/api", "air-cover/internal/ui", "air-cover/internal/presenter")
-		case strings.HasPrefix(pkg.ImportPath, "air-cover/internal/adapters"):
-			forbidImports(t, pkg, "air-cover/internal/api", "air-cover/internal/ui", "air-cover/internal/presenter")
-		case pkg.ImportPath == "air-cover/internal/presenter":
-			forbidImports(t, pkg, "air-cover/internal/api", "air-cover/internal/adapters")
-		case strings.HasPrefix(pkg.ImportPath, "air-cover/internal/ui"):
-			forbidImports(t, pkg, "air-cover/internal/adapters", "air-cover/internal/api")
+			forbidImports(t, pkg, "air-cover/internal/adapters")
+		case pkg.ImportPath == "air-cover/internal/adapters/http/presenter":
+			forbidImports(t, pkg, "air-cover/internal/adapters/sqlite", "air-cover/internal/adapters/email", "air-cover/internal/adapters/spinitron")
+		case strings.HasPrefix(pkg.ImportPath, "air-cover/internal/adapters/http/ui"):
+			forbidImports(t, pkg, "air-cover/internal/adapters/sqlite", "air-cover/internal/adapters/email", "air-cover/internal/adapters/spinitron")
+		case strings.HasPrefix(pkg.ImportPath, "air-cover/internal/adapters") && !strings.HasPrefix(pkg.ImportPath, "air-cover/internal/adapters/http"):
+			forbidImports(t, pkg, "air-cover/internal/adapters/http")
 		}
 	}
 }
@@ -42,12 +41,67 @@ func TestHexagonalTestImportBoundaries(t *testing.T) {
 	for _, pkg := range packages {
 		switch {
 		case pkg.ImportPath == "air-cover/internal/domain":
-			forbidImports(t, pkg, "air-cover/internal/api", "air-cover/internal/adapters", "air-cover/internal/ui", "air-cover/internal/presenter")
+			forbidImports(t, pkg, "air-cover/internal/adapters")
 		case strings.HasPrefix(pkg.ImportPath, "air-cover/internal/app"):
-			forbidImports(t, pkg, "air-cover/internal/api", "air-cover/internal/ui", "air-cover/internal/presenter")
-		case pkg.ImportPath == "air-cover/internal/policy":
-			forbidImports(t, pkg, "air-cover/internal/api", "air-cover/internal/adapters", "air-cover/internal/ui", "air-cover/internal/presenter")
+			forbidImports(t, pkg, "air-cover/internal/adapters")
 		}
+	}
+}
+
+func TestDomainTypesDoNotCarrySerializationTags(t *testing.T) {
+	err := filepath.WalkDir("domain", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(parsed, func(node ast.Node) bool {
+			field, ok := node.(*ast.Field)
+			if !ok || field.Tag == nil {
+				return true
+			}
+			tag := strings.Trim(field.Tag.Value, "`")
+			if strings.Contains(tag, "json:") || strings.Contains(tag, "form:") {
+				t.Errorf("%s contains transport serialization tag %q", path, tag)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk domain: %v", err)
+	}
+}
+
+func TestGeneratedSQLiteTypesStayInsideSQLiteAdapter(t *testing.T) {
+	packages, err := listPackages(includeTests(false))
+	if err != nil {
+		t.Fatalf("list packages: %v", err)
+	}
+	for _, pkg := range packages {
+		if strings.HasPrefix(pkg.ImportPath, "air-cover/internal/adapters/sqlite") {
+			continue
+		}
+		forbidImports(t, pkg, "air-cover/internal/adapters/sqlite/dbgen")
+	}
+}
+
+func TestHTTPPresentationPackagesStayHTTPOwned(t *testing.T) {
+	packages, err := listPackages(includeTests(false))
+	if err != nil {
+		t.Fatalf("list packages: %v", err)
+	}
+	for _, pkg := range packages {
+		if pkg.ImportPath == "air-cover/internal/adapters/http" || strings.HasPrefix(pkg.ImportPath, "air-cover/internal/adapters/http/") {
+			continue
+		}
+		forbidImports(t, pkg, "air-cover/internal/adapters/http/ui", "air-cover/internal/adapters/http/presenter")
 	}
 }
 

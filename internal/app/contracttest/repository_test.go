@@ -51,7 +51,7 @@ func (r *memoryRepository) GetUserByID(ctx context.Context, id int) (*domain.Use
 }
 
 func (r *memoryRepository) CreateUser(ctx context.Context, email string, role string) (*domain.User, error) {
-	user := &domain.User{ID: r.nextUserID, Email: email, Role: role, IsEnabled: true}
+	user := &domain.User{ID: r.nextUserID, Email: email, Role: domain.Role(role), IsEnabled: true}
 	r.nextUserID++
 	r.users = append(r.users, user)
 	return user, nil
@@ -63,7 +63,7 @@ func (r *memoryRepository) UpdateUser(ctx context.Context, id int, role *string,
 		return err
 	}
 	if role != nil {
-		user.Role = *role
+		user.Role = domain.Role(*role)
 	}
 	if isEnabled != nil {
 		user.IsEnabled = *isEnabled
@@ -76,7 +76,7 @@ func (r *memoryRepository) ImportUsers(ctx context.Context, emails []string) err
 		if _, err := r.GetUserByEmail(ctx, email); err == nil {
 			continue
 		}
-		r.users = append(r.users, &domain.User{ID: r.nextUserID, Email: email, Role: "member", IsEnabled: true})
+		r.users = append(r.users, &domain.User{ID: r.nextUserID, Email: email, Role: domain.RoleMember, IsEnabled: true})
 		r.nextUserID++
 	}
 	return nil
@@ -128,8 +128,8 @@ func (r *memoryRepository) DeleteSessionsByUserID(ctx context.Context, userID in
 	return nil
 }
 
-func (r *memoryRepository) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubRequestSummary, error) {
-	requests := make([]subrequestsapp.SubRequestSummary, 0, len(r.subRequests))
+func (r *memoryRepository) ListDashboardSubRequests(ctx context.Context) ([]subrequestsapp.DashboardRecord, error) {
+	requests := make([]subrequestsapp.DashboardRecord, 0, len(r.subRequests))
 	for _, request := range r.subRequests {
 		requesterEmail := ""
 		if requester, err := r.GetUserByID(ctx, request.PostedByUserID); err == nil {
@@ -141,7 +141,7 @@ func (r *memoryRepository) ListSubRequests(ctx context.Context) ([]subrequestsap
 				takerEmail = taker.Email
 			}
 		}
-		requests = append(requests, subrequestsapp.SubRequestSummary{
+		requests = append(requests, subrequestsapp.DashboardRecord{
 			Request:        request,
 			RequesterEmail: requesterEmail,
 			TakerEmail:     takerEmail,
@@ -218,6 +218,12 @@ func TestSplitRepositoryContracts(t *testing.T) {
 		{name: "auth", run: CheckAuthRepository},
 		{name: "admin", run: CheckAdminRepository},
 		{name: "subrequests", run: CheckSubRequestRepository},
+		{name: "subrequest commands", run: func(ctx context.Context, repo Repository) error {
+			return CheckSubRequestCommandRepository(ctx, repo)
+		}},
+		{name: "subrequest dashboard query", run: func(ctx context.Context, repo Repository) error {
+			return CheckSubRequestDashboardQuery(ctx, repo)
+		}},
 	}
 
 	for _, tt := range checks {
@@ -253,7 +259,7 @@ func TestMustNoErrPanics(t *testing.T) {
 }
 
 func TestIndexOfSummaryMissing(t *testing.T) {
-	summaries := []subrequestsapp.SubRequestSummary{
+	summaries := []subrequestsapp.DashboardRecord{
 		{Request: &domain.SubRequest{ID: 1}},
 		{Request: nil},
 	}

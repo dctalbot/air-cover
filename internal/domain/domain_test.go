@@ -12,8 +12,8 @@ func TestRoleValid(t *testing.T) {
 }
 
 func TestUserIsAdmin(t *testing.T) {
-	admin := User{Role: string(RoleAdmin)}
-	member := User{Role: string(RoleMember)}
+	admin := User{Role: RoleAdmin}
+	member := User{Role: RoleMember}
 	if !admin.IsAdmin() {
 		t.Fatal("expected admin user")
 	}
@@ -23,8 +23,8 @@ func TestUserIsAdmin(t *testing.T) {
 }
 
 func TestCurrentUserIsAdmin(t *testing.T) {
-	admin := CurrentUser{Role: string(RoleAdmin)}
-	member := CurrentUser{Role: string(RoleMember)}
+	admin := CurrentUser{Role: RoleAdmin}
+	member := CurrentUser{Role: RoleMember}
 	if !admin.IsAdmin() {
 		t.Fatal("expected admin current user")
 	}
@@ -34,8 +34,8 @@ func TestCurrentUserIsAdmin(t *testing.T) {
 }
 
 func TestSubRequestStatusAndPolicy(t *testing.T) {
-	viewer := CurrentUser{ID: 1, Role: string(RoleMember)}
-	admin := CurrentUser{ID: 2, Role: string(RoleAdmin)}
+	viewer := CurrentUser{ID: 1, Role: RoleMember}
+	admin := CurrentUser{ID: 2, Role: RoleAdmin}
 	request := &SubRequest{PostedByUserID: 1}
 
 	if request.GetStatus() != string(SubRequestStatusOpen) {
@@ -61,5 +61,15 @@ func TestSubRequestStatusAndPolicy(t *testing.T) {
 	}
 	if request.CanBeUntakenBy(viewer) {
 		t.Fatal("expected non-taker not to untake")
+	}
+}
+
+func TestCurrentUserCanDeactivateUser(t *testing.T) {
+	viewer := CurrentUser{ID: 1}
+	if viewer.CanDeactivateUser(1) {
+		t.Fatal("expected current user not to deactivate themselves")
+	}
+	if !viewer.CanDeactivateUser(2) {
+		t.Fatal("expected current user to deactivate another user")
 	}
 }

@@ -216,7 +216,7 @@ func TestVerifyMagicLinkErrors(t *testing.T) {
 func TestLogoutAndAuthenticateSession(t *testing.T) {
 	repo := &fakeRepository{
 		session:  &domain.Session{UserID: 5},
-		userByID: &domain.User{ID: 5, Email: "u@example.com", Role: string(domain.RoleAdmin), IsEnabled: true},
+		userByID: &domain.User{ID: 5, Email: "u@example.com", Role: domain.RoleAdmin, IsEnabled: true},
 	}
 	svc := NewService(repo, nil)
 	if err := svc.Logout(context.Background(), 5); err != nil {

@@ -14,23 +14,27 @@ func (r Role) Valid() bool {
 }
 
 type User struct {
-	ID        int       `json:"id"`
-	Email     string    `json:"email"`
-	Role      string    `json:"role"`
-	IsEnabled bool      `json:"is_enabled"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        int
+	Email     string
+	Role      Role
+	IsEnabled bool
+	CreatedAt time.Time
 }
 
 func (u User) IsAdmin() bool {
-	return Role(u.Role) == RoleAdmin
+	return u.Role == RoleAdmin
 }
 
 type CurrentUser struct {
 	ID    int
 	Email string
-	Role  string
+	Role  Role
 }
 
 func (u CurrentUser) IsAdmin() bool {
-	return Role(u.Role) == RoleAdmin
+	return u.Role == RoleAdmin
+}
+
+func (u CurrentUser) CanDeactivateUser(targetUserID int) bool {
+	return u.ID != targetUserID
 }

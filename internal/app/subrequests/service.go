@@ -10,23 +10,29 @@ import (
 	"time"
 
 	appcatalog "air-cover/internal/app/catalog"
-	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
-	"air-cover/internal/policy"
 )
 
 var ErrCatalog = errors.New("show catalog error")
 
 const maxCreateNotesLength = 1000
 
-type Repository interface {
-	ListSubRequests(ctx context.Context) ([]SubRequestSummary, error)
+type CommandRepository interface {
 	CreateSubRequest(ctx context.Context, sr *domain.SubRequest) error
 	GetSubRequestByID(ctx context.Context, id int) (*domain.SubRequest, error)
 	DeleteSubRequest(ctx context.Context, id int) error
 	TakeSubRequest(ctx context.Context, id int, userID int, updatedAt time.Time) error
 	UntakeSubRequest(ctx context.Context, id int, updatedAt time.Time) error
+}
+
+type DashboardQuery interface {
+	ListDashboardSubRequests(ctx context.Context) ([]DashboardRecord, error)
+}
+
+type Repository interface {
+	CommandRepository
+	DashboardQuery
 }
 
 type Catalog interface {
@@ -53,7 +59,7 @@ type Dashboard struct {
 	Past     []DashboardSubRequest
 }
 
-type SubRequestSummary struct {
+type DashboardRecord struct {
 	Request        *domain.SubRequest
 	RequesterEmail string
 	TakerEmail     string
@@ -88,7 +94,7 @@ func (a Action) Valid() bool {
 	return a == ActionTake || a == ActionUntake
 }
 
-func (s *Service) ListDashboard(ctx context.Context, viewer session.CurrentUser) (Dashboard, error) {
+func (s *Service) ListDashboard(ctx context.Context, viewer domain.CurrentUser) (Dashboard, error) {
 	if s.catalog == nil {
 		return Dashboard{}, fmt.Errorf("%w: show catalog is not configured", ErrCatalog)
 	}
@@ -101,7 +107,7 @@ func (s *Service) ListDashboard(ctx context.Context, viewer session.CurrentUser)
 		return strings.ToLower(shows[i].Title) < strings.ToLower(shows[j].Title)
 	})
 
-	subRequests, err := s.repo.ListSubRequests(ctx)
+	subRequests, err := s.repo.ListDashboardSubRequests(ctx)
 	if err != nil {
 		return Dashboard{}, err
 	}
@@ -118,9 +124,9 @@ func (s *Service) ListDashboard(ctx context.Context, viewer session.CurrentUser)
 			RequesterEmail: record.RequesterEmail,
 			TakerEmail:     record.TakerEmail,
 			ShowTitle:      showTitle(showMap, sr.ShowID),
-			CanDelete:      policy.CanDeleteSubRequest(viewer, sr),
-			CanTake:        policy.CanTakeSubRequest(viewer, sr),
-			CanUntake:      policy.CanUntakeSubRequest(viewer, sr),
+			CanDelete:      sr.CanBeDeletedBy(viewer),
+			CanTake:        sr.CanBeTakenBy(viewer),
+			CanUntake:      sr.CanBeUntakenBy(viewer),
 			IsPast:         sr.StartTime.Before(now),
 		}
 		if item.IsPast {
@@ -141,7 +147,7 @@ func (s *Service) ListDashboard(ctx context.Context, viewer session.CurrentUser)
 	}, nil
 }
 
-func (s *Service) Create(ctx context.Context, viewer session.CurrentUser, input CreateInput) error {
+func (s *Service) Create(ctx context.Context, viewer domain.CurrentUser, input CreateInput) error {
 	if err := s.validateCreateInput(ctx, input); err != nil {
 		return err
 	}
@@ -187,12 +193,12 @@ func (s *Service) validateCreateInput(ctx context.Context, input CreateInput) er
 	return nil
 }
 
-func (s *Service) Delete(ctx context.Context, viewer session.CurrentUser, id int) error {
+func (s *Service) Delete(ctx context.Context, viewer domain.CurrentUser, id int) error {
 	sr, err := s.repo.GetSubRequestByID(ctx, id)
 	if err != nil {
 		return mapRepositoryError(err)
 	}
-	if !policy.CanDeleteSubRequest(viewer, sr) {
+	if !sr.CanBeDeletedBy(viewer) {
 		return apperrors.ErrForbidden
 	}
 	if err := s.repo.DeleteSubRequest(ctx, id); err != nil {
@@ -201,7 +207,7 @@ func (s *Service) Delete(ctx context.Context, viewer session.CurrentUser, id int
 	return nil
 }
 
-func (s *Service) ApplyAction(ctx context.Context, viewer session.CurrentUser, id int, action Action) error {
+func (s *Service) ApplyAction(ctx context.Context, viewer domain.CurrentUser, id int, action Action) error {
 	if !action.Valid() {
 		return apperrors.ErrInvalid
 	}
@@ -217,7 +223,7 @@ func (s *Service) ApplyAction(ctx context.Context, viewer session.CurrentUser, i
 			return mapRepositoryError(err)
 		}
 	case ActionUntake:
-		if !policy.CanUntakeSubRequest(viewer, sr) {
+		if !sr.CanBeUntakenBy(viewer) {
 			return apperrors.ErrForbidden
 		}
 		if err := s.repo.UntakeSubRequest(ctx, id, s.now()); err != nil {

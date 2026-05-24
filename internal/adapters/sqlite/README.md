@@ -10,6 +10,7 @@ SQLite assumptions to isolate before adding another database adapter:
 - `ON CONFLICT (email) DO NOTHING` for idempotent imports;
 - `AUTOINCREMENT` integer IDs in migrations;
 - SQLite/libSQL boolean and timestamp scanning behavior;
+- the `libsql` driver name used by `InitDB`;
 - goose migration dialect and the migration file layout under `internal/adapters/sqlite/migrations`.
 
 SQL queries are authored in `internal/adapters/sqlite/queries` and generated with sqlc

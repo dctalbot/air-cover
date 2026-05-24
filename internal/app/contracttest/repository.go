@@ -16,7 +16,19 @@ import (
 type Repository interface {
 	authapp.Repository
 	adminapp.Repository
-	subrequestsapp.Repository
+	subrequestsapp.CommandRepository
+	subrequestsapp.DashboardQuery
+}
+
+type SubRequestCommandRepository interface {
+	adminapp.Repository
+	subrequestsapp.CommandRepository
+}
+
+type SubRequestDashboardQuery interface {
+	adminapp.Repository
+	subrequestsapp.CommandRepository
+	subrequestsapp.DashboardQuery
 }
 
 func CheckAuthRepository(ctx context.Context, repo Repository) (err error) {
@@ -34,6 +46,18 @@ func CheckAdminRepository(ctx context.Context, repo Repository) (err error) {
 func CheckSubRequestRepository(ctx context.Context, repo Repository) (err error) {
 	return check(ctx, func(ctx context.Context) {
 		checkSubRequestRepository(ctx, repo)
+	})
+}
+
+func CheckSubRequestCommandRepository(ctx context.Context, repo SubRequestCommandRepository) (err error) {
+	return check(ctx, func(ctx context.Context) {
+		checkSubRequestCommandRepository(ctx, repo)
+	})
+}
+
+func CheckSubRequestDashboardQuery(ctx context.Context, repo SubRequestDashboardQuery) (err error) {
+	return check(ctx, func(ctx context.Context) {
+		checkSubRequestDashboardQuery(ctx, repo)
 	})
 }
 
@@ -119,32 +143,32 @@ func checkAuthRepository(ctx context.Context, repo Repository) {
 func checkAdminRepository(ctx context.Context, repo Repository) {
 	user, err := repo.CreateUser(ctx, "contract-admin@example.com", "member")
 	mustNoErr(err, "CreateUser returned error")
-	must(user.ID != 0 && user.Email == "contract-admin@example.com" && user.Role == "member" && user.IsEnabled, "unexpected created admin test user: %+v", user)
+	must(user.ID != 0 && user.Email == "contract-admin@example.com" && user.Role == domain.RoleMember && user.IsEnabled, "unexpected created admin test user: %+v", user)
 
 	err = repo.UpdateUser(ctx, -1, nil, boolPtr(true))
 	must(errors.Is(err, apperrors.ErrNotFound), "missing user update error = %v, want not found", err)
 	err = repo.UpdateUser(ctx, user.ID, nil, nil)
 	mustNoErr(err, "UpdateUser nil update returned error")
 	unchanged, err := repo.GetUserByID(ctx, user.ID)
-	must(err == nil && unchanged.Role == "member" && unchanged.IsEnabled, "nil update changed user: %+v, %v", unchanged, err)
+	must(err == nil && unchanged.Role == domain.RoleMember && unchanged.IsEnabled, "nil update changed user: %+v, %v", unchanged, err)
 
 	role := "admin"
 	enabled := false
 	err = repo.UpdateUser(ctx, user.ID, &role, &enabled)
 	mustNoErr(err, "UpdateUser returned error")
 	updated, err := repo.GetUserByID(ctx, user.ID)
-	must(err == nil && updated.Role == "admin" && !updated.IsEnabled, "full update user = %+v, %v; want admin disabled", updated, err)
+	must(err == nil && updated.Role == domain.RoleAdmin && !updated.IsEnabled, "full update user = %+v, %v; want admin disabled", updated, err)
 
 	member := "member"
 	err = repo.UpdateUser(ctx, user.ID, &member, nil)
 	mustNoErr(err, "UpdateUser role-only returned error")
 	updated, err = repo.GetUserByID(ctx, user.ID)
-	must(err == nil && updated.Role == "member" && !updated.IsEnabled, "role-only update user = %+v, %v; want member disabled", updated, err)
+	must(err == nil && updated.Role == domain.RoleMember && !updated.IsEnabled, "role-only update user = %+v, %v; want member disabled", updated, err)
 
 	err = repo.UpdateUser(ctx, user.ID, nil, boolPtr(true))
 	mustNoErr(err, "UpdateUser enabled-only returned error")
 	updated, err = repo.GetUserByID(ctx, user.ID)
-	must(err == nil && updated.Role == "member" && updated.IsEnabled, "enabled-only update user = %+v, %v; want member enabled", updated, err)
+	must(err == nil && updated.Role == domain.RoleMember && updated.IsEnabled, "enabled-only update user = %+v, %v; want member enabled", updated, err)
 
 	err = repo.ImportUsers(ctx, []string{"contract-imported@example.com", "contract-imported@example.com"})
 	mustNoErr(err, "ImportUsers returned error")
@@ -154,13 +178,18 @@ func checkAdminRepository(ctx context.Context, repo Repository) {
 	for _, listed := range users {
 		if listed.Email == "contract-imported@example.com" {
 			importedCount++
-			must(listed.Role == "member" && listed.IsEnabled, "imported user = %+v; want enabled member", listed)
+			must(listed.Role == domain.RoleMember && listed.IsEnabled, "imported user = %+v; want enabled member", listed)
 		}
 	}
 	must(importedCount == 1, "imported user count = %d, want 1", importedCount)
 }
 
 func checkSubRequestRepository(ctx context.Context, repo Repository) {
+	checkSubRequestCommandRepository(ctx, repo)
+	checkSubRequestDashboardQuery(ctx, repo)
+}
+
+func checkSubRequestCommandRepository(ctx context.Context, repo SubRequestCommandRepository) {
 	requester, err := repo.CreateUser(ctx, "contract-requester@example.com", "member")
 	mustNoErr(err, "CreateUser requester returned error")
 	taker, err := repo.CreateUser(ctx, "contract-taker@example.com", "member")
@@ -196,13 +225,6 @@ func checkSubRequestRepository(ctx context.Context, repo Repository) {
 	_, err = repo.GetSubRequestByID(ctx, -1)
 	must(errors.Is(err, apperrors.ErrNotFound), "missing subrequest error = %v, want not found", err)
 
-	requests, err := repo.ListSubRequests(ctx)
-	mustNoErr(err, "ListSubRequests returned error")
-	summaries := summariesByID(requests)
-	must(summaries[early.ID] != nil && summaries[early.ID].RequesterEmail == requester.Email, "early summary = %+v; want requester email %s", summaries[early.ID], requester.Email)
-	must(summaries[late.ID] != nil && summaries[late.ID].RequesterEmail == requester.Email, "late summary = %+v; want requester email %s", summaries[late.ID], requester.Email)
-	must(indexOfSummary(requests, early.ID) < indexOfSummary(requests, late.ID), "ListSubRequests is not ordered by start time ascending")
-
 	takenAt := now.Add(30 * time.Minute)
 	err = repo.TakeSubRequest(ctx, early.ID, taker.ID, takenAt)
 	mustNoErr(err, "TakeSubRequest returned error")
@@ -213,10 +235,6 @@ func checkSubRequestRepository(ctx context.Context, repo Repository) {
 
 	taken, err := repo.GetSubRequestByID(ctx, early.ID)
 	must(err == nil && taken.TakenByUserID != nil && *taken.TakenByUserID == taker.ID && taken.UpdatedAt.Equal(takenAt), "taken request = %+v, %v; want taker %d at %v", taken, err, taker.ID, takenAt)
-	requests, err = repo.ListSubRequests(ctx)
-	mustNoErr(err, "ListSubRequests after take returned error")
-	summaries = summariesByID(requests)
-	must(summaries[early.ID] != nil && summaries[early.ID].TakerEmail == taker.Email, "taken summary = %+v; want taker email %s", summaries[early.ID], taker.Email)
 
 	untakenAt := now.Add(45 * time.Minute)
 	err = repo.UntakeSubRequest(ctx, early.ID, untakenAt)
@@ -232,6 +250,49 @@ func checkSubRequestRepository(ctx context.Context, repo Repository) {
 	must(errors.Is(err, apperrors.ErrNotFound), "deleted subrequest error = %v, want not found", err)
 	err = repo.DeleteSubRequest(ctx, early.ID)
 	must(errors.Is(err, apperrors.ErrNotFound), "second delete error = %v, want not found", err)
+}
+
+func checkSubRequestDashboardQuery(ctx context.Context, repo SubRequestDashboardQuery) {
+	requester, err := repo.CreateUser(ctx, "contract-dashboard-requester@example.com", "member")
+	mustNoErr(err, "CreateUser dashboard requester returned error")
+	taker, err := repo.CreateUser(ctx, "contract-dashboard-taker@example.com", "member")
+	mustNoErr(err, "CreateUser dashboard taker returned error")
+
+	now := time.Now().Truncate(time.Second)
+	late := &domain.SubRequest{
+		ShowID:         17,
+		PostedByUserID: requester.ID,
+		StartTime:      now.Add(3 * time.Hour),
+		EndTime:        now.Add(4 * time.Hour),
+		Notes:          "late dashboard contract",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	early := &domain.SubRequest{
+		ShowID:         18,
+		PostedByUserID: requester.ID,
+		StartTime:      now.Add(time.Hour),
+		EndTime:        now.Add(2 * time.Hour),
+		Notes:          "early dashboard contract",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	mustNoErr(repo.CreateSubRequest(ctx, late), "CreateSubRequest dashboard late returned error")
+	mustNoErr(repo.CreateSubRequest(ctx, early), "CreateSubRequest dashboard early returned error")
+
+	requests, err := repo.ListDashboardSubRequests(ctx)
+	mustNoErr(err, "ListDashboardSubRequests returned error")
+	summaries := summariesByID(requests)
+	must(summaries[early.ID] != nil && summaries[early.ID].RequesterEmail == requester.Email, "early summary = %+v; want requester email %s", summaries[early.ID], requester.Email)
+	must(summaries[late.ID] != nil && summaries[late.ID].RequesterEmail == requester.Email, "late summary = %+v; want requester email %s", summaries[late.ID], requester.Email)
+	must(indexOfSummary(requests, early.ID) < indexOfSummary(requests, late.ID), "ListDashboardSubRequests is not ordered by start time ascending")
+
+	takenAt := now.Add(30 * time.Minute)
+	mustNoErr(repo.TakeSubRequest(ctx, early.ID, taker.ID, takenAt), "TakeSubRequest dashboard returned error")
+	requests, err = repo.ListDashboardSubRequests(ctx)
+	mustNoErr(err, "ListDashboardSubRequests after take returned error")
+	summaries = summariesByID(requests)
+	must(summaries[early.ID] != nil && summaries[early.ID].TakerEmail == taker.Email, "taken summary = %+v; want taker email %s", summaries[early.ID], taker.Email)
 }
 
 func mustNoErr(err error, message string) {
@@ -250,8 +311,8 @@ func boolPtr(value bool) *bool {
 	return &value
 }
 
-func summariesByID(summaries []subrequestsapp.SubRequestSummary) map[int]*subrequestsapp.SubRequestSummary {
-	byID := make(map[int]*subrequestsapp.SubRequestSummary, len(summaries))
+func summariesByID(summaries []subrequestsapp.DashboardRecord) map[int]*subrequestsapp.DashboardRecord {
+	byID := make(map[int]*subrequestsapp.DashboardRecord, len(summaries))
 	for i := range summaries {
 		if summaries[i].Request != nil {
 			byID[summaries[i].Request.ID] = &summaries[i]
@@ -260,7 +321,7 @@ func summariesByID(summaries []subrequestsapp.SubRequestSummary) map[int]*subreq
 	return byID
 }
 
-func indexOfSummary(summaries []subrequestsapp.SubRequestSummary, id int) int {
+func indexOfSummary(summaries []subrequestsapp.DashboardRecord, id int) int {
 	for index, summary := range summaries {
 		if summary.Request != nil && summary.Request.ID == id {
 			return index

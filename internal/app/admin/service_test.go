@@ -7,7 +7,6 @@ import (
 	"time"
 
 	appcatalog "air-cover/internal/app/catalog"
-	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
 )
@@ -33,7 +32,7 @@ func (f *fakeRepository) ListUsers(ctx context.Context) ([]*domain.User, error) 
 func (f *fakeRepository) CreateUser(ctx context.Context, email string, role string) (*domain.User, error) {
 	f.createEmail = email
 	f.createRole = role
-	return &domain.User{Email: email, Role: role}, f.createErr
+	return &domain.User{Email: email, Role: domain.Role(role)}, f.createErr
 }
 
 func (f *fakeRepository) UpdateUser(ctx context.Context, id int, role *string, isEnabled *bool) error {
@@ -60,11 +59,11 @@ func (f *fakeCatalog) ListPersonas(ctx context.Context) ([]appcatalog.Persona, e
 func TestListUsersSortsForAdminView(t *testing.T) {
 	created := time.Now()
 	users := []*domain.User{
-		{ID: 1, Email: "z@example.com", Role: "member", IsEnabled: false, CreatedAt: created},
-		{ID: 2, Email: "b@example.com", Role: "member", IsEnabled: true, CreatedAt: created},
-		{ID: 3, Email: "a@example.com", Role: "admin", IsEnabled: true, CreatedAt: created},
-		{ID: 4, Email: "a-disabled@example.com", Role: "admin", IsEnabled: false, CreatedAt: created},
-		{ID: 5, Email: "c@example.com", Role: "member", IsEnabled: true, CreatedAt: created},
+		{ID: 1, Email: "z@example.com", Role: domain.RoleMember, IsEnabled: false, CreatedAt: created},
+		{ID: 2, Email: "b@example.com", Role: domain.RoleMember, IsEnabled: true, CreatedAt: created},
+		{ID: 3, Email: "a@example.com", Role: domain.RoleAdmin, IsEnabled: true, CreatedAt: created},
+		{ID: 4, Email: "a-disabled@example.com", Role: domain.RoleAdmin, IsEnabled: false, CreatedAt: created},
+		{ID: 5, Email: "c@example.com", Role: domain.RoleMember, IsEnabled: true, CreatedAt: created},
 	}
 	svc := NewService(&fakeRepository{users: users}, nil)
 
@@ -109,7 +108,7 @@ func TestCreateUser(t *testing.T) {
 func TestUpdateUser(t *testing.T) {
 	disabled := false
 	role := "admin"
-	viewer := session.CurrentUser{ID: 1}
+	viewer := domain.CurrentUser{ID: 1}
 	repo := &fakeRepository{}
 	svc := NewService(repo, nil)
 

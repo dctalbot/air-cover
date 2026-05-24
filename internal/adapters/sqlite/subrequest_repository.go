@@ -33,13 +33,13 @@ func (r *Repository) CreateSubRequest(ctx context.Context, sr *domain.SubRequest
 	return nil
 }
 
-func (r *Repository) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubRequestSummary, error) {
+func (r *Repository) ListDashboardSubRequests(ctx context.Context) ([]subrequestsapp.DashboardRecord, error) {
 	rows, err := r.queries.ListSubRequests(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	subRequests := make([]subrequestsapp.SubRequestSummary, 0, len(rows))
+	subRequests := make([]subrequestsapp.DashboardRecord, 0, len(rows))
 	for _, row := range rows {
 		subRequests = append(subRequests, subRequestSummaryFromSQL(row))
 	}

@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/docgen"
 	"github.com/spf13/cobra"
 
-	"air-cover/internal/api"
+	"air-cover/internal/adapters/http"
 )
 
 var docCmd = &cobra.Command{
@@ -17,7 +17,7 @@ var docCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// Minimal setup for docgen
 		// We don't need real dependencies for docgen as it only inspects the router structure
-		authHandler := api.NewAuthHandler(nil, nil)
+		authHandler := api.NewAuthHandler(nil)
 		apiServer := api.NewServer(authHandler, nil, nil)
 
 		r := newRouter(apiServer, authHandler)

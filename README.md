@@ -17,7 +17,7 @@ This project is built using Go. The general structure follows standard Go projec
   - `internal/domain/`: Domain entities and behavior (users, auth, substitution requests, etc.)
   - `internal/app/`: Application services and ports.
   - `internal/adapters/`: Outbound adapters for SQLite, email, and Spinitron.
-  - `internal/api/`: Handlers for the application's HTTP API.
+  - `internal/adapters/http/`: Handlers for the application's HTTP API.
 
 ## Getting Started
 

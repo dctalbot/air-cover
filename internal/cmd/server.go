@@ -29,7 +29,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"air-cover/internal/api"
+	"air-cover/internal/adapters/http"
 	"air-cover/internal/config"
 	"air-cover/internal/logger"
 )
@@ -59,8 +59,8 @@ type serverDeps struct {
 	newRouter        func(*api.Server, *api.AuthHandler) chi.Router
 	listenAndServe   func(*http.Server) error
 	backgroundCtx    func() context.Context
-	newAuthHandler   func(authapp.Repository, authapp.Sender) *api.AuthHandler
-	newAPIServer     func(subrequestsapp.Repository, adminapp.Repository, *api.AuthHandler, catalog) *api.Server
+	newAuthHandler   func(*authapp.Service) *api.AuthHandler
+	newAPIServer     func(*subrequestsapp.Service, *adminapp.Service, *api.AuthHandler) *api.Server
 	newDBRepository  func(*sql.DB) repositories
 	setDefaultLogger func(*config.Config)
 	signalContext    func(context.Context) (context.Context, context.CancelFunc)
@@ -78,6 +78,18 @@ type repositories struct {
 	auth        authapp.Repository
 	subRequests subrequestsapp.Repository
 	admin       adminapp.Repository
+}
+
+type infrastructure struct {
+	repositories repositories
+	catalog      catalog
+	sender       authapp.Sender
+}
+
+type applicationServices struct {
+	auth        *authapp.Service
+	subRequests *subrequestsapp.Service
+	admin       *adminapp.Service
 }
 
 type catalog interface {
@@ -99,15 +111,11 @@ func defaultServerDeps() serverDeps {
 		newRouter:      newRouter,
 		listenAndServe: listenAndServe,
 		backgroundCtx:  context.Background,
-		newAuthHandler: func(repo authapp.Repository, sender authapp.Sender) *api.AuthHandler {
-			return api.NewAuthHandler(repo, sender)
+		newAuthHandler: func(service *authapp.Service) *api.AuthHandler {
+			return api.NewAuthHandler(service)
 		},
-		newAPIServer: func(subRequestsRepo subrequestsapp.Repository, adminRepo adminapp.Repository, authHandler *api.AuthHandler, catalog catalog) *api.Server {
-			return api.NewServer(
-				authHandler,
-				subrequestsapp.NewService(subRequestsRepo, catalog),
-				adminapp.NewService(adminRepo, catalog),
-			)
+		newAPIServer: func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *api.AuthHandler) *api.Server {
+			return api.NewServer(authHandler, subRequests, admin)
 		},
 		newDBRepository: func(database *sql.DB) repositories {
 			repo := sqlite.NewRepository(database)
@@ -203,28 +211,55 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 
 	deps.setDefaultLogger(cfg)
 
-	database, err := deps.initDB(cfg.DBURI)
+	infra, err := buildInfrastructure(cfg, deps)
 	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
-	}
-	repo := deps.newDBRepository(database)
-
-	if err := ensureMasterUser(cfg.MasterEmail, repo.startup, deps.backgroundCtx); err != nil {
 		return err
 	}
 
-	sender := deps.newSender(cfg.SendGridAPIKey, cfg.FromEmail, cfg.ENV)
-	authHandler := deps.newAuthHandler(repo.auth, sender)
-	spinitronClient := deps.newSpinitron("", cfg.SpinitronAPIURL)
-	spinitronCatalog := deps.newCatalog(spinitronClient)
-	startCatalogPrefetch(spinitronCatalog, deps.backgroundCtx)
-	apiServer := deps.newAPIServer(repo.subRequests, repo.admin, authHandler, spinitronCatalog)
+	if err := ensureMasterUser(cfg.MasterEmail, infra.repositories.startup, deps.backgroundCtx); err != nil {
+		return err
+	}
 
+	services := buildApplicationServices(infra)
+	startCatalogPrefetch(infra.catalog, deps.backgroundCtx)
+	server := buildHTTPServer(cfg, services, deps)
+
+	if err := serveWithGracefulShutdown(server, deps); err != nil {
+		return fmt.Errorf("server failed to start: %w", err)
+	}
+	return nil
+}
+
+func buildInfrastructure(cfg *config.Config, deps serverDeps) (infrastructure, error) {
+	database, err := deps.initDB(cfg.DBURI)
+	if err != nil {
+		return infrastructure{}, fmt.Errorf("failed to initialize database: %w", err)
+	}
+	repo := deps.newDBRepository(database)
+	spinitronClient := deps.newSpinitron("", cfg.SpinitronAPIURL)
+	return infrastructure{
+		repositories: repo,
+		catalog:      deps.newCatalog(spinitronClient),
+		sender:       deps.newSender(cfg.SendGridAPIKey, cfg.FromEmail, cfg.ENV),
+	}, nil
+}
+
+func buildApplicationServices(infra infrastructure) applicationServices {
+	return applicationServices{
+		auth:        authapp.NewService(infra.repositories.auth, infra.sender),
+		subRequests: subrequestsapp.NewService(infra.repositories.subRequests, infra.catalog),
+		admin:       adminapp.NewService(infra.repositories.admin, infra.catalog),
+	}
+}
+
+func buildHTTPServer(cfg *config.Config, services applicationServices, deps serverDeps) *http.Server {
+	authHandler := deps.newAuthHandler(services.auth)
+	apiServer := deps.newAPIServer(services.subRequests, services.admin, authHandler)
 	r := deps.newRouter(apiServer, authHandler)
+
 	portStr := strconv.Itoa(cfg.Port)
 	slog.Info("Listening on port", "port", portStr)
-
-	server := &http.Server{
+	return &http.Server{
 		Addr:              ":" + portStr,
 		Handler:           r,
 		ReadHeaderTimeout: serverReadHeaderTimeout,
@@ -232,11 +267,6 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 		WriteTimeout:      serverWriteTimeout,
 		IdleTimeout:       serverIdleTimeout,
 	}
-
-	if err := serveWithGracefulShutdown(server, deps); err != nil {
-		return fmt.Errorf("server failed to start: %w", err)
-	}
-	return nil
 }
 
 func ensureMasterUser(masterEmail string, repo startupRepository, backgroundCtx func() context.Context) error {

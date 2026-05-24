@@ -10,11 +10,13 @@ import (
 	"testing"
 
 	"air-cover/internal/adapters/sqlite"
+	authapp "air-cover/internal/app/auth"
+	"air-cover/internal/domain"
 )
 
 func TestAuthHandler_RequireAdmin(t *testing.T) {
 	repo := setupTestDB(t)
-	handler := NewAuthHandler(repo, nil)
+	handler := NewAuthHandler(authapp.NewService(repo, nil))
 
 	_, _ = repo.CreateUser(context.Background(), "admin@example.com", "admin")
 	_, _ = repo.CreateUser(context.Background(), "member@example.com", "member")
@@ -38,7 +40,7 @@ func TestAuthHandler_RequireAdmin(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 			if tt.role != "" {
-				ctx := context.WithValue(req.Context(), UserRoleKey, tt.role)
+				ctx := context.WithValue(req.Context(), UserRoleKey, domain.Role(tt.role))
 				req = req.WithContext(ctx)
 			}
 			rr := httptest.NewRecorder()
@@ -55,7 +57,7 @@ func TestAuthHandler_RequireAdmin(t *testing.T) {
 	t.Run("json client", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 		req.Header.Set("Accept", "application/json")
-		ctx := context.WithValue(req.Context(), UserRoleKey, "member")
+		ctx := context.WithValue(req.Context(), UserRoleKey, domain.RoleMember)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 		mw.ServeHTTP(rr, req)
@@ -163,7 +165,7 @@ func TestServer_GetApp_AdminLinkVisibility(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/app", nil)
 			ctx := context.WithValue(req.Context(), UserEmailKey, "test@example.com")
 			ctx = context.WithValue(ctx, UserIDKey, 1)
-			ctx = context.WithValue(ctx, UserRoleKey, tt.role)
+			ctx = context.WithValue(ctx, UserRoleKey, domain.Role(tt.role))
 			req = req.WithContext(ctx)
 
 			rr := httptest.NewRecorder()
@@ -246,7 +248,7 @@ func TestServer_PostUsers(t *testing.T) {
 				if expectedRole == "" {
 					expectedRole = "member"
 				}
-				if user.Role != expectedRole {
+				if user.Role != domain.Role(expectedRole) {
 					t.Errorf("expected role %s, got %s", expectedRole, user.Role)
 				}
 			}
@@ -305,7 +307,7 @@ func TestServer_PostUsersId(t *testing.T) {
 				if user.IsEnabled != false {
 					t.Error("expected is_enabled false")
 				}
-				if user.Role != "member" {
+				if user.Role != domain.RoleMember {
 					t.Error("expected role to remain member")
 				}
 			},
@@ -318,7 +320,7 @@ func TestServer_PostUsersId(t *testing.T) {
 			wantStatus:  http.StatusNoContent,
 			check: func(t *testing.T, repo *sqlite.Repository, targetID int) {
 				user, _ := repo.GetUserByID(context.Background(), targetID)
-				if user.Role != "admin" {
+				if user.Role != domain.RoleAdmin {
 					t.Error("expected role admin")
 				}
 				if user.IsEnabled != true {
@@ -341,7 +343,7 @@ func TestServer_PostUsersId(t *testing.T) {
 			wantStatus:  http.StatusNoContent,
 			check: func(t *testing.T, repo *sqlite.Repository, targetID int) {
 				user, _ := repo.GetUserByID(context.Background(), targetID)
-				if user.Role != "member" {
+				if user.Role != domain.RoleMember {
 					t.Error("expected role member")
 				}
 			},

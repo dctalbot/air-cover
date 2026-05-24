@@ -79,7 +79,7 @@ func userFromSQL(row dbgen.User) *domain.User {
 	return &domain.User{
 		ID:        int(row.ID),
 		Email:     row.Email,
-		Role:      stringFromSQLNull(row.Role),
+		Role:      domain.Role(stringFromSQLNull(row.Role)),
 		IsEnabled: row.IsEnabled,
 		CreatedAt: timeFromSQLNull(row.CreatedAt),
 	}
@@ -118,8 +118,8 @@ func subRequestFromSQL(row dbgen.SubRequest) *domain.SubRequest {
 	}
 }
 
-func subRequestSummaryFromSQL(row dbgen.ListSubRequestsRow) subrequestsapp.SubRequestSummary {
-	return subrequestsapp.SubRequestSummary{
+func subRequestSummaryFromSQL(row dbgen.ListSubRequestsRow) subrequestsapp.DashboardRecord {
+	return subrequestsapp.DashboardRecord{
 		Request: &domain.SubRequest{
 			ID:             int(row.ID),
 			ShowID:         int(row.ShowID),

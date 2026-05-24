@@ -8,13 +8,12 @@ import (
 	"time"
 
 	appcatalog "air-cover/internal/app/catalog"
-	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
 )
 
 type fakeRepository struct {
-	subRequests []SubRequestSummary
+	subRequests []DashboardRecord
 	subRequest  *domain.SubRequest
 	listErr     error
 	createErr   error
@@ -31,7 +30,7 @@ type fakeRepository struct {
 	untakenAt   time.Time
 }
 
-func (f *fakeRepository) ListSubRequests(ctx context.Context) ([]SubRequestSummary, error) {
+func (f *fakeRepository) ListDashboardSubRequests(ctx context.Context) ([]DashboardRecord, error) {
 	return f.subRequests, f.listErr
 }
 
@@ -77,7 +76,7 @@ func (f *fakeCatalog) ListShows(ctx context.Context) ([]appcatalog.Show, error) 
 func TestListDashboard(t *testing.T) {
 	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
 	takerID := 2
-	repo := &fakeRepository{subRequests: []SubRequestSummary{
+	repo := &fakeRepository{subRequests: []DashboardRecord{
 		{Request: &domain.SubRequest{ID: 1, ShowID: 2, PostedByUserID: 1, StartTime: now.Add(2 * time.Hour), EndTime: now.Add(3 * time.Hour)}},
 		{Request: &domain.SubRequest{ID: 2, ShowID: 999, PostedByUserID: 1, TakenByUserID: &takerID, StartTime: now.Add(-2 * time.Hour), EndTime: now.Add(-1 * time.Hour)}},
 		{Request: &domain.SubRequest{ID: 3, ShowID: 1, PostedByUserID: 3, StartTime: now.Add(-4 * time.Hour), EndTime: now.Add(-3 * time.Hour)}},
@@ -89,7 +88,7 @@ func TestListDashboard(t *testing.T) {
 	}})
 	svc.nowFunc = func() time.Time { return now }
 
-	dashboard, err := svc.ListDashboard(context.Background(), session.CurrentUser{ID: takerID, Role: "member"})
+	dashboard, err := svc.ListDashboard(context.Background(), domain.CurrentUser{ID: takerID, Role: domain.RoleMember})
 	if err != nil {
 		t.Fatalf("ListDashboard returned error: %v", err)
 	}
@@ -109,17 +108,17 @@ func TestListDashboard(t *testing.T) {
 
 func TestListDashboardErrors(t *testing.T) {
 	if _, err := NewService(&fakeRepository{}, nil).
-		ListDashboard(context.Background(), session.CurrentUser{}); !errors.Is(err, ErrCatalog) {
+		ListDashboard(context.Background(), domain.CurrentUser{}); !errors.Is(err, ErrCatalog) {
 		t.Errorf("nil catalog error = %v, want ErrCatalog", err)
 	}
 	if _, err := NewService(&fakeRepository{}, &fakeCatalog{err: errors.New("down")}).
-		ListDashboard(context.Background(), session.CurrentUser{}); !errors.Is(err, ErrCatalog) {
+		ListDashboard(context.Background(), domain.CurrentUser{}); !errors.Is(err, ErrCatalog) {
 		t.Errorf("catalog error = %v, want ErrCatalog", err)
 	}
 
 	wantErr := errors.New("list failed")
 	if _, err := NewService(&fakeRepository{listErr: wantErr}, &fakeCatalog{}).
-		ListDashboard(context.Background(), session.CurrentUser{}); !errors.Is(err, wantErr) {
+		ListDashboard(context.Background(), domain.CurrentUser{}); !errors.Is(err, wantErr) {
 		t.Errorf("list error = %v, want %v", err, wantErr)
 	}
 }
@@ -136,7 +135,7 @@ func TestCreate(t *testing.T) {
 		Notes:     "please help",
 	}
 
-	if err := svc.Create(context.Background(), session.CurrentUser{ID: 7}, input); err != nil {
+	if err := svc.Create(context.Background(), domain.CurrentUser{ID: 7}, input); err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
 	if repo.created.PostedByUserID != 7 || repo.created.CreatedAt != now {
@@ -145,14 +144,14 @@ func TestCreate(t *testing.T) {
 
 	catalogErrSvc := NewService(&fakeRepository{}, &fakeCatalog{err: errors.New("catalog down")})
 	catalogErrSvc.nowFunc = func() time.Time { return now }
-	if err := catalogErrSvc.Create(context.Background(), session.CurrentUser{ID: 7}, input); !errors.Is(err, ErrCatalog) {
+	if err := catalogErrSvc.Create(context.Background(), domain.CurrentUser{ID: 7}, input); !errors.Is(err, ErrCatalog) {
 		t.Errorf("catalog error = %v, want ErrCatalog", err)
 	}
 
 	wantErr := errors.New("create failed")
 	createErrSvc := NewService(&fakeRepository{createErr: wantErr}, nil)
 	createErrSvc.nowFunc = func() time.Time { return now }
-	if err := createErrSvc.Create(context.Background(), session.CurrentUser{ID: 7}, input); !errors.Is(err, wantErr) {
+	if err := createErrSvc.Create(context.Background(), domain.CurrentUser{ID: 7}, input); !errors.Is(err, wantErr) {
 		t.Errorf("create error = %v, want %v", err, wantErr)
 	}
 }
@@ -185,7 +184,7 @@ func TestCreateValidation(t *testing.T) {
 			svc := NewService(repo, &fakeCatalog{shows: []appcatalog.Show{{ID: "1", Title: "Test Show"}, {ID: "bad", Title: "Bad ID"}}})
 			svc.nowFunc = func() time.Time { return now }
 
-			if err := svc.Create(context.Background(), session.CurrentUser{ID: 7}, tt.input); !errors.Is(err, apperrors.ErrInvalid) {
+			if err := svc.Create(context.Background(), domain.CurrentUser{ID: 7}, tt.input); !errors.Is(err, apperrors.ErrInvalid) {
 				t.Fatalf("Create error = %v, want ErrInvalid", err)
 			}
 			if repo.created != nil {
@@ -198,7 +197,7 @@ func TestCreateValidation(t *testing.T) {
 func TestDelete(t *testing.T) {
 	repo := &fakeRepository{subRequest: &domain.SubRequest{ID: 1, PostedByUserID: 1}}
 	svc := NewService(repo, nil)
-	viewer := session.CurrentUser{ID: 1, Role: "member"}
+	viewer := domain.CurrentUser{ID: 1, Role: domain.RoleMember}
 	if err := svc.Delete(context.Background(), viewer, 1); err != nil {
 		t.Fatalf("Delete returned error: %v", err)
 	}
@@ -231,7 +230,7 @@ func TestApplyAction(t *testing.T) {
 	takerID := 2
 	repo := &fakeRepository{subRequest: &domain.SubRequest{ID: 1, PostedByUserID: 1}}
 	svc := NewService(repo, nil)
-	viewer := session.CurrentUser{ID: takerID, Role: "member"}
+	viewer := domain.CurrentUser{ID: takerID, Role: domain.RoleMember}
 
 	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionTake); err != nil {
 		t.Fatalf("take returned error: %v", err)

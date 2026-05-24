@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"air-cover/internal/adapters/sqlite"
+	authapp "air-cover/internal/app/auth"
 )
 
 type MockSender struct{}
@@ -42,7 +43,7 @@ func setupTestDB(t *testing.T) *sqlite.Repository {
 
 func TestAuthHandler_Login(t *testing.T) {
 	repo := setupTestDB(t)
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
 
 	tests := []struct {
@@ -72,7 +73,7 @@ func TestAuthHandler_Login(t *testing.T) {
 
 func TestAuthHandler_Login_Disabled(t *testing.T) {
 	repo := setupTestDB(t)
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	u, _ := repo.CreateUser(context.Background(), "disabled@example.com", "member")
 
 	// Disable user
@@ -96,7 +97,7 @@ func TestAuthHandler_Login_HTTPSScheme(t *testing.T) {
 	// Test that HTTPS scheme is used when X-Forwarded-Proto is https
 	repo := setupTestDB(t)
 	_, _ = repo.CreateUser(context.Background(), "https@example.com", "member")
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"https@example.com"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -111,7 +112,7 @@ func TestAuthHandler_Login_HTTPSScheme(t *testing.T) {
 func TestAuthHandler_Login_TokenGenerationError(t *testing.T) {
 	repo := setupTestDB(t)
 	_, _ = repo.CreateUser(context.Background(), "tokenfail@example.com", "member")
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	handler.tokenGenerator = func(n int) (string, error) {
 		return "", errors.New("token failed")
 	}
@@ -131,7 +132,7 @@ func TestAuthHandler_Login_DeterministicMagicLink(t *testing.T) {
 	repo := setupTestDB(t)
 	_, _ = repo.CreateUser(context.Background(), "link@example.com", "member")
 	sender := &recordingSender{}
-	handler := NewAuthHandler(repo, sender)
+	handler := NewAuthHandler(authapp.NewService(repo, sender))
 	handler.tokenGenerator = func(n int) (string, error) {
 		return "fixed-login-token", nil
 	}
@@ -158,11 +159,11 @@ func TestAuthHandler_Login_DeterministicMagicLink(t *testing.T) {
 
 func TestAuthHandler_Verify(t *testing.T) {
 	repo := setupTestDB(t)
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	u, _ := repo.CreateUser(context.Background(), "test2@example.com", "member")
 
-	rawToken, _ := generateRandomToken(32)
-	hashedToken := hashToken(rawToken)
+	rawToken, _ := authapp.GenerateRandomToken(32)
+	hashedToken := authapp.HashToken(rawToken)
 	_ = repo.CreateMagicLink(context.Background(), u.ID, hashedToken, time.Now().Add(1*time.Hour))
 
 	tests := []struct {
@@ -229,10 +230,10 @@ func TestAuthHandler_Verify_TokenGenerationErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := setupTestDB(t)
-			handler := NewAuthHandler(repo, &MockSender{})
+			handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 			u, _ := repo.CreateUser(context.Background(), tt.name+"@example.com", "member")
 			rawToken := "verify-token-" + strings.ReplaceAll(tt.name, " ", "-")
-			_ = repo.CreateMagicLink(context.Background(), u.ID, hashToken(rawToken), time.Now().Add(1*time.Hour))
+			_ = repo.CreateMagicLink(context.Background(), u.ID, authapp.HashToken(rawToken), time.Now().Add(1*time.Hour))
 
 			call := 0
 			handler.tokenGenerator = func(n int) (string, error) {
@@ -255,11 +256,11 @@ func TestAuthHandler_Verify_TokenGenerationErrors(t *testing.T) {
 func TestAuthHandler_Verify_HTTPSCookie(t *testing.T) {
 	// Test that Secure cookie is set when X-Forwarded-Proto is https
 	repo := setupTestDB(t)
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	u, _ := repo.CreateUser(context.Background(), "secure@example.com", "member")
 
-	rawToken, _ := generateRandomToken(32)
-	hashedToken := hashToken(rawToken)
+	rawToken, _ := authapp.GenerateRandomToken(32)
+	hashedToken := authapp.HashToken(rawToken)
 	_ = repo.CreateMagicLink(context.Background(), u.ID, hashedToken, time.Now().Add(1*time.Hour))
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/verify", nil)
@@ -284,7 +285,7 @@ func TestAuthHandler_Verify_HTTPSCookie(t *testing.T) {
 
 func TestAuthMiddleware(t *testing.T) {
 	repo := setupTestDB(t)
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	u, _ := repo.CreateUser(context.Background(), "test3@example.com", "member")
 	_ = repo.CreateSession(context.Background(), "sid", "stoken", u.ID, time.Now().Add(1*time.Hour))
 
@@ -335,7 +336,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 func TestAuthMiddleware_Disabled(t *testing.T) {
 	repo := setupTestDB(t)
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	u, _ := repo.CreateUser(context.Background(), "disabled-session@example.com", "member")
 	_ = repo.CreateSession(context.Background(), "sid", "stoken", u.ID, time.Now().Add(1*time.Hour))
 
@@ -362,7 +363,7 @@ func TestAuthMiddleware_Disabled(t *testing.T) {
 
 func TestAuthHandler_Logout(t *testing.T) {
 	repo := setupTestDB(t)
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	u, err := repo.CreateUser(context.Background(), "test-logout@example.com", "member")
 	if err != nil {
 		t.Fatalf("failed to create user: %v", err)
@@ -406,7 +407,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 func TestAuthHandler_Logout_HTTPSSecureCookie(t *testing.T) {
 	// Test that Secure cookie is cleared properly when HTTPS
 	repo := setupTestDB(t)
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	u, _ := repo.CreateUser(context.Background(), "logout-https@example.com", "member")
 	_ = repo.CreateSession(context.Background(), "sid2", "stoken2", u.ID, time.Now().Add(1*time.Hour))
 
@@ -424,7 +425,7 @@ func TestAuthHandler_Logout_HTTPSSecureCookie(t *testing.T) {
 }
 
 func TestGenerateRandomToken(t *testing.T) {
-	tok, err := generateRandomToken(32)
+	tok, err := authapp.GenerateRandomToken(32)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -432,30 +433,18 @@ func TestGenerateRandomToken(t *testing.T) {
 		t.Error("expected non-empty token")
 	}
 	// Two tokens should not be equal
-	tok2, _ := generateRandomToken(32)
+	tok2, _ := authapp.GenerateRandomToken(32)
 	if tok == tok2 {
 		t.Error("expected distinct tokens")
 	}
 }
 
-func TestGenerateRandomToken_ReadError(t *testing.T) {
-	originalRandomRead := randomRead
-	t.Cleanup(func() { randomRead = originalRandomRead })
-	randomRead = func(b []byte) (int, error) {
-		return 0, errors.New("random failed")
-	}
-
-	if _, err := generateRandomToken(32); err == nil {
-		t.Fatal("expected random read error")
-	}
-}
-
 func TestHashToken(t *testing.T) {
-	hash := hashToken("my-token")
+	hash := authapp.HashToken("my-token")
 	if hash == "" {
 		t.Error("expected non-empty hash")
 	}
-	hash2 := hashToken("my-token")
+	hash2 := authapp.HashToken("my-token")
 	if hash != hash2 {
 		t.Error("expected deterministic hash")
 	}
@@ -488,7 +477,7 @@ func TestAuthHandler_Login_DBError(t *testing.T) {
 	}
 	dbConn.Close() // Force subsequent DB operations to fail
 
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"dberror@example.com"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -504,7 +493,7 @@ func TestAuthHandler_Login_SendError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := NewAuthHandler(repo, &failSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &failSender{}))
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"senderror@example.com"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -523,8 +512,8 @@ func TestAuthHandler_Verify_CreateSessionError(t *testing.T) {
 	repo := sqlite.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "sessionfail@example.com", "member")
 
-	rawToken, _ := generateRandomToken(32)
-	hashedToken := hashToken(rawToken)
+	rawToken, _ := authapp.GenerateRandomToken(32)
+	hashedToken := authapp.HashToken(rawToken)
 	_ = repo.CreateMagicLink(context.Background(), u.ID, hashedToken, time.Now().Add(1*time.Hour))
 	// Mark the link as used so UseMagicLink will work once, then update used_at
 	// We can't easily make UseMagicLink succeed but CreateSession fail without sqlmock.
@@ -534,7 +523,7 @@ func TestAuthHandler_Verify_CreateSessionError(t *testing.T) {
 	// This path is tested at an integration level - skipping the direct error path.
 	dbConn.Close()
 
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	req := httptest.NewRequest(http.MethodGet, "/auth/verify", nil)
 	rr := httptest.NewRecorder()
 	handler.HandleVerify(rr, req, rawToken)
@@ -553,7 +542,7 @@ func TestAuthHandler_Logout_DBError(t *testing.T) {
 	u, _ := repo.CreateUser(context.Background(), "logouterr@example.com", "member")
 	dbConn.Close() // Force DeleteSessionsByUserID to fail
 
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
 	ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
 	req = req.WithContext(ctx)
@@ -577,7 +566,7 @@ func TestAuthMiddleware_UserNotFound(t *testing.T) {
 	// Close DB to force GetUserByID to fail
 	dbConn.Close()
 
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	mw := handler.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -601,7 +590,7 @@ func TestAuthMiddleware_GetUserByIDError(t *testing.T) {
 	u, _ := repo.CreateUser(context.Background(), "miderr@example.com", "member")
 	_ = repo.CreateSession(context.Background(), "sid-mid", "stoken-mid", u.ID, time.Now().Add(1*time.Hour))
 
-	handler := NewAuthHandler(repo, nil)
+	handler := NewAuthHandler(authapp.NewService(repo, nil))
 	mw := handler.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -621,7 +610,7 @@ func TestAuthMiddleware_GetUserByIDError(t *testing.T) {
 
 func TestAuthHandler_Login_Form(t *testing.T) {
 	repo := setupTestDB(t)
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	_, _ = repo.CreateUser(context.Background(), "form@example.com", "member")
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString("email=form@example.com"))
@@ -640,7 +629,7 @@ func TestAuthHandler_Login_Form(t *testing.T) {
 
 func TestAuthHandler_Login_Form_Invalid(t *testing.T) {
 	repo := setupTestDB(t)
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString("email="))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -654,7 +643,7 @@ func TestAuthHandler_Login_Form_Invalid(t *testing.T) {
 
 func TestAuthHandler_Login_Form_ParseError(t *testing.T) {
 	repo := setupTestDB(t)
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 
 	// Sending a body that will cause ParseForm to fail (invalid percent encoding)
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString("email=%ZZ"))
@@ -678,7 +667,7 @@ func TestAuthHandler_Login_CreateMagicLink_Error(t *testing.T) {
 	// Drop magic_links table to force CreateMagicLink to fail
 	_, _ = dbConn.Exec("DROP TABLE magic_links")
 
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	body := `{"email": "test@example.com"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -700,12 +689,12 @@ func TestAuthHandler_Verify_CreateSession_Error(t *testing.T) {
 	u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
 
 	// Create a magic link
-	_ = repo.CreateMagicLink(context.Background(), u.ID, hashToken("test-token"), time.Now().Add(1*time.Hour))
+	_ = repo.CreateMagicLink(context.Background(), u.ID, authapp.HashToken("test-token"), time.Now().Add(1*time.Hour))
 
 	// Drop sessions table to force CreateSession to fail
 	_, _ = dbConn.Exec("DROP TABLE sessions")
 
-	handler := NewAuthHandler(repo, &MockSender{})
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	req := httptest.NewRequest(http.MethodGet, "/auth/verify?token=test-token", nil)
 
 	rr := httptest.NewRecorder()

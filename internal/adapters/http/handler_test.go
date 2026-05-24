@@ -14,8 +14,8 @@ import (
 
 	"air-cover/internal/adapters/sqlite"
 	adminapp "air-cover/internal/app/admin"
+	authapp "air-cover/internal/app/auth"
 	appcatalog "air-cover/internal/app/catalog"
-	"air-cover/internal/app/session"
 	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
@@ -45,7 +45,7 @@ func (b *badShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Person
 
 type fakeServerRepo struct {
 	session       *domain.Session
-	subRequests   []subrequestsapp.SubRequestSummary
+	subRequests   []subrequestsapp.DashboardRecord
 	subRequest    *domain.SubRequest
 	users         []*domain.User
 	err           error
@@ -69,14 +69,14 @@ func (f *fakeServerRepo) GetUserByEmail(ctx context.Context, email string) (*dom
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &domain.User{ID: 1, Email: email, Role: "member", IsEnabled: true}, nil
+	return &domain.User{ID: 1, Email: email, Role: domain.RoleMember, IsEnabled: true}, nil
 }
 
 func (f *fakeServerRepo) GetUserByID(ctx context.Context, id int) (*domain.User, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &domain.User{ID: id, Email: "user@example.com", Role: "member", IsEnabled: true}, nil
+	return &domain.User{ID: id, Email: "user@example.com", Role: domain.RoleMember, IsEnabled: true}, nil
 }
 
 func (f *fakeServerRepo) CreateMagicLink(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error {
@@ -98,7 +98,7 @@ func (f *fakeServerRepo) DeleteSessionsByUserID(ctx context.Context, userID int)
 	return nil
 }
 
-func (f *fakeServerRepo) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubRequestSummary, error) {
+func (f *fakeServerRepo) ListDashboardSubRequests(ctx context.Context) ([]subrequestsapp.DashboardRecord, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -116,7 +116,7 @@ func (f *fakeServerRepo) CreateUser(ctx context.Context, email string, role stri
 	if f.createUserErr != nil {
 		return nil, f.createUserErr
 	}
-	return &domain.User{ID: 1, Email: email, Role: role, IsEnabled: true}, nil
+	return &domain.User{ID: 1, Email: email, Role: domain.Role(role), IsEnabled: true}, nil
 }
 
 func (f *fakeServerRepo) CreateSubRequest(ctx context.Context, sr *domain.SubRequest) error {
@@ -165,23 +165,23 @@ type fakeSubRequestService struct {
 	actionCalled bool
 }
 
-func (f *fakeSubRequestService) ListDashboard(ctx context.Context, viewer session.CurrentUser) (subrequestsapp.Dashboard, error) {
+func (f *fakeSubRequestService) ListDashboard(ctx context.Context, viewer domain.CurrentUser) (subrequestsapp.Dashboard, error) {
 	return f.dashboard, f.err
 }
 
-func (f *fakeSubRequestService) Create(ctx context.Context, viewer session.CurrentUser, input subrequestsapp.CreateInput) error {
+func (f *fakeSubRequestService) Create(ctx context.Context, viewer domain.CurrentUser, input subrequestsapp.CreateInput) error {
 	f.createCalled = true
 	f.createInput = input
 	return f.err
 }
 
-func (f *fakeSubRequestService) Delete(ctx context.Context, viewer session.CurrentUser, id int) error {
+func (f *fakeSubRequestService) Delete(ctx context.Context, viewer domain.CurrentUser, id int) error {
 	f.deleteCalled = true
 	f.deleteID = id
 	return f.err
 }
 
-func (f *fakeSubRequestService) ApplyAction(ctx context.Context, viewer session.CurrentUser, id int, action subrequestsapp.Action) error {
+func (f *fakeSubRequestService) ApplyAction(ctx context.Context, viewer domain.CurrentUser, id int, action subrequestsapp.Action) error {
 	f.actionCalled = true
 	f.actionID = id
 	f.action = action
@@ -208,7 +208,7 @@ func (f *fakeAdminService) CreateUser(ctx context.Context, input adminapp.Create
 	return f.err
 }
 
-func (f *fakeAdminService) UpdateUser(ctx context.Context, viewer session.CurrentUser, input adminapp.UpdateUserInput) error {
+func (f *fakeAdminService) UpdateUser(ctx context.Context, viewer domain.CurrentUser, input adminapp.UpdateUserInput) error {
 	f.updateCalled = true
 	f.updateInput = input
 	return f.err
@@ -499,7 +499,7 @@ func TestServer_Get_WithAuthHandler(t *testing.T) {
 	repo := setupTestDB(t)
 	user, _ := repo.CreateUser(context.Background(), "withauth@example.com", "member")
 	_ = repo.CreateSession(context.Background(), "with-auth-session", "with-auth-token", user.ID, time.Now().Add(time.Hour))
-	s := NewServer(NewAuthHandler(repo, nil), nil, nil)
+	s := NewServer(NewAuthHandler(authapp.NewService(repo, nil)), nil, nil)
 
 	t.Run("authenticated", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -620,7 +620,7 @@ func TestServer_GetApp_BadShowID(t *testing.T) {
 	}
 }
 
-func TestServer_GetApp_ListSubRequestsErrorClosedDB(t *testing.T) {
+func TestServer_GetApp_ListDashboardSubRequestsErrorClosedDB(t *testing.T) {
 	s := newTestServer(&fakeServerRepo{err: errors.New("list failed")}, nil, &MockShowsService{})
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
 	rr := httptest.NewRecorder()
@@ -667,10 +667,10 @@ func TestServer_GetApp_RenderErrorWithFakeRepo(t *testing.T) {
 func TestServer_GetAdmin_RenderErrorWithDisabledUsers(t *testing.T) {
 	s := newTestServer(&fakeServerRepo{
 		users: []*domain.User{
-			{ID: 1, Email: "disabled-b@example.com", Role: "member", IsEnabled: false},
-			{ID: 2, Email: "disabled-a@example.com", Role: "member", IsEnabled: false},
-			{ID: 3, Email: "z-member@example.com", Role: "member", IsEnabled: true},
-			{ID: 4, Email: "a-member@example.com", Role: "member", IsEnabled: true},
+			{ID: 1, Email: "disabled-b@example.com", Role: domain.RoleMember, IsEnabled: false},
+			{ID: 2, Email: "disabled-a@example.com", Role: domain.RoleMember, IsEnabled: false},
+			{ID: 3, Email: "z-member@example.com", Role: domain.RoleMember, IsEnabled: true},
+			{ID: 4, Email: "a-member@example.com", Role: domain.RoleMember, IsEnabled: true},
 		},
 	}, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
@@ -710,7 +710,7 @@ func TestServer_DeleteSubRequestsId_RepositoryErrors(t *testing.T) {
 			req := httptest.NewRequest(http.MethodDelete, "/sub-requests/10", nil)
 			ctx := context.WithValue(req.Context(), UserIDKey, tt.userID)
 			if tt.role != "" {
-				ctx = context.WithValue(ctx, UserRoleKey, tt.role)
+				ctx = context.WithValue(ctx, UserRoleKey, domain.Role(tt.role))
 			}
 			req = req.WithContext(ctx)
 			rr := httptest.NewRecorder()
@@ -828,7 +828,7 @@ func TestServer_PostUsersAndImport_RepositoryErrors(t *testing.T) {
 
 func TestServer_AuthDelegation(t *testing.T) {
 	repo := setupTestDB(t)
-	auth := NewAuthHandler(repo, &MockSender{})
+	auth := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	s := newTestServer(repo, auth, nil)
 
 	t.Run("PostAuthLogin", func(t *testing.T) {
@@ -941,7 +941,7 @@ func TestServer_DeleteSubRequestsId(t *testing.T) {
 			req := httptest.NewRequest(http.MethodDelete, "/sub-requests/"+strconv.Itoa(sr.ID), nil)
 			if tt.userID != nil {
 				ctx := context.WithValue(req.Context(), UserIDKey, tt.userID)
-				ctx = context.WithValue(ctx, UserRoleKey, tt.userRole)
+				ctx = context.WithValue(ctx, UserRoleKey, domain.Role(tt.userRole))
 				req = req.WithContext(ctx)
 			}
 			rr := httptest.NewRecorder()
@@ -1048,7 +1048,7 @@ func TestUnimplemented(t *testing.T) {
 // TestHandlerWithOptions exercises the generated router setup and all wrapper functions.
 func TestHandlerWithOptions(t *testing.T) {
 	repo := setupTestDB(t)
-	auth := NewAuthHandler(repo, &MockSender{})
+	auth := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	s := newTestServer(repo, auth, &MockShowsService{})
 
 	// Test Handler (nil base router → creates new chi router)
@@ -1075,7 +1075,7 @@ func TestHandlerWithOptions(t *testing.T) {
 // TestHandlerViaHTTP exercises the ServerInterfaceWrapper routes via actual HTTP requests.
 func TestHandlerViaHTTP(t *testing.T) {
 	repo := setupTestDB(t)
-	auth := NewAuthHandler(repo, &MockSender{})
+	auth := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	s := newTestServer(repo, auth, &MockShowsService{})
 
 	h := Handler(s)
@@ -1313,7 +1313,7 @@ func TestGetSwagger(t *testing.T) {
 // TestHandlerWithMiddleware ensures the HandlerMiddlewares loop in ServerInterfaceWrapper is covered.
 func TestHandlerWithMiddleware(t *testing.T) {
 	repo := setupTestDB(t)
-	auth := NewAuthHandler(repo, &MockSender{})
+	auth := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	s := newTestServer(repo, auth, &MockShowsService{})
 
 	callCount := 0
@@ -1373,14 +1373,14 @@ func TestHandlerWithMiddleware(t *testing.T) {
 	}
 }
 
-// TestServer_GetApp_ListSubRequestsError covers the ListSubRequests error path in GetApp.
-func TestServer_GetApp_ListSubRequestsError(t *testing.T) {
+// TestServer_GetApp_ListDashboardSubRequestsError covers the dashboard query error path in GetApp.
+func TestServer_GetApp_ListDashboardSubRequestsError(t *testing.T) {
 	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
 	repo := sqlite.NewRepository(dbConn)
-	dbConn.Close() // Force ListSubRequests to fail
+	dbConn.Close() // Force the dashboard query to fail.
 
 	s := newTestServer(repo, nil, &MockShowsService{})
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
@@ -1854,7 +1854,7 @@ func TestServer_PostUsersId_Errors(t *testing.T) {
 		if updated.IsEnabled {
 			t.Error("expected user to be disabled")
 		}
-		if updated.Role != "admin" {
+		if updated.Role != domain.RoleAdmin {
 			t.Errorf("expected role admin, got %s", updated.Role)
 		}
 	})
@@ -1913,7 +1913,7 @@ func TestAppHandler_AdminCanTakeOwnRequest(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
 	ctx := context.WithValue(req.Context(), UserEmailKey, "admin@example.com")
 	ctx = context.WithValue(ctx, UserIDKey, admin.ID)
-	ctx = context.WithValue(ctx, UserRoleKey, "admin")
+	ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -2221,7 +2221,7 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/"+strconv.Itoa(srAdmin.ID),
 			strings.NewReader(`{"action":"take"}`))
 		ctx := context.WithValue(req.Context(), UserIDKey, admin.ID)
-		ctx = context.WithValue(ctx, UserRoleKey, "admin")
+		ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 		s.PatchSubRequestsId(rr, req, srAdmin.ID)
@@ -2247,7 +2247,7 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/"+strconv.Itoa(srTaken.ID),
 			strings.NewReader(`{"action":"take"}`))
 		ctx := context.WithValue(req.Context(), UserIDKey, admin.ID)
-		ctx = context.WithValue(ctx, UserRoleKey, "admin")
+		ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 		s.PatchSubRequestsId(rr, req, srTaken.ID)

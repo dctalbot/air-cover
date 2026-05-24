@@ -21,7 +21,7 @@ func newTestServer(repo testServerRepository, auth *AuthHandler, catalog testCat
 	var subRequests subRequestService
 	var admin adminService
 	if auth == nil && repo != nil {
-		auth = NewAuthHandler(repo, nil)
+		auth = NewAuthHandler(authapp.NewService(repo, nil))
 	}
 	if repo != nil {
 		subRequests = subrequestsapp.NewService(repo, catalog)

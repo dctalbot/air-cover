@@ -10,6 +10,8 @@ import (
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
+const driverName = "libsql"
+
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
 
@@ -20,7 +22,7 @@ var (
 )
 
 func InitDB(uri string) (*sql.DB, error) {
-	db, err := sqlOpen("libsql", uri)
+	db, err := sqlOpen(driverName, uri)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open db: %w", err)
 	}

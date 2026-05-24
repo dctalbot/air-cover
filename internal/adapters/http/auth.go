@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,35 +12,18 @@ import (
 
 	authapp "air-cover/internal/app/auth"
 	"air-cover/internal/apperrors"
+	"air-cover/internal/domain"
 )
-
-var randomRead = rand.Read
 
 type AuthHandler struct {
 	auth           *authapp.Service
 	tokenGenerator func(int) (string, error)
 }
 
-func NewAuthHandler(repo authapp.Repository, sender authapp.Sender) *AuthHandler {
-	return NewAuthHandlerWithService(authapp.NewService(repo, sender))
-}
-
-func NewAuthHandlerWithService(service *authapp.Service) *AuthHandler {
-	h := &AuthHandler{auth: service, tokenGenerator: generateRandomToken}
+func NewAuthHandler(service *authapp.Service) *AuthHandler {
+	h := &AuthHandler{auth: service, tokenGenerator: authapp.GenerateRandomToken}
 	h.syncTokenGenerator()
 	return h
-}
-
-func generateRandomToken(n int) (string, error) {
-	b := make([]byte, n)
-	if _, err := randomRead(b); err != nil {
-		return "", err
-	}
-	return authapp.EncodeRandomToken(b), nil
-}
-
-func hashToken(token string) string {
-	return authapp.HashToken(token)
 }
 
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
@@ -211,8 +193,8 @@ func requestScheme(r *http.Request) string {
 
 func (h *AuthHandler) RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		role, ok := r.Context().Value(UserRoleKey).(string)
-		if !ok || role != "admin" {
+		role, ok := r.Context().Value(UserRoleKey).(domain.Role)
+		if !ok || role != domain.RoleAdmin {
 			h.handleAuthError(w, r, "Forbidden", http.StatusForbidden)
 			return
 		}

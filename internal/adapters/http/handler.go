@@ -10,13 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"air-cover/internal/adapters/http/presenter"
+	"air-cover/internal/adapters/http/ui"
 	adminapp "air-cover/internal/app/admin"
-	"air-cover/internal/app/session"
 	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
-	"air-cover/internal/presenter"
-	"air-cover/internal/ui"
 )
 
 const maxFormBodyBytes = 1024 * 1024
@@ -28,16 +27,16 @@ type Server struct {
 }
 
 type subRequestService interface {
-	ListDashboard(context.Context, session.CurrentUser) (subrequestsapp.Dashboard, error)
-	Create(context.Context, session.CurrentUser, subrequestsapp.CreateInput) error
-	Delete(context.Context, session.CurrentUser, int) error
-	ApplyAction(context.Context, session.CurrentUser, int, subrequestsapp.Action) error
+	ListDashboard(context.Context, domain.CurrentUser) (subrequestsapp.Dashboard, error)
+	Create(context.Context, domain.CurrentUser, subrequestsapp.CreateInput) error
+	Delete(context.Context, domain.CurrentUser, int) error
+	ApplyAction(context.Context, domain.CurrentUser, int, subrequestsapp.Action) error
 }
 
 type adminService interface {
 	ListUsers(context.Context) ([]*domain.User, error)
 	CreateUser(context.Context, adminapp.CreateUserInput) error
-	UpdateUser(context.Context, session.CurrentUser, adminapp.UpdateUserInput) error
+	UpdateUser(context.Context, domain.CurrentUser, adminapp.UpdateUserInput) error
 	ImportCatalogUsers(context.Context) error
 }
 
@@ -303,28 +302,28 @@ func (s *Server) PostUsersImportSpinitron(w http.ResponseWriter, r *http.Request
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
-func currentUser(r *http.Request) session.CurrentUser {
+func currentUser(r *http.Request) domain.CurrentUser {
 	viewer, _ := userFromContext(r)
 	return viewer
 }
 
-func requireCurrentUser(w http.ResponseWriter, r *http.Request) (session.CurrentUser, bool) {
+func requireCurrentUser(w http.ResponseWriter, r *http.Request) (domain.CurrentUser, bool) {
 	viewer, ok := userFromContext(r)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return session.CurrentUser{}, false
+		return domain.CurrentUser{}, false
 	}
 	return viewer, true
 }
 
-func userFromContext(r *http.Request) (session.CurrentUser, bool) {
+func userFromContext(r *http.Request) (domain.CurrentUser, bool) {
 	userID, ok := r.Context().Value(UserIDKey).(int)
 	if !ok {
-		return session.CurrentUser{}, false
+		return domain.CurrentUser{}, false
 	}
 	email, _ := r.Context().Value(UserEmailKey).(string)
-	role, _ := r.Context().Value(UserRoleKey).(string)
-	return session.CurrentUser{
+	role, _ := r.Context().Value(UserRoleKey).(domain.Role)
+	return domain.CurrentUser{
 		ID:    userID,
 		Email: email,
 		Role:  role,

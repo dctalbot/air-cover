@@ -11,16 +11,16 @@ const (
 
 // SubRequest is the core request entity.
 type SubRequest struct {
-	ID             int       `json:"id"`
-	ShowID         int       `json:"show_id"`
-	PostedByUserID int       `json:"posted_by_user_id"`
-	TakenByUserID  *int      `json:"taken_by_user_id"`
-	SubstituteID   *int      `json:"substitute_id"`
-	StartTime      time.Time `json:"start_time"`
-	EndTime        time.Time `json:"end_time"`
-	Notes          string    `json:"notes"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID             int
+	ShowID         int
+	PostedByUserID int
+	TakenByUserID  *int
+	SubstituteID   *int
+	StartTime      time.Time
+	EndTime        time.Time
+	Notes          string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 func (s *SubRequest) GetStatus() string {

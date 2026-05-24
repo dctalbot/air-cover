@@ -8,10 +8,8 @@ import (
 	"strings"
 
 	appcatalog "air-cover/internal/app/catalog"
-	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
-	"air-cover/internal/policy"
 )
 
 type Repository interface {
@@ -66,11 +64,11 @@ func (s *Service) CreateUser(ctx context.Context, input CreateUserInput) error {
 	return err
 }
 
-func (s *Service) UpdateUser(ctx context.Context, viewer session.CurrentUser, input UpdateUserInput) error {
+func (s *Service) UpdateUser(ctx context.Context, viewer domain.CurrentUser, input UpdateUserInput) error {
 	if input.Role != nil && !domain.Role(*input.Role).Valid() {
 		return apperrors.ErrInvalid
 	}
-	if input.IsEnabled != nil && !*input.IsEnabled && !policy.CanDeactivateUser(viewer, input.ID) {
+	if input.IsEnabled != nil && !*input.IsEnabled && !viewer.CanDeactivateUser(input.ID) {
 		return apperrors.ErrForbidden
 	}
 	if err := s.repo.UpdateUser(ctx, input.ID, input.Role, input.IsEnabled); err != nil {
@@ -113,7 +111,7 @@ func sortUsers(users []*domain.User) {
 			return strings.ToLower(users[i].Email) < strings.ToLower(users[j].Email)
 		}
 		if users[i].Role != users[j].Role {
-			return users[i].Role == "admin"
+			return users[i].Role == domain.RoleAdmin
 		}
 		return strings.ToLower(users[i].Email) < strings.ToLower(users[j].Email)
 	})

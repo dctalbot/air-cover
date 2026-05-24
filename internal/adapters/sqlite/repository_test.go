@@ -218,8 +218,8 @@ func TestRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// ListSubRequests
-	list, err := repo.ListSubRequests(ctx)
+	// ListDashboardSubRequests
+	list, err := repo.ListDashboardSubRequests(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,8 +286,8 @@ func TestRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Verify TakerEmail in ListSubRequests
-	list2, err := repo.ListSubRequests(ctx)
+	// Verify TakerEmail in ListDashboardSubRequests
+	list2, err := repo.ListDashboardSubRequests(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -359,7 +359,7 @@ func TestRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if uUpdated.Role != "admin" {
+	if uUpdated.Role != domain.RoleAdmin {
 		t.Fatalf("expected role admin, got %s", uUpdated.Role)
 	}
 	if uUpdated.IsEnabled {
@@ -437,9 +437,9 @@ func TestRepositoryErrors(t *testing.T) {
 		t.Error("expected error with cancelled context in CreateSubRequest")
 	}
 
-	_, err = repo.ListSubRequests(ctx)
+	_, err = repo.ListDashboardSubRequests(ctx)
 	if err == nil {
-		t.Error("expected error with cancelled context in ListSubRequests")
+		t.Error("expected error with cancelled context in ListDashboardSubRequests")
 	}
 
 	_, err = repo.GetSubRequestByID(ctx, 1)
@@ -549,7 +549,7 @@ func TestRunMigration_SetDialectError(t *testing.T) {
 	}
 }
 
-func TestListSubRequestsErrors(t *testing.T) {
+func TestListDashboardSubRequestsErrors(t *testing.T) {
 	dbConn, err := InitDB("file::memory:?cache=shared")
 	if err != nil {
 		t.Fatal(err)
@@ -559,9 +559,9 @@ func TestListSubRequestsErrors(t *testing.T) {
 
 	// Test closed DB for QueryContext error
 	dbConn.Close()
-	_, err = repo.ListSubRequests(ctx)
+	_, err = repo.ListDashboardSubRequests(ctx)
 	if err == nil {
-		t.Error("expected error with closed db in ListSubRequests")
+		t.Error("expected error with closed db in ListDashboardSubRequests")
 	}
 
 	_, err = repo.ListUsers(ctx)
@@ -600,7 +600,7 @@ func TestScanErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// ListSubRequests will fail because it expects a JOIN with users which doesn't exist now
+	// ListDashboardSubRequests will fail because it expects a JOIN with users which doesn't exist now
 	// and because of type mismatch.
 	// Actually, we need the JOIN to exist if we want to reach Scan.
 	_, _ = dbConn.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT, role TEXT, is_enabled BOOLEAN)")
@@ -608,9 +608,9 @@ func TestScanErrors(t *testing.T) {
 	// Update posted_by_user_id to be a valid join but other fields to be garbage
 	_, _ = dbConn.Exec("UPDATE sub_requests SET posted_by_user_id = 1")
 
-	_, err = repo.ListSubRequests(ctx)
+	_, err = repo.ListDashboardSubRequests(ctx)
 	if err == nil {
-		t.Error("expected scan error in ListSubRequests")
+		t.Error("expected scan error in ListDashboardSubRequests")
 	}
 
 	_, err = repo.GetSubRequestByID(ctx, 123)
@@ -833,7 +833,7 @@ func TestImportUsers_ExecError(t *testing.T) {
 	}
 }
 
-func TestListSubRequestsOrdering(t *testing.T) {
+func TestListDashboardSubRequestsOrdering(t *testing.T) {
 	dbConn, err := InitDB("file::memory:?cache=shared")
 	if err != nil {
 		t.Fatal(err)
@@ -867,7 +867,7 @@ func TestListSubRequestsOrdering(t *testing.T) {
 		}
 	}
 
-	list, err := repo.ListSubRequests(ctx)
+	list, err := repo.ListDashboardSubRequests(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -989,7 +989,7 @@ func TestRepositoryRowsErrors(t *testing.T) {
 			RowError(0, errors.New("rows failed"))
 		mock.ExpectQuery("SELECT sr.id").WillReturnRows(rows)
 
-		_, err := repo.ListSubRequests(context.Background())
+		_, err := repo.ListDashboardSubRequests(context.Background())
 		if err == nil {
 			t.Fatal("expected rows error")
 		}

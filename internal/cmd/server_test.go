@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"air-cover/internal/adapters/http"
 	adapterspinitron "air-cover/internal/adapters/spinitron"
 	"air-cover/internal/adapters/sqlite"
-	"air-cover/internal/api"
 	adminapp "air-cover/internal/app/admin"
 	authapp "air-cover/internal/app/auth"
 	appcatalog "air-cover/internal/app/catalog"
@@ -123,7 +123,7 @@ func (f *fakeAuthRepo) DeleteSessionsByUserID(ctx context.Context, userID int) e
 
 type fakeSubRequestsRepo struct{}
 
-func (f *fakeSubRequestsRepo) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubRequestSummary, error) {
+func (f *fakeSubRequestsRepo) ListDashboardSubRequests(ctx context.Context) ([]subrequestsapp.DashboardRecord, error) {
 	return nil, nil
 }
 
@@ -155,7 +155,7 @@ func (f *fakeAdminRepo) ListUsers(ctx context.Context) ([]*domain.User, error) {
 }
 
 func (f *fakeAdminRepo) CreateUser(ctx context.Context, email string, role string) (*domain.User, error) {
-	return &domain.User{ID: 1, Email: email, Role: role, IsEnabled: true}, nil
+	return &domain.User{ID: 1, Email: email, Role: domain.Role(role), IsEnabled: true}, nil
 }
 
 func (f *fakeAdminRepo) UpdateUser(ctx context.Context, id int, role *string, isEnabled *bool) error {
@@ -170,18 +170,18 @@ func (f *fakeStartupRepo) GetUserByEmail(ctx context.Context, email string) (*do
 	if f.getUserErr != nil {
 		return nil, f.getUserErr
 	}
-	return &domain.User{ID: 1, Email: email, Role: "admin", IsEnabled: true}, nil
+	return &domain.User{ID: 1, Email: email, Role: domain.RoleAdmin, IsEnabled: true}, nil
 }
 
 func (f *fakeStartupRepo) GetUserByID(ctx context.Context, id int) (*domain.User, error) {
-	return &domain.User{ID: id, Email: "user@example.com", Role: "member", IsEnabled: true}, nil
+	return &domain.User{ID: id, Email: "user@example.com", Role: domain.RoleMember, IsEnabled: true}, nil
 }
 
 func (f *fakeStartupRepo) CreateUser(ctx context.Context, email string, role string) (*domain.User, error) {
 	if f.createUserErr != nil {
 		return nil, f.createUserErr
 	}
-	return &domain.User{ID: 1, Email: email, Role: role, IsEnabled: true}, nil
+	return &domain.User{ID: 1, Email: email, Role: domain.Role(role), IsEnabled: true}, nil
 }
 
 func newTestAPIServer(repo *sqlite.Repository, authHandler *api.AuthHandler, catalog catalog) *api.Server {
@@ -218,15 +218,11 @@ func testServerDeps(cfg *config.Config, repo startupRepository) serverDeps {
 			return nil
 		},
 		backgroundCtx: context.Background,
-		newAuthHandler: func(repo authapp.Repository, sender authapp.Sender) *api.AuthHandler {
-			return api.NewAuthHandler(repo, sender)
+		newAuthHandler: func(service *authapp.Service) *api.AuthHandler {
+			return api.NewAuthHandler(service)
 		},
-		newAPIServer: func(subRequestsRepo subrequestsapp.Repository, adminRepo adminapp.Repository, authHandler *api.AuthHandler, catalog catalog) *api.Server {
-			return api.NewServer(
-				authHandler,
-				subrequestsapp.NewService(subRequestsRepo, catalog),
-				adminapp.NewService(adminRepo, catalog),
-			)
+		newAPIServer: func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *api.AuthHandler) *api.Server {
+			return api.NewServer(authHandler, subRequests, admin)
 		},
 		newDBRepository: func(database *sql.DB) repositories {
 			return repositories{startup: repo}
@@ -276,7 +272,7 @@ func TestIndexHandler(t *testing.T) {
 		t.Fatalf("failed to create session: %v", err)
 	}
 
-	auth := api.NewAuthHandler(repo, nil)
+	auth := api.NewAuthHandler(authapp.NewService(repo, nil))
 	server := newTestAPIServer(repo, auth, nil)
 
 	handler := server.Get
@@ -547,7 +543,7 @@ func TestServerCmd_MasterEmail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to find master user: %v", err)
 	}
-	if u.Role != "admin" {
+	if u.Role != domain.RoleAdmin {
 		t.Errorf("expected role 'admin', got %q", u.Role)
 	}
 
@@ -827,30 +823,30 @@ func TestRunServer_WiresIndependentRepositoryPorts(t *testing.T) {
 	deps.newDBRepository = func(database *sql.DB) repositories {
 		return repos
 	}
-	var gotAuthRepo authapp.Repository
-	deps.newAuthHandler = func(repo authapp.Repository, sender authapp.Sender) *api.AuthHandler {
-		gotAuthRepo = repo
-		return api.NewAuthHandler(repo, sender)
+	var gotAuthService *authapp.Service
+	deps.newAuthHandler = func(service *authapp.Service) *api.AuthHandler {
+		gotAuthService = service
+		return api.NewAuthHandler(service)
 	}
-	var gotSubRequestsRepo subrequestsapp.Repository
-	var gotAdminRepo adminapp.Repository
-	deps.newAPIServer = func(subRequestsRepo subrequestsapp.Repository, adminRepo adminapp.Repository, authHandler *api.AuthHandler, catalog catalog) *api.Server {
-		gotSubRequestsRepo = subRequestsRepo
-		gotAdminRepo = adminRepo
+	var gotSubRequestsService *subrequestsapp.Service
+	var gotAdminService *adminapp.Service
+	deps.newAPIServer = func(subRequests *subrequestsapp.Service, admin *adminapp.Service, authHandler *api.AuthHandler) *api.Server {
+		gotSubRequestsService = subRequests
+		gotAdminService = admin
 		return api.NewServer(authHandler, nil, nil)
 	}
 
 	if err := runServer(&cobra.Command{}, deps); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if gotAuthRepo != authRepo {
-		t.Fatalf("auth repo = %T, want %T", gotAuthRepo, authRepo)
+	if gotAuthService == nil {
+		t.Fatal("expected auth service to be wired")
 	}
-	if gotSubRequestsRepo != subRequestsRepo {
-		t.Fatalf("subrequests repo = %T, want %T", gotSubRequestsRepo, subRequestsRepo)
+	if gotSubRequestsService == nil {
+		t.Fatal("expected subrequests service to be wired")
 	}
-	if gotAdminRepo != adminRepo {
-		t.Fatalf("admin repo = %T, want %T", gotAdminRepo, adminRepo)
+	if gotAdminService == nil {
+		t.Fatal("expected admin service to be wired")
 	}
 }
 
@@ -889,7 +885,7 @@ func TestNewRouter(t *testing.T) {
 	defer dbConn.Close()
 
 	repo := sqlite.NewRepository(dbConn)
-	auth := api.NewAuthHandler(repo, nil)
+	auth := api.NewAuthHandler(authapp.NewService(repo, nil))
 	server := newTestAPIServer(repo, auth, nil)
 
 	r := newRouter(server, auth)
@@ -989,7 +985,7 @@ func TestAuthRateLimiting(t *testing.T) {
 
 	repo := sqlite.NewRepository(dbConn)
 	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
-	auth := api.NewAuthHandler(repo, &mockSender{})
+	auth := api.NewAuthHandler(authapp.NewService(repo, &mockSender{}))
 	server := newTestAPIServer(repo, auth, nil)
 
 	r := newRouter(server, auth)

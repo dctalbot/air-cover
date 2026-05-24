@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"air-cover/internal/adapters/http/ui"
 	"air-cover/internal/app/subrequests"
 	"air-cover/internal/domain"
-	"air-cover/internal/ui"
 )
 
 func SubRequestDashboard(dashboard subrequests.Dashboard) ([]ui.SubRequestView, []ui.SubRequestView) {
@@ -20,7 +20,7 @@ func AdminUsers(users []*domain.User, currentUserID int) []ui.UserView {
 		views = append(views, ui.UserView{
 			ID:            u.ID,
 			Email:         u.Email,
-			Role:          u.Role,
+			Role:          string(u.Role),
 			CreatedAt:     u.CreatedAt.Format("Jan 02, 2006 at 3:04 PM"),
 			IsEnabled:     u.IsEnabled,
 			CanDeactivate: u.ID != currentUserID,
