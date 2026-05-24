@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"air-cover/internal/app/session"
-	"air-cover/internal/models"
+	"air-cover/internal/domain"
 )
 
 func TestSubRequestPermissions(t *testing.T) {
@@ -12,7 +12,7 @@ func TestSubRequestPermissions(t *testing.T) {
 	tests := []struct {
 		name      string
 		viewer    session.CurrentUser
-		request   *models.SubRequest
+		request   *domain.SubRequest
 		canDelete bool
 		canTake   bool
 		canUntake bool
@@ -20,32 +20,32 @@ func TestSubRequestPermissions(t *testing.T) {
 		{
 			name:      "poster can delete but cannot take own request",
 			viewer:    session.CurrentUser{ID: 1, Role: "member"},
-			request:   &models.SubRequest{PostedByUserID: 1},
+			request:   &domain.SubRequest{PostedByUserID: 1},
 			canDelete: true,
 		},
 		{
 			name:    "member can take someone else's open request",
 			viewer:  session.CurrentUser{ID: 2, Role: "member"},
-			request: &models.SubRequest{PostedByUserID: 1},
+			request: &domain.SubRequest{PostedByUserID: 1},
 			canTake: true,
 		},
 		{
 			name:      "admin can delete and take own open request",
 			viewer:    session.CurrentUser{ID: 1, Role: "admin"},
-			request:   &models.SubRequest{PostedByUserID: 1},
+			request:   &domain.SubRequest{PostedByUserID: 1},
 			canDelete: true,
 			canTake:   true,
 		},
 		{
 			name:      "taker can untake filled request",
 			viewer:    session.CurrentUser{ID: takerID, Role: "member"},
-			request:   &models.SubRequest{PostedByUserID: 1, TakenByUserID: &takerID},
+			request:   &domain.SubRequest{PostedByUserID: 1, TakenByUserID: &takerID},
 			canUntake: true,
 		},
 		{
 			name:    "other member cannot modify filled request",
 			viewer:  session.CurrentUser{ID: 3, Role: "member"},
-			request: &models.SubRequest{PostedByUserID: 1, TakenByUserID: &takerID},
+			request: &domain.SubRequest{PostedByUserID: 1, TakenByUserID: &takerID},
 		},
 	}
 

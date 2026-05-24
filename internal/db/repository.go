@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"air-cover/internal/apperrors"
-	"air-cover/internal/models"
+	"air-cover/internal/domain"
 )
 
 var (
@@ -27,8 +27,8 @@ func (r *Repository) DB() *sql.DB {
 	return r.db
 }
 
-func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
-	var user models.User
+func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+	var user domain.User
 	err := r.db.QueryRowContext(ctx, "SELECT id, email, role, is_enabled, created_at FROM users WHERE email = ?", email).
 		Scan(&user.ID, &user.Email, &user.Role, &user.IsEnabled, &user.CreatedAt)
 	if err != nil {
@@ -40,8 +40,8 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (*models.
 	return &user, nil
 }
 
-func (r *Repository) GetUserByID(ctx context.Context, id int) (*models.User, error) {
-	var user models.User
+func (r *Repository) GetUserByID(ctx context.Context, id int) (*domain.User, error) {
+	var user domain.User
 	err := r.db.QueryRowContext(ctx, "SELECT id, email, role, is_enabled, created_at FROM users WHERE id = ?", id).
 		Scan(&user.ID, &user.Email, &user.Role, &user.IsEnabled, &user.CreatedAt)
 	if err != nil {
@@ -53,7 +53,7 @@ func (r *Repository) GetUserByID(ctx context.Context, id int) (*models.User, err
 	return &user, nil
 }
 
-func (r *Repository) CreateUser(ctx context.Context, email string, role string) (*models.User, error) {
+func (r *Repository) CreateUser(ctx context.Context, email string, role string) (*domain.User, error) {
 	res, err := r.db.ExecContext(ctx, "INSERT INTO users (email, role) VALUES (?, ?)", email, role)
 	if err != nil {
 		return nil, err
@@ -71,8 +71,8 @@ func (r *Repository) CreateMagicLink(ctx context.Context, userID int, tokenHash 
 	return err
 }
 
-func (r *Repository) UseMagicLink(ctx context.Context, tokenHash string) (*models.MagicLink, error) {
-	var ml models.MagicLink
+func (r *Repository) UseMagicLink(ctx context.Context, tokenHash string) (*domain.MagicLink, error) {
+	var ml domain.MagicLink
 	err := r.db.QueryRowContext(ctx, `
 		DELETE FROM magic_links
 		WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?
@@ -95,8 +95,8 @@ func (r *Repository) CreateSession(ctx context.Context, sessionID, sessionToken 
 	return err
 }
 
-func (r *Repository) GetSessionByToken(ctx context.Context, sessionToken string) (*models.Session, error) {
-	var s models.Session
+func (r *Repository) GetSessionByToken(ctx context.Context, sessionToken string) (*domain.Session, error) {
+	var s domain.Session
 	err := r.db.QueryRowContext(ctx, "SELECT id, user_id, session_token, expires_at FROM sessions WHERE session_token = ?", sessionToken).
 		Scan(&s.ID, &s.UserID, &s.SessionToken, &s.ExpiresAt)
 	if err != nil {
@@ -116,7 +116,7 @@ func (r *Repository) DeleteSessionsByUserID(ctx context.Context, userID int) err
 	return err
 }
 
-func (r *Repository) CreateSubRequest(ctx context.Context, sr *models.SubRequest) error {
+func (r *Repository) CreateSubRequest(ctx context.Context, sr *domain.SubRequest) error {
 	res, err := r.db.ExecContext(ctx, `
 		INSERT INTO sub_requests (show_id, posted_by_user_id, taken_by_user_id, start_time, end_time, notes, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -131,7 +131,7 @@ func (r *Repository) CreateSubRequest(ctx context.Context, sr *models.SubRequest
 	sr.ID = int(id)
 	return nil
 }
-func (r *Repository) ListSubRequests(ctx context.Context) ([]*models.SubRequest, error) {
+func (r *Repository) ListSubRequests(ctx context.Context) ([]*domain.SubRequest, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT sr.id, sr.show_id, sr.posted_by_user_id, sr.taken_by_user_id, u.email, COALESCE(u2.email, ''), sr.start_time, sr.end_time, sr.notes, sr.created_at, sr.updated_at
 		FROM sub_requests sr
@@ -144,9 +144,9 @@ func (r *Repository) ListSubRequests(ctx context.Context) ([]*models.SubRequest,
 	}
 	defer rows.Close()
 
-	var subRequests []*models.SubRequest
+	var subRequests []*domain.SubRequest
 	for rows.Next() {
-		var sr models.SubRequest
+		var sr domain.SubRequest
 		err := rows.Scan(
 			&sr.ID, &sr.ShowID, &sr.PostedByUserID, &sr.TakenByUserID, &sr.RequesterEmail,
 			&sr.TakerEmail, &sr.StartTime, &sr.EndTime, &sr.Notes, &sr.CreatedAt, &sr.UpdatedAt,
@@ -162,8 +162,8 @@ func (r *Repository) ListSubRequests(ctx context.Context) ([]*models.SubRequest,
 	return subRequests, nil
 }
 
-func (r *Repository) GetSubRequestByID(ctx context.Context, id int) (*models.SubRequest, error) {
-	var sr models.SubRequest
+func (r *Repository) GetSubRequestByID(ctx context.Context, id int) (*domain.SubRequest, error) {
+	var sr domain.SubRequest
 	err := r.db.QueryRowContext(ctx, `
 		SELECT id, show_id, posted_by_user_id, taken_by_user_id, start_time, end_time, notes, created_at, updated_at
 		FROM sub_requests
@@ -232,16 +232,16 @@ func (r *Repository) UntakeSubRequest(ctx context.Context, id int) error {
 	return nil
 }
 
-func (r *Repository) ListUsers(ctx context.Context) ([]*models.User, error) {
+func (r *Repository) ListUsers(ctx context.Context) ([]*domain.User, error) {
 	rows, err := r.db.QueryContext(ctx, "SELECT id, email, role, is_enabled, created_at FROM users ORDER BY created_at DESC")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var users []*models.User
+	var users []*domain.User
 	for rows.Next() {
-		var user models.User
+		var user domain.User
 		if err := rows.Scan(&user.ID, &user.Email, &user.Role, &user.IsEnabled, &user.CreatedAt); err != nil {
 			return nil, err
 		}

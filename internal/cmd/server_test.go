@@ -17,7 +17,7 @@ import (
 	"air-cover/internal/apperrors"
 	"air-cover/internal/config"
 	"air-cover/internal/db"
-	"air-cover/internal/models"
+	"air-cover/internal/domain"
 	"air-cover/internal/spinitron"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -86,57 +86,57 @@ type fakeStartupRepo struct {
 	createUserErr error
 }
 
-func (f *fakeStartupRepo) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+func (f *fakeStartupRepo) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
 	if f.getUserErr != nil {
 		return nil, f.getUserErr
 	}
-	return &models.User{ID: 1, Email: email, Role: "admin", IsEnabled: true}, nil
+	return &domain.User{ID: 1, Email: email, Role: "admin", IsEnabled: true}, nil
 }
 
-func (f *fakeStartupRepo) GetUserByID(ctx context.Context, id int) (*models.User, error) {
-	return &models.User{ID: id, Email: "user@example.com", Role: "member", IsEnabled: true}, nil
+func (f *fakeStartupRepo) GetUserByID(ctx context.Context, id int) (*domain.User, error) {
+	return &domain.User{ID: id, Email: "user@example.com", Role: "member", IsEnabled: true}, nil
 }
 
-func (f *fakeStartupRepo) CreateUser(ctx context.Context, email string, role string) (*models.User, error) {
+func (f *fakeStartupRepo) CreateUser(ctx context.Context, email string, role string) (*domain.User, error) {
 	if f.createUserErr != nil {
 		return nil, f.createUserErr
 	}
-	return &models.User{ID: 1, Email: email, Role: role, IsEnabled: true}, nil
+	return &domain.User{ID: 1, Email: email, Role: role, IsEnabled: true}, nil
 }
 
 func (f *fakeStartupRepo) CreateMagicLink(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error {
 	return nil
 }
 
-func (f *fakeStartupRepo) UseMagicLink(ctx context.Context, tokenHash string) (*models.MagicLink, error) {
-	return &models.MagicLink{UserID: 1, ExpiresAt: time.Now().Add(time.Hour)}, nil
+func (f *fakeStartupRepo) UseMagicLink(ctx context.Context, tokenHash string) (*domain.MagicLink, error) {
+	return &domain.MagicLink{UserID: 1, ExpiresAt: time.Now().Add(time.Hour)}, nil
 }
 
 func (f *fakeStartupRepo) CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error {
 	return nil
 }
 
-func (f *fakeStartupRepo) GetSessionByToken(ctx context.Context, sessionToken string) (*models.Session, error) {
-	return &models.Session{UserID: 1, ExpiresAt: time.Now().Add(time.Hour)}, nil
+func (f *fakeStartupRepo) GetSessionByToken(ctx context.Context, sessionToken string) (*domain.Session, error) {
+	return &domain.Session{UserID: 1, ExpiresAt: time.Now().Add(time.Hour)}, nil
 }
 
 func (f *fakeStartupRepo) DeleteSessionsByUserID(ctx context.Context, userID int) error {
 	return nil
 }
 
-func (f *fakeStartupRepo) ListSubRequests(ctx context.Context) ([]*models.SubRequest, error) {
+func (f *fakeStartupRepo) ListSubRequests(ctx context.Context) ([]*domain.SubRequest, error) {
 	return nil, nil
 }
 
-func (f *fakeStartupRepo) ListUsers(ctx context.Context) ([]*models.User, error) {
+func (f *fakeStartupRepo) ListUsers(ctx context.Context) ([]*domain.User, error) {
 	return nil, nil
 }
 
-func (f *fakeStartupRepo) CreateSubRequest(ctx context.Context, sr *models.SubRequest) error {
+func (f *fakeStartupRepo) CreateSubRequest(ctx context.Context, sr *domain.SubRequest) error {
 	return nil
 }
 
-func (f *fakeStartupRepo) GetSubRequestByID(ctx context.Context, id int) (*models.SubRequest, error) {
+func (f *fakeStartupRepo) GetSubRequestByID(ctx context.Context, id int) (*domain.SubRequest, error) {
 	return nil, apperrors.ErrNotFound
 }
 

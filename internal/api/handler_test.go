@@ -14,7 +14,7 @@ import (
 
 	"air-cover/internal/apperrors"
 	"air-cover/internal/db"
-	"air-cover/internal/models"
+	"air-cover/internal/domain"
 	"air-cover/internal/spinitron"
 
 	"github.com/go-chi/chi/v5"
@@ -41,10 +41,10 @@ func (b *badShowsService) ListPersonas(ctx context.Context) ([]spinitron.Persona
 }
 
 type fakeServerRepo struct {
-	session       *models.Session
-	subRequests   []*models.SubRequest
-	subRequest    *models.SubRequest
-	users         []*models.User
+	session       *domain.Session
+	subRequests   []*domain.SubRequest
+	subRequest    *domain.SubRequest
+	users         []*domain.User
 	err           error
 	deleteErr     error
 	takeErr       error
@@ -55,36 +55,36 @@ type fakeServerRepo struct {
 	createSubErr  error
 }
 
-func (f *fakeServerRepo) GetSessionByToken(ctx context.Context, sessionToken string) (*models.Session, error) {
+func (f *fakeServerRepo) GetSessionByToken(ctx context.Context, sessionToken string) (*domain.Session, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
 	return f.session, nil
 }
 
-func (f *fakeServerRepo) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
+func (f *fakeServerRepo) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &models.User{ID: 1, Email: email, Role: "member", IsEnabled: true}, nil
+	return &domain.User{ID: 1, Email: email, Role: "member", IsEnabled: true}, nil
 }
 
-func (f *fakeServerRepo) GetUserByID(ctx context.Context, id int) (*models.User, error) {
+func (f *fakeServerRepo) GetUserByID(ctx context.Context, id int) (*domain.User, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &models.User{ID: id, Email: "user@example.com", Role: "member", IsEnabled: true}, nil
+	return &domain.User{ID: id, Email: "user@example.com", Role: "member", IsEnabled: true}, nil
 }
 
 func (f *fakeServerRepo) CreateMagicLink(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error {
 	return nil
 }
 
-func (f *fakeServerRepo) UseMagicLink(ctx context.Context, tokenHash string) (*models.MagicLink, error) {
+func (f *fakeServerRepo) UseMagicLink(ctx context.Context, tokenHash string) (*domain.MagicLink, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &models.MagicLink{UserID: 1, ExpiresAt: time.Now().Add(time.Hour)}, nil
+	return &domain.MagicLink{UserID: 1, ExpiresAt: time.Now().Add(time.Hour)}, nil
 }
 
 func (f *fakeServerRepo) CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error {
@@ -95,32 +95,32 @@ func (f *fakeServerRepo) DeleteSessionsByUserID(ctx context.Context, userID int)
 	return nil
 }
 
-func (f *fakeServerRepo) ListSubRequests(ctx context.Context) ([]*models.SubRequest, error) {
+func (f *fakeServerRepo) ListSubRequests(ctx context.Context) ([]*domain.SubRequest, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
 	return f.subRequests, nil
 }
 
-func (f *fakeServerRepo) ListUsers(ctx context.Context) ([]*models.User, error) {
+func (f *fakeServerRepo) ListUsers(ctx context.Context) ([]*domain.User, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
 	return f.users, nil
 }
 
-func (f *fakeServerRepo) CreateUser(ctx context.Context, email string, role string) (*models.User, error) {
+func (f *fakeServerRepo) CreateUser(ctx context.Context, email string, role string) (*domain.User, error) {
 	if f.createUserErr != nil {
 		return nil, f.createUserErr
 	}
-	return &models.User{ID: 1, Email: email, Role: role, IsEnabled: true}, nil
+	return &domain.User{ID: 1, Email: email, Role: role, IsEnabled: true}, nil
 }
 
-func (f *fakeServerRepo) CreateSubRequest(ctx context.Context, sr *models.SubRequest) error {
+func (f *fakeServerRepo) CreateSubRequest(ctx context.Context, sr *domain.SubRequest) error {
 	return f.createSubErr
 }
 
-func (f *fakeServerRepo) GetSubRequestByID(ctx context.Context, id int) (*models.SubRequest, error) {
+func (f *fakeServerRepo) GetSubRequestByID(ctx context.Context, id int) (*domain.SubRequest, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -381,7 +381,7 @@ func TestServer_GetApp(t *testing.T) {
 	s := NewServer(repo, nil, &MockShowsService{})
 
 	// Create a future request
-	_ = repo.CreateSubRequest(context.Background(), &models.SubRequest{
+	_ = repo.CreateSubRequest(context.Background(), &domain.SubRequest{
 		ShowID:         1,
 		PostedByUserID: u.ID,
 		StartTime:      time.Now().Add(24 * time.Hour),
@@ -392,7 +392,7 @@ func TestServer_GetApp(t *testing.T) {
 
 	// Create past requests in ascending order so GetApp has to reverse them for display.
 	u2, _ := repo.CreateUser(context.Background(), "taker@example.com", "member")
-	_ = repo.CreateSubRequest(context.Background(), &models.SubRequest{
+	_ = repo.CreateSubRequest(context.Background(), &domain.SubRequest{
 		ShowID:         999,
 		PostedByUserID: u.ID,
 		StartTime:      time.Now().Add(-48 * time.Hour),
@@ -400,7 +400,7 @@ func TestServer_GetApp(t *testing.T) {
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 	})
-	_ = repo.CreateSubRequest(context.Background(), &models.SubRequest{
+	_ = repo.CreateSubRequest(context.Background(), &domain.SubRequest{
 		ShowID:         999, // Unknown show
 		PostedByUserID: u.ID,
 		TakenByUserID:  &u2.ID,
@@ -502,7 +502,7 @@ func TestServer_GetApp_RenderErrorWithFakeRepo(t *testing.T) {
 
 func TestServer_GetAdmin_RenderErrorWithDisabledUsers(t *testing.T) {
 	s := NewServer(&fakeServerRepo{
-		users: []*models.User{
+		users: []*domain.User{
 			{ID: 1, Email: "disabled-b@example.com", Role: "member", IsEnabled: false},
 			{ID: 2, Email: "disabled-a@example.com", Role: "member", IsEnabled: false},
 			{ID: 3, Email: "z-member@example.com", Role: "member", IsEnabled: true},
@@ -532,7 +532,7 @@ func TestServer_DeleteSubRequestsId_RepositoryErrors(t *testing.T) {
 		{
 			name: "delete error",
 			repo: &fakeServerRepo{
-				subRequest: &models.SubRequest{ID: 10, PostedByUserID: 1},
+				subRequest: &domain.SubRequest{ID: 10, PostedByUserID: 1},
 				deleteErr:  errors.New("delete failed"),
 			},
 			userID:     1,
@@ -579,7 +579,7 @@ func TestServer_PatchSubRequestsId_RepositoryErrorsWithFake(t *testing.T) {
 		{
 			name: "take error",
 			repo: &fakeServerRepo{
-				subRequest: &models.SubRequest{ID: 10, PostedByUserID: 1},
+				subRequest: &domain.SubRequest{ID: 10, PostedByUserID: 1},
 				takeErr:    errors.New("take failed"),
 			},
 			body:       `{"action":"take"}`,
@@ -589,7 +589,7 @@ func TestServer_PatchSubRequestsId_RepositoryErrorsWithFake(t *testing.T) {
 		{
 			name: "take conflict",
 			repo: &fakeServerRepo{
-				subRequest: &models.SubRequest{ID: 10, PostedByUserID: 1},
+				subRequest: &domain.SubRequest{ID: 10, PostedByUserID: 1},
 				takeErr:    apperrors.ErrConflict,
 			},
 			body:       `{"action":"take"}`,
@@ -599,7 +599,7 @@ func TestServer_PatchSubRequestsId_RepositoryErrorsWithFake(t *testing.T) {
 		{
 			name: "take not found after update",
 			repo: &fakeServerRepo{
-				subRequest: &models.SubRequest{ID: 10, PostedByUserID: 1},
+				subRequest: &domain.SubRequest{ID: 10, PostedByUserID: 1},
 				takeErr:    apperrors.ErrNotFound,
 			},
 			body:       `{"action":"take"}`,
@@ -609,7 +609,7 @@ func TestServer_PatchSubRequestsId_RepositoryErrorsWithFake(t *testing.T) {
 		{
 			name: "untake error",
 			repo: &fakeServerRepo{
-				subRequest: &models.SubRequest{ID: 10, PostedByUserID: 1, TakenByUserID: &takerID},
+				subRequest: &domain.SubRequest{ID: 10, PostedByUserID: 1, TakenByUserID: &takerID},
 				untakeErr:  errors.New("untake failed"),
 			},
 			body:       `{"action":"untake"}`,
@@ -716,7 +716,7 @@ func TestServer_DeleteSubRequestsId(t *testing.T) {
 	admin, _ := repo.CreateUser(context.Background(), "admin@example.com", "admin")
 	s := NewServer(repo, nil, nil)
 
-	sr := &models.SubRequest{
+	sr := &domain.SubRequest{
 		ShowID:         1,
 		PostedByUserID: u1.ID,
 		StartTime:      time.Now(),
@@ -796,7 +796,7 @@ func TestServer_DeleteSubRequestsId(t *testing.T) {
 	t.Run("db error", func(t *testing.T) {
 		repo := setupTestDB(t)
 		u, _ := repo.CreateUser(context.Background(), "poster@example.com", "member")
-		sr := &models.SubRequest{
+		sr := &domain.SubRequest{
 			ShowID:         1,
 			PostedByUserID: u.ID,
 			StartTime:      time.Now(),
@@ -1302,7 +1302,7 @@ func TestServer_DeleteSubRequestsId_DBError(t *testing.T) {
 	}
 	repo := db.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "dberr@example.com", "member")
-	sr := &models.SubRequest{
+	sr := &domain.SubRequest{
 		ShowID:         1,
 		PostedByUserID: u.ID,
 		StartTime:      time.Now(),
@@ -1405,7 +1405,7 @@ func TestServer_DeleteSubRequestsId_DeleteError(t *testing.T) {
 	}
 	repo := db.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "deleterr@example.com", "member")
-	sr := &models.SubRequest{
+	sr := &domain.SubRequest{
 		ShowID:         1,
 		PostedByUserID: u.ID,
 		StartTime:      time.Now(),
@@ -1473,7 +1473,7 @@ func TestServer_DeleteSubRequestsId_Unauthorized(t *testing.T) {
 	u1, _ := repo.CreateUser(context.Background(), "u1@example.com", "member")
 	u2, _ := repo.CreateUser(context.Background(), "u2@example.com", "member")
 
-	sr := &models.SubRequest{
+	sr := &domain.SubRequest{
 		ShowID:         1,
 		PostedByUserID: u1.ID,
 		StartTime:      time.Now(),
@@ -1520,7 +1520,7 @@ func TestServer_DeleteSubRequestsId_NoUserInContext(t *testing.T) {
 	}
 	repo := db.NewRepository(dbConn)
 	u1, _ := repo.CreateUser(context.Background(), "u1@example.com", "member")
-	sr := &models.SubRequest{
+	sr := &domain.SubRequest{
 		ShowID:         1,
 		PostedByUserID: u1.ID,
 		StartTime:      time.Now(),
@@ -1714,7 +1714,7 @@ func TestAppHandler_UnknownShowTitle(t *testing.T) {
 
 	// Create a sub request with a show ID not in the spinitron response
 	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
-	_ = repo.CreateSubRequest(context.Background(), &models.SubRequest{
+	_ = repo.CreateSubRequest(context.Background(), &domain.SubRequest{
 		ShowID:         999, // Doesn't match 1
 		PostedByUserID: 1,
 		StartTime:      time.Now(),
@@ -1739,7 +1739,7 @@ func TestAppHandler_AdminCanTakeOwnRequest(t *testing.T) {
 	server := NewServer(repo, nil, &MockShowsService{})
 
 	admin, _ := repo.CreateUser(context.Background(), "admin@example.com", "admin")
-	_ = repo.CreateSubRequest(context.Background(), &models.SubRequest{
+	_ = repo.CreateSubRequest(context.Background(), &domain.SubRequest{
 		ShowID:         1,
 		PostedByUserID: admin.ID,
 		StartTime:      time.Now(),
@@ -1930,7 +1930,7 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 	u3, _ := repo.CreateUser(context.Background(), "other@example.com", "member")
 	s := NewServer(repo, nil, nil)
 
-	sr := &models.SubRequest{
+	sr := &domain.SubRequest{
 		ShowID:         1,
 		PostedByUserID: u1.ID,
 		StartTime:      time.Now(),
@@ -2046,7 +2046,7 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 
 	t.Run("admin can take their own request", func(t *testing.T) {
 		admin, _ := repo.CreateUser(context.Background(), "admin-poster@example.com", "admin")
-		srAdmin := &models.SubRequest{
+		srAdmin := &domain.SubRequest{
 			ShowID:         1,
 			PostedByUserID: admin.ID,
 			StartTime:      time.Now(),
@@ -2071,7 +2071,7 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 		admin, _ := repo.CreateUser(context.Background(), "admin-taker@example.com", "admin")
 		// sr is already taken by u2 in previous test case if it hasn't been reset,
 		// but let's make a clean one just in case.
-		srTaken := &models.SubRequest{
+		srTaken := &domain.SubRequest{
 			ShowID:         1,
 			PostedByUserID: u1.ID,
 			StartTime:      time.Now(),
@@ -2101,7 +2101,7 @@ func TestServer_PatchSubRequestsId_DBError(t *testing.T) {
 	}
 	repo := db.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "dberr@example.com", "member")
-	sr := &models.SubRequest{
+	sr := &domain.SubRequest{
 		ShowID:         1,
 		PostedByUserID: u.ID,
 		StartTime:      time.Now(),
@@ -2127,7 +2127,7 @@ func TestServer_PatchSubRequestsId_TakeDBError(t *testing.T) {
 	u1, _ := repo.CreateUser(context.Background(), "poster@example.com", "member")
 	u2, _ := repo.CreateUser(context.Background(), "taker@example.com", "member")
 
-	sr := &models.SubRequest{
+	sr := &domain.SubRequest{
 		ShowID:         1,
 		PostedByUserID: u1.ID,
 		StartTime:      time.Now(),
@@ -2156,7 +2156,7 @@ func TestServer_PatchSubRequestsId_UntakeDBError(t *testing.T) {
 	u1, _ := repo.CreateUser(context.Background(), "poster@example.com", "member")
 	u2, _ := repo.CreateUser(context.Background(), "taker@example.com", "member")
 
-	sr := &models.SubRequest{
+	sr := &domain.SubRequest{
 		ShowID:         1,
 		PostedByUserID: u1.ID,
 		StartTime:      time.Now(),

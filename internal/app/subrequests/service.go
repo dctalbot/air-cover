@@ -11,7 +11,7 @@ import (
 
 	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
-	"air-cover/internal/models"
+	"air-cover/internal/domain"
 	"air-cover/internal/policy"
 	"air-cover/internal/spinitron"
 )
@@ -21,9 +21,9 @@ var ErrCatalog = errors.New("show catalog error")
 const maxCreateNotesLength = 1000
 
 type Repository interface {
-	ListSubRequests(ctx context.Context) ([]*models.SubRequest, error)
-	CreateSubRequest(ctx context.Context, sr *models.SubRequest) error
-	GetSubRequestByID(ctx context.Context, id int) (*models.SubRequest, error)
+	ListSubRequests(ctx context.Context) ([]*domain.SubRequest, error)
+	CreateSubRequest(ctx context.Context, sr *domain.SubRequest) error
+	GetSubRequestByID(ctx context.Context, id int) (*domain.SubRequest, error)
 	DeleteSubRequest(ctx context.Context, id int) error
 	TakeSubRequest(ctx context.Context, id int, userID int) error
 	UntakeSubRequest(ctx context.Context, id int) error
@@ -54,7 +54,7 @@ type Dashboard struct {
 }
 
 type SubRequest struct {
-	Request   *models.SubRequest
+	Request   *domain.SubRequest
 	ShowTitle string
 	CanDelete bool
 	CanTake   bool
@@ -136,7 +136,7 @@ func (s *Service) Create(ctx context.Context, viewer session.CurrentUser, input 
 	}
 
 	now := s.now()
-	if err := s.repo.CreateSubRequest(ctx, &models.SubRequest{
+	if err := s.repo.CreateSubRequest(ctx, &domain.SubRequest{
 		ShowID:         input.ShowID,
 		PostedByUserID: viewer.ID,
 		StartTime:      input.StartTime,

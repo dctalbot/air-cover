@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"air-cover/internal/models"
+	"air-cover/internal/domain"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )
@@ -204,7 +204,7 @@ func TestRepository(t *testing.T) {
 	}
 
 	// CreateSubRequest
-	sr := &models.SubRequest{
+	sr := &domain.SubRequest{
 		ShowID:         123,
 		PostedByUserID: u.ID,
 		StartTime:      time.Now(),
@@ -267,7 +267,7 @@ func TestRepository(t *testing.T) {
 	}
 
 	// TakeSubRequest
-	sr3 := &models.SubRequest{
+	sr3 := &domain.SubRequest{
 		ShowID:         456,
 		PostedByUserID: u.ID,
 		StartTime:      time.Now(),
@@ -432,7 +432,7 @@ func TestRepositoryErrors(t *testing.T) {
 		t.Error("expected error with cancelled context in DeleteSessionsByUserID")
 	}
 
-	err = repo.CreateSubRequest(ctx, &models.SubRequest{})
+	err = repo.CreateSubRequest(ctx, &domain.SubRequest{})
 	if err == nil {
 		t.Error("expected error with cancelled context in CreateSubRequest")
 	}
@@ -854,7 +854,7 @@ func TestListSubRequestsOrdering(t *testing.T) {
 	}
 
 	for _, st := range times {
-		sr := &models.SubRequest{
+		sr := &domain.SubRequest{
 			ShowID:         1,
 			PostedByUserID: u.ID,
 			StartTime:      st,
@@ -907,7 +907,7 @@ func TestRepositoryDriverLevelErrors(t *testing.T) {
 		mock.ExpectExec("INSERT INTO sub_requests").
 			WillReturnResult(sqlmock.NewErrorResult(errors.New("last insert id failed")))
 
-		err := repo.CreateSubRequest(context.Background(), &models.SubRequest{
+		err := repo.CreateSubRequest(context.Background(), &domain.SubRequest{
 			ShowID:         1,
 			PostedByUserID: 2,
 			StartTime:      time.Now(),

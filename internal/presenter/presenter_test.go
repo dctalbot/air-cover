@@ -5,14 +5,14 @@ import (
 	"time"
 
 	"air-cover/internal/app/subrequests"
-	"air-cover/internal/models"
+	"air-cover/internal/domain"
 )
 
 func TestSubRequestDashboard(t *testing.T) {
 	start := time.Date(2026, 5, 23, 15, 4, 0, 0, time.UTC)
 	dashboard := subrequests.Dashboard{
 		Upcoming: []subrequests.SubRequest{{
-			Request: &models.SubRequest{
+			Request: &domain.SubRequest{
 				ID:             1,
 				RequesterEmail: "requester@example.com",
 				StartTime:      start,
@@ -23,7 +23,7 @@ func TestSubRequestDashboard(t *testing.T) {
 			CanTake:   true,
 		}},
 		Past: []subrequests.SubRequest{{
-			Request: &models.SubRequest{
+			Request: &domain.SubRequest{
 				ID:            2,
 				TakenByUserID: intPtr(3),
 				TakerEmail:    "taker@example.com",
@@ -53,7 +53,7 @@ func TestSubRequestDashboard(t *testing.T) {
 
 func TestAdminUsers(t *testing.T) {
 	created := time.Date(2026, 5, 23, 15, 4, 0, 0, time.UTC)
-	views := AdminUsers([]*models.User{{
+	views := AdminUsers([]*domain.User{{
 		ID:        1,
 		Email:     "admin@example.com",
 		Role:      "admin",

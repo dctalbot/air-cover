@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"air-cover/internal/app/subrequests"
-	"air-cover/internal/models"
+	"air-cover/internal/domain"
 	"air-cover/internal/ui"
 )
 
@@ -14,7 +14,7 @@ func SubRequestDashboard(dashboard subrequests.Dashboard) ([]ui.SubRequestView, 
 	return subRequestViews(dashboard.Upcoming), subRequestViews(dashboard.Past)
 }
 
-func AdminUsers(users []*models.User, currentUserID int) []ui.UserView {
+func AdminUsers(users []*domain.User, currentUserID int) []ui.UserView {
 	views := make([]ui.UserView, 0, len(users))
 	for _, u := range users {
 		views = append(views, ui.UserView{

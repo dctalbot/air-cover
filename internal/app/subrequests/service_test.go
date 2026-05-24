@@ -9,36 +9,36 @@ import (
 
 	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
-	"air-cover/internal/models"
+	"air-cover/internal/domain"
 	"air-cover/internal/spinitron"
 )
 
 type fakeRepository struct {
-	subRequests []*models.SubRequest
-	subRequest  *models.SubRequest
+	subRequests []*domain.SubRequest
+	subRequest  *domain.SubRequest
 	listErr     error
 	createErr   error
 	getErr      error
 	deleteErr   error
 	takeErr     error
 	untakeErr   error
-	created     *models.SubRequest
+	created     *domain.SubRequest
 	deletedID   int
 	takenID     int
 	takenUserID int
 	untakenID   int
 }
 
-func (f *fakeRepository) ListSubRequests(ctx context.Context) ([]*models.SubRequest, error) {
+func (f *fakeRepository) ListSubRequests(ctx context.Context) ([]*domain.SubRequest, error) {
 	return f.subRequests, f.listErr
 }
 
-func (f *fakeRepository) CreateSubRequest(ctx context.Context, sr *models.SubRequest) error {
+func (f *fakeRepository) CreateSubRequest(ctx context.Context, sr *domain.SubRequest) error {
 	f.created = sr
 	return f.createErr
 }
 
-func (f *fakeRepository) GetSubRequestByID(ctx context.Context, id int) (*models.SubRequest, error) {
+func (f *fakeRepository) GetSubRequestByID(ctx context.Context, id int) (*domain.SubRequest, error) {
 	if f.getErr != nil {
 		return nil, f.getErr
 	}
@@ -73,7 +73,7 @@ func (f *fakeCatalog) ListShows(ctx context.Context) ([]spinitron.Show, error) {
 func TestListDashboard(t *testing.T) {
 	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
 	takerID := 2
-	repo := &fakeRepository{subRequests: []*models.SubRequest{
+	repo := &fakeRepository{subRequests: []*domain.SubRequest{
 		{ID: 1, ShowID: 2, PostedByUserID: 1, StartTime: now.Add(2 * time.Hour), EndTime: now.Add(3 * time.Hour)},
 		{ID: 2, ShowID: 999, PostedByUserID: 1, TakenByUserID: &takerID, StartTime: now.Add(-2 * time.Hour), EndTime: now.Add(-1 * time.Hour)},
 		{ID: 3, ShowID: 1, PostedByUserID: 3, StartTime: now.Add(-4 * time.Hour), EndTime: now.Add(-3 * time.Hour)},
@@ -192,7 +192,7 @@ func TestCreateValidation(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	repo := &fakeRepository{subRequest: &models.SubRequest{ID: 1, PostedByUserID: 1}}
+	repo := &fakeRepository{subRequest: &domain.SubRequest{ID: 1, PostedByUserID: 1}}
 	svc := NewService(repo, nil)
 	viewer := session.CurrentUser{ID: 1, Role: "member"}
 	if err := svc.Delete(context.Background(), viewer, 1); err != nil {
@@ -202,7 +202,7 @@ func TestDelete(t *testing.T) {
 		t.Errorf("deleted ID = %d, want 1", repo.deletedID)
 	}
 
-	repo.subRequest = &models.SubRequest{ID: 2, PostedByUserID: 2}
+	repo.subRequest = &domain.SubRequest{ID: 2, PostedByUserID: 2}
 	if err := svc.Delete(context.Background(), viewer, 2); !errors.Is(err, apperrors.ErrForbidden) {
 		t.Errorf("forbidden delete error = %v, want forbidden", err)
 	}
@@ -212,7 +212,7 @@ func TestDelete(t *testing.T) {
 		t.Errorf("not found delete error = %v, want app not found", err)
 	}
 	repo.getErr = nil
-	repo.subRequest = &models.SubRequest{ID: 1, PostedByUserID: 1}
+	repo.subRequest = &domain.SubRequest{ID: 1, PostedByUserID: 1}
 	repo.deleteErr = apperrors.ErrConflict
 	if err := svc.Delete(context.Background(), viewer, 1); !errors.Is(err, apperrors.ErrConflict) {
 		t.Errorf("delete conflict error = %v, want conflict", err)
@@ -225,7 +225,7 @@ func TestDelete(t *testing.T) {
 
 func TestApplyAction(t *testing.T) {
 	takerID := 2
-	repo := &fakeRepository{subRequest: &models.SubRequest{ID: 1, PostedByUserID: 1}}
+	repo := &fakeRepository{subRequest: &domain.SubRequest{ID: 1, PostedByUserID: 1}}
 	svc := NewService(repo, nil)
 	viewer := session.CurrentUser{ID: takerID, Role: "member"}
 
@@ -236,7 +236,7 @@ func TestApplyAction(t *testing.T) {
 		t.Errorf("unexpected take call: %+v", repo)
 	}
 
-	repo.subRequest = &models.SubRequest{ID: 1, PostedByUserID: 1, TakenByUserID: &takerID}
+	repo.subRequest = &domain.SubRequest{ID: 1, PostedByUserID: 1, TakenByUserID: &takerID}
 	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionUntake); err != nil {
 		t.Fatalf("untake returned error: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestApplyAction(t *testing.T) {
 		t.Errorf("invalid action error = %v, want invalid", err)
 	}
 
-	repo.subRequest = &models.SubRequest{ID: 1, PostedByUserID: 1}
+	repo.subRequest = &domain.SubRequest{ID: 1, PostedByUserID: 1}
 	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionUntake); !errors.Is(err, apperrors.ErrForbidden) {
 		t.Errorf("untake forbidden error = %v, want forbidden", err)
 	}
@@ -264,7 +264,7 @@ func TestApplyAction(t *testing.T) {
 	}
 	repo.getErr = nil
 	repo.untakeErr = apperrors.ErrNotFound
-	repo.subRequest = &models.SubRequest{ID: 1, PostedByUserID: 1, TakenByUserID: &takerID}
+	repo.subRequest = &domain.SubRequest{ID: 1, PostedByUserID: 1, TakenByUserID: &takerID}
 	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionUntake); !errors.Is(err, apperrors.ErrNotFound) {
 		t.Errorf("untake error = %v, want not found", err)
 	}

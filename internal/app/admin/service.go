@@ -10,14 +10,13 @@ import (
 	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
-	"air-cover/internal/models"
 	"air-cover/internal/policy"
 	"air-cover/internal/spinitron"
 )
 
 type Repository interface {
-	ListUsers(ctx context.Context) ([]*models.User, error)
-	CreateUser(ctx context.Context, email string, role string) (*models.User, error)
+	ListUsers(ctx context.Context) ([]*domain.User, error)
+	CreateUser(ctx context.Context, email string, role string) (*domain.User, error)
 	UpdateUser(ctx context.Context, id int, role *string, isEnabled *bool) error
 	ImportUsers(ctx context.Context, emails []string) error
 }
@@ -46,7 +45,7 @@ type UpdateUserInput struct {
 	IsEnabled *bool
 }
 
-func (s *Service) ListUsers(ctx context.Context) ([]*models.User, error) {
+func (s *Service) ListUsers(ctx context.Context) ([]*domain.User, error) {
 	users, err := s.repo.ListUsers(ctx)
 	if err != nil {
 		return nil, err
@@ -105,7 +104,7 @@ func (s *Service) ImportSpinitronUsers(ctx context.Context) error {
 	return s.repo.ImportUsers(ctx, emails)
 }
 
-func sortUsers(users []*models.User) {
+func sortUsers(users []*domain.User) {
 	sort.Slice(users, func(i, j int) bool {
 		if users[i].IsEnabled != users[j].IsEnabled {
 			return users[i].IsEnabled

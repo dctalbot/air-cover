@@ -8,12 +8,12 @@ import (
 
 	"air-cover/internal/app/session"
 	"air-cover/internal/apperrors"
-	"air-cover/internal/models"
+	"air-cover/internal/domain"
 	"air-cover/internal/spinitron"
 )
 
 type fakeRepository struct {
-	users         []*models.User
+	users         []*domain.User
 	createEmail   string
 	createRole    string
 	createErr     error
@@ -26,14 +26,14 @@ type fakeRepository struct {
 	listErr       error
 }
 
-func (f *fakeRepository) ListUsers(ctx context.Context) ([]*models.User, error) {
+func (f *fakeRepository) ListUsers(ctx context.Context) ([]*domain.User, error) {
 	return f.users, f.listErr
 }
 
-func (f *fakeRepository) CreateUser(ctx context.Context, email string, role string) (*models.User, error) {
+func (f *fakeRepository) CreateUser(ctx context.Context, email string, role string) (*domain.User, error) {
 	f.createEmail = email
 	f.createRole = role
-	return &models.User{Email: email, Role: role}, f.createErr
+	return &domain.User{Email: email, Role: role}, f.createErr
 }
 
 func (f *fakeRepository) UpdateUser(ctx context.Context, id int, role *string, isEnabled *bool) error {
@@ -59,7 +59,7 @@ func (f *fakeCatalog) ListPersonas(ctx context.Context) ([]spinitron.Persona, er
 
 func TestListUsersSortsForAdminView(t *testing.T) {
 	created := time.Now()
-	users := []*models.User{
+	users := []*domain.User{
 		{ID: 1, Email: "z@example.com", Role: "member", IsEnabled: false, CreatedAt: created},
 		{ID: 2, Email: "b@example.com", Role: "member", IsEnabled: true, CreatedAt: created},
 		{ID: 3, Email: "a@example.com", Role: "admin", IsEnabled: true, CreatedAt: created},

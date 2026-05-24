@@ -8,7 +8,7 @@ import (
 
 	"air-cover/internal/app"
 	"air-cover/internal/apperrors"
-	"air-cover/internal/models"
+	"air-cover/internal/domain"
 )
 
 func TestRepositoryContracts(t *testing.T) {
@@ -68,7 +68,7 @@ func assertRepositoryContract(t *testing.T, repo app.Repository) {
 		t.Fatalf("deleted session error = %v, want not found", err)
 	}
 
-	request := &models.SubRequest{
+	request := &domain.SubRequest{
 		ShowID:         7,
 		PostedByUserID: user.ID,
 		StartTime:      time.Now().Add(time.Hour),
