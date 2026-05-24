@@ -20,7 +20,7 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 	dashboard, err := s.subRequests.ListDashboard(r.Context(), viewer)
 	if err != nil {
 		slog.Error("Failed to load app dashboard", "error", err)
-		if writeAppError(w, err) {
+		if writeAppError(w, r, err) {
 			return
 		}
 		if errors.Is(err, subrequestsapp.ErrCatalog) {
@@ -52,7 +52,7 @@ func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.subRequests.Create(r.Context(), viewer, input); err != nil {
-		if writeAppError(w, err) {
+		if writeAppError(w, r, err) {
 			return
 		}
 		if errors.Is(err, subrequestsapp.ErrCatalog) {
@@ -76,7 +76,7 @@ func (s *Server) DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id 
 		return
 	}
 	if err := s.subRequests.Delete(r.Context(), viewer, id); err != nil {
-		if writeAppError(w, err) {
+		if writeAppError(w, r, err) {
 			return
 		}
 		slog.Error("Failed to delete sub request", "id", id, "error", err)
@@ -105,7 +105,7 @@ func (s *Server) PatchSubRequestsId(w http.ResponseWriter, r *http.Request, id i
 	}
 
 	if err := s.subRequests.ApplyAction(r.Context(), viewer, id, subrequestsapp.Action(req.Action)); err != nil {
-		if writeAppError(w, err) {
+		if writeAppError(w, r, err) {
 			return
 		}
 		slog.Error("Failed to update sub request", "id", id, "action", req.Action, "error", err)

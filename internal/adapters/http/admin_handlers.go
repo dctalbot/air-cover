@@ -79,7 +79,7 @@ func (s *Server) PostUsersId(w http.ResponseWriter, r *http.Request, id int) {
 	}
 
 	if err := s.admin.UpdateUser(r.Context(), viewer, input); err != nil {
-		if writeAppError(w, err) {
+		if writeAppError(w, r, err) {
 			return
 		}
 		slog.Error("Failed to update user", "id", id, "error", err)

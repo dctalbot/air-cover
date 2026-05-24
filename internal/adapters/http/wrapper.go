@@ -1,6 +1,9 @@
 package httpadapter
 
-import "net/http"
+import (
+	"log/slog"
+	"net/http"
+)
 
 // NewWrapper creates a ServerInterfaceWrapper with default error handling.
 // This enables using the generated parameter-binding wrapper methods
@@ -10,7 +13,8 @@ func NewWrapper(si ServerInterface) *ServerInterfaceWrapper {
 	return &ServerInterfaceWrapper{
 		Handler: si,
 		ErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			slog.Info("Rejected malformed request", "error", err)
+			writeHTTPError(w, r, http.StatusBadRequest, "Invalid request")
 		},
 	}
 }
