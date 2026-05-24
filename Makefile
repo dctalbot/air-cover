@@ -1,50 +1,54 @@
+GO_VERSION := 1.26.0
+GO := GOTOOLCHAIN=go$(GO_VERSION) go
+AIR_VERSION := v1.65.3
+GOLANGCI_LINT_VERSION := v2.11.4
+OAPI_CODEGEN_VERSION := v2.6.0
+TEMPL_VERSION := v0.3.1020
+
 .PHONY: setup start build lint test check generate codecov-html coverage-summary db-reset db-down db-status
 
 setup:
-	curl -sSfL https://golangci-lint.run/install.sh | sh -s v2.11.4
+	$(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 build:
-	go build -o bin/aircover cmd/aircover/main.go
+	$(GO) build -o bin/aircover cmd/aircover/main.go
 
 start:
 	@lsof -ti :8080 | xargs -r kill -TERM 2>/dev/null || true
-	go run github.com/air-verse/air@latest -c .air.toml
+	$(GO) run github.com/air-verse/air@$(AIR_VERSION) -c .air.toml
 
 generate:
 	@mkdir -p docs
-	@go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 -package api -generate chi-server,types,spec api/openapi.yaml > internal/api/api.gen.go
-	@go run cmd/aircover/main.go doc > docs/routes.json
-	@go run github.com/a-h/templ/cmd/templ@latest generate
+	@$(GO) run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@$(OAPI_CODEGEN_VERSION) -package api -generate chi-server,types,spec api/openapi.yaml > internal/api/api.gen.go
+	@$(GO) run cmd/aircover/main.go doc > docs/routes.json
+	@$(GO) run github.com/a-h/templ/cmd/templ@$(TEMPL_VERSION) generate
 
 db-reset:
-	go run cmd/aircover/main.go migrate reset
+	$(GO) run cmd/aircover/main.go migrate reset
 
 db-down:
-	go run cmd/aircover/main.go migrate down
+	$(GO) run cmd/aircover/main.go migrate down
 
 db-status:
-	go run cmd/aircover/main.go migrate status
+	$(GO) run cmd/aircover/main.go migrate status
 
 lint:
-	@if [ "$$(uname -m)" != "arm64" ]; then \
-		echo "Installing golangci-lint"; \
-		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ./bin latest; \
-	fi
+	@GOBIN="$$(pwd)/bin" $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	@./bin/golangci-lint config verify
-	@go mod tidy
-	@go vet ./...
-	@go fmt ./...
+	@$(GO) mod tidy
+	@$(GO) vet ./...
+	@$(GO) fmt ./...
 	@output="$$(./bin/golangci-lint run ./... 2>&1)" || { echo "$$output" ; exit 1 ; }
 # 	@uvx --from skills-ref agentskills validate ./.agents/skills/verify-changes
 
 test:
-	@go test -count=1 -coverprofile=coverage.out ./...
+	@$(GO) test -count=1 -coverprofile=coverage.out ./...
 	@{ IFS= read -r mode; printf '%s\n' "$$mode"; LC_ALL=C sort; } < coverage.out > coverage.sorted.out
 	@mv coverage.sorted.out coverage.out
 	@grep -v '\.gen\.go' coverage.out | grep -v '_templ\.go' > coverage.filtered.out
 	@{ IFS= read -r mode; printf '%s\n' "$$mode"; LC_ALL=C sort; } < coverage.filtered.out > coverage.filtered.sorted.out
 	@mv coverage.filtered.sorted.out coverage.filtered.out
-	@coverage=$$(go tool cover -func=coverage.filtered.out | grep total: | awk '{print $$3}' | sed 's/%//'); \
+	@coverage=$$($(GO) tool cover -func=coverage.filtered.out | grep total: | awk '{print $$3}' | sed 's/%//'); \
 	if [ "$$coverage" != "100.0" ]; then \
 		echo "Test coverage is $$coverage%, expected 100.0%"; \
 		exit 1; \
@@ -54,9 +58,9 @@ check: lint test build
 
 coverage-summary: test
 	@echo "Raw coverage:"
-	@go tool cover -func=coverage.out | grep total:
+	@$(GO) tool cover -func=coverage.out | grep total:
 	@echo "Filtered coverage (excluding generated OpenAPI and templ output):"
-	@go tool cover -func=coverage.filtered.out | grep total:
+	@$(GO) tool cover -func=coverage.filtered.out | grep total:
 
 codecov-html:
-	go tool cover -html=coverage.out
+	$(GO) tool cover -html=coverage.out

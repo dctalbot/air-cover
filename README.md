@@ -20,7 +20,7 @@ This project is built using Go. The general structure follows standard Go projec
 
 ## Getting Started
 
-1. Ensure you have Go 1.24 or later installed.
+1. Ensure you have Go 1.26.0 or later installed.
 2. Clone the repository.
 3. Run the application:
    ```sh
