@@ -21,12 +21,12 @@ var ErrCatalog = errors.New("show catalog error")
 const maxCreateNotesLength = 1000
 
 type Repository interface {
-	ListSubRequests(ctx context.Context) ([]*domain.SubRequest, error)
+	ListSubRequests(ctx context.Context) ([]SubRequestRecord, error)
 	CreateSubRequest(ctx context.Context, sr *domain.SubRequest) error
 	GetSubRequestByID(ctx context.Context, id int) (*domain.SubRequest, error)
 	DeleteSubRequest(ctx context.Context, id int) error
-	TakeSubRequest(ctx context.Context, id int, userID int) error
-	UntakeSubRequest(ctx context.Context, id int) error
+	TakeSubRequest(ctx context.Context, id int, userID int, updatedAt time.Time) error
+	UntakeSubRequest(ctx context.Context, id int, updatedAt time.Time) error
 }
 
 type Catalog interface {
@@ -49,17 +49,25 @@ func NewService(repo Repository, catalog Catalog) *Service {
 
 type Dashboard struct {
 	Shows    []appcatalog.Show
-	Upcoming []SubRequest
-	Past     []SubRequest
+	Upcoming []DashboardSubRequest
+	Past     []DashboardSubRequest
 }
 
-type SubRequest struct {
-	Request   *domain.SubRequest
-	ShowTitle string
-	CanDelete bool
-	CanTake   bool
-	CanUntake bool
-	IsPast    bool
+type SubRequestRecord struct {
+	Request        *domain.SubRequest
+	RequesterEmail string
+	TakerEmail     string
+}
+
+type DashboardSubRequest struct {
+	Request        *domain.SubRequest
+	RequesterEmail string
+	TakerEmail     string
+	ShowTitle      string
+	CanDelete      bool
+	CanTake        bool
+	CanUntake      bool
+	IsPast         bool
 }
 
 type CreateInput struct {
@@ -100,17 +108,20 @@ func (s *Service) ListDashboard(ctx context.Context, viewer session.CurrentUser)
 
 	showMap := showTitlesByID(shows)
 	now := s.now()
-	var upcoming []SubRequest
-	var past []SubRequest
+	var upcoming []DashboardSubRequest
+	var past []DashboardSubRequest
 
-	for _, sr := range subRequests {
-		item := SubRequest{
-			Request:   sr,
-			ShowTitle: showTitle(showMap, sr.ShowID),
-			CanDelete: policy.CanDeleteSubRequest(viewer, sr),
-			CanTake:   policy.CanTakeSubRequest(viewer, sr),
-			CanUntake: policy.CanUntakeSubRequest(viewer, sr),
-			IsPast:    sr.StartTime.Before(now),
+	for _, record := range subRequests {
+		sr := record.Request
+		item := DashboardSubRequest{
+			Request:        sr,
+			RequesterEmail: record.RequesterEmail,
+			TakerEmail:     record.TakerEmail,
+			ShowTitle:      showTitle(showMap, sr.ShowID),
+			CanDelete:      policy.CanDeleteSubRequest(viewer, sr),
+			CanTake:        policy.CanTakeSubRequest(viewer, sr),
+			CanUntake:      policy.CanUntakeSubRequest(viewer, sr),
+			IsPast:         sr.StartTime.Before(now),
 		}
 		if item.IsPast {
 			past = append(past, item)
@@ -202,14 +213,14 @@ func (s *Service) ApplyAction(ctx context.Context, viewer session.CurrentUser, i
 
 	switch action {
 	case ActionTake:
-		if err := s.repo.TakeSubRequest(ctx, id, viewer.ID); err != nil {
+		if err := s.repo.TakeSubRequest(ctx, id, viewer.ID, s.now()); err != nil {
 			return mapRepositoryError(err)
 		}
 	case ActionUntake:
 		if !policy.CanUntakeSubRequest(viewer, sr) {
 			return apperrors.ErrForbidden
 		}
-		if err := s.repo.UntakeSubRequest(ctx, id); err != nil {
+		if err := s.repo.UntakeSubRequest(ctx, id, s.now()); err != nil {
 			return mapRepositoryError(err)
 		}
 	}

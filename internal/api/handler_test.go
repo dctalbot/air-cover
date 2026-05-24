@@ -14,6 +14,7 @@ import (
 
 	"air-cover/internal/adapters/sqlite"
 	appcatalog "air-cover/internal/app/catalog"
+	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
 
@@ -42,7 +43,7 @@ func (b *badShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Person
 
 type fakeServerRepo struct {
 	session       *domain.Session
-	subRequests   []*domain.SubRequest
+	subRequests   []subrequestsapp.SubRequestRecord
 	subRequest    *domain.SubRequest
 	users         []*domain.User
 	err           error
@@ -55,7 +56,7 @@ type fakeServerRepo struct {
 	createSubErr  error
 }
 
-func (f *fakeServerRepo) GetSessionByToken(ctx context.Context, sessionToken string) (*domain.Session, error) {
+func (f *fakeServerRepo) GetSessionByToken(ctx context.Context, sessionToken string, now time.Time) (*domain.Session, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -80,7 +81,7 @@ func (f *fakeServerRepo) CreateMagicLink(ctx context.Context, userID int, tokenH
 	return nil
 }
 
-func (f *fakeServerRepo) UseMagicLink(ctx context.Context, tokenHash string) (*domain.MagicLink, error) {
+func (f *fakeServerRepo) UseMagicLink(ctx context.Context, tokenHash string, now time.Time) (*domain.MagicLink, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -95,7 +96,7 @@ func (f *fakeServerRepo) DeleteSessionsByUserID(ctx context.Context, userID int)
 	return nil
 }
 
-func (f *fakeServerRepo) ListSubRequests(ctx context.Context) ([]*domain.SubRequest, error) {
+func (f *fakeServerRepo) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubRequestRecord, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -134,11 +135,11 @@ func (f *fakeServerRepo) DeleteSubRequest(ctx context.Context, id int) error {
 	return f.deleteErr
 }
 
-func (f *fakeServerRepo) TakeSubRequest(ctx context.Context, id int, userID int) error {
+func (f *fakeServerRepo) TakeSubRequest(ctx context.Context, id int, userID int, updatedAt time.Time) error {
 	return f.takeErr
 }
 
-func (f *fakeServerRepo) UntakeSubRequest(ctx context.Context, id int) error {
+func (f *fakeServerRepo) UntakeSubRequest(ctx context.Context, id int, updatedAt time.Time) error {
 	return f.untakeErr
 }
 
@@ -2078,7 +2079,7 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 			EndTime:        time.Now().Add(time.Hour),
 		}
 		_ = repo.CreateSubRequest(context.Background(), srTaken)
-		_ = repo.TakeSubRequest(context.Background(), srTaken.ID, u2.ID)
+		_ = repo.TakeSubRequest(context.Background(), srTaken.ID, u2.ID, time.Now())
 
 		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/"+strconv.Itoa(srTaken.ID),
 			strings.NewReader(`{"action":"take"}`))
@@ -2163,7 +2164,7 @@ func TestServer_PatchSubRequestsId_UntakeDBError(t *testing.T) {
 		EndTime:        time.Now().Add(time.Hour),
 	}
 	_ = repo.CreateSubRequest(context.Background(), sr)
-	_ = repo.TakeSubRequest(context.Background(), sr.ID, u2.ID)
+	_ = repo.TakeSubRequest(context.Background(), sr.ID, u2.ID, time.Now())
 
 	// Close the DB after taking the sub request
 	_ = repo.DB().Close()

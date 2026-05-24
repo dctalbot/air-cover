@@ -16,7 +16,6 @@ import (
 	adapteremail "air-cover/internal/adapters/email"
 	adapterspinitron "air-cover/internal/adapters/spinitron"
 	"air-cover/internal/adapters/sqlite"
-	coreapp "air-cover/internal/app"
 	adminapp "air-cover/internal/app/admin"
 	authapp "air-cover/internal/app/auth"
 	subrequestsapp "air-cover/internal/app/subrequests"
@@ -56,12 +55,12 @@ type serverDeps struct {
 	initDB           func(string) (*sql.DB, error)
 	newSender        func(apiKey, fromEmail, env string) authapp.Sender
 	newSpinitron     func(apiKey, baseURL string) adapterspinitron.PageClient
-	newCatalog       func(adapterspinitron.PageClient) coreapp.Catalog
+	newCatalog       func(adapterspinitron.PageClient) catalog
 	newRouter        func(*api.Server, *api.AuthHandler) chi.Router
 	listenAndServe   func(*http.Server) error
 	backgroundCtx    func() context.Context
 	newAuthHandler   func(authapp.Repository, authapp.Sender) *api.AuthHandler
-	newAPIServer     func(subrequestsapp.Repository, adminapp.Repository, *api.AuthHandler, coreapp.Catalog) *api.Server
+	newAPIServer     func(subrequestsapp.Repository, adminapp.Repository, *api.AuthHandler, catalog) *api.Server
 	newDBRepository  func(*sql.DB) repositories
 	setDefaultLogger func(*config.Config)
 	signalContext    func(context.Context) (context.Context, context.CancelFunc)
@@ -81,6 +80,11 @@ type repositories struct {
 	admin       adminapp.Repository
 }
 
+type catalog interface {
+	adminapp.Catalog
+	subrequestsapp.Catalog
+}
+
 func defaultServerDeps() serverDeps {
 	return serverDeps{
 		loadConfig: config.Load,
@@ -91,14 +95,14 @@ func defaultServerDeps() serverDeps {
 		newSpinitron: func(apiKey, baseURL string) adapterspinitron.PageClient {
 			return adapterspinitron.NewClient(apiKey, baseURL)
 		},
-		newCatalog:     func(source adapterspinitron.PageClient) coreapp.Catalog { return adapterspinitron.NewCatalog(source) },
+		newCatalog:     func(source adapterspinitron.PageClient) catalog { return adapterspinitron.NewCatalog(source) },
 		newRouter:      newRouter,
 		listenAndServe: listenAndServe,
 		backgroundCtx:  context.Background,
 		newAuthHandler: func(repo authapp.Repository, sender authapp.Sender) *api.AuthHandler {
 			return api.NewAuthHandler(repo, sender)
 		},
-		newAPIServer: func(subRequestsRepo subrequestsapp.Repository, adminRepo adminapp.Repository, authHandler *api.AuthHandler, catalog coreapp.Catalog) *api.Server {
+		newAPIServer: func(subRequestsRepo subrequestsapp.Repository, adminRepo adminapp.Repository, authHandler *api.AuthHandler, catalog catalog) *api.Server {
 			return api.NewServer(
 				authHandler,
 				subrequestsapp.NewService(subRequestsRepo, catalog),

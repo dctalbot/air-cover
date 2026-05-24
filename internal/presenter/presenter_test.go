@@ -11,28 +11,28 @@ import (
 func TestSubRequestDashboard(t *testing.T) {
 	start := time.Date(2026, 5, 23, 15, 4, 0, 0, time.UTC)
 	dashboard := subrequests.Dashboard{
-		Upcoming: []subrequests.SubRequest{{
+		Upcoming: []subrequests.DashboardSubRequest{{
 			Request: &domain.SubRequest{
-				ID:             1,
-				RequesterEmail: "requester@example.com",
-				StartTime:      start,
-				EndTime:        start.Add(90 * time.Minute),
+				ID:        1,
+				StartTime: start,
+				EndTime:   start.Add(90 * time.Minute),
 			},
-			ShowTitle: "Example Show",
-			CanDelete: true,
-			CanTake:   true,
+			RequesterEmail: "requester@example.com",
+			ShowTitle:      "Example Show",
+			CanDelete:      true,
+			CanTake:        true,
 		}},
-		Past: []subrequests.SubRequest{{
+		Past: []subrequests.DashboardSubRequest{{
 			Request: &domain.SubRequest{
 				ID:            2,
 				TakenByUserID: intPtr(3),
-				TakerEmail:    "taker@example.com",
 				StartTime:     start.Add(-24 * time.Hour),
 				EndTime:       start.Add(-23 * time.Hour),
 			},
-			ShowTitle: "Past Show",
-			CanUntake: true,
-			IsPast:    true,
+			TakerEmail: "taker@example.com",
+			ShowTitle:  "Past Show",
+			CanUntake:  true,
+			IsPast:     true,
 		}},
 	}
 

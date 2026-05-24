@@ -28,9 +28,9 @@ type authRepository interface {
 	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
 	GetUserByID(ctx context.Context, id int) (*domain.User, error)
 	CreateMagicLink(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error
-	UseMagicLink(ctx context.Context, tokenHash string) (*domain.MagicLink, error)
+	UseMagicLink(ctx context.Context, tokenHash string, now time.Time) (*domain.MagicLink, error)
 	CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error
-	GetSessionByToken(ctx context.Context, sessionToken string) (*domain.Session, error)
+	GetSessionByToken(ctx context.Context, sessionToken string, now time.Time) (*domain.Session, error)
 	DeleteSessionsByUserID(ctx context.Context, userID int) error
 }
 

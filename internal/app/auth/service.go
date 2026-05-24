@@ -30,9 +30,9 @@ type Repository interface {
 	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
 	GetUserByID(ctx context.Context, id int) (*domain.User, error)
 	CreateMagicLink(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error
-	UseMagicLink(ctx context.Context, tokenHash string) (*domain.MagicLink, error)
+	UseMagicLink(ctx context.Context, tokenHash string, now time.Time) (*domain.MagicLink, error)
 	CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error
-	GetSessionByToken(ctx context.Context, sessionToken string) (*domain.Session, error)
+	GetSessionByToken(ctx context.Context, sessionToken string, now time.Time) (*domain.Session, error)
 	DeleteSessionsByUserID(ctx context.Context, userID int) error
 }
 
@@ -125,7 +125,8 @@ func (s *Service) RequestLogin(ctx context.Context, input LoginInput) (LoginResu
 }
 
 func (s *Service) VerifyMagicLink(ctx context.Context, rawToken string) (VerifiedSession, error) {
-	ml, err := s.repo.UseMagicLink(ctx, HashToken(rawToken))
+	now := s.now()
+	ml, err := s.repo.UseMagicLink(ctx, HashToken(rawToken), now)
 	if err != nil {
 		return VerifiedSession{}, fmt.Errorf("%w: %v", ErrInvalidMagicLink, err)
 	}
@@ -139,7 +140,7 @@ func (s *Service) VerifyMagicLink(ctx context.Context, rawToken string) (Verifie
 		return VerifiedSession{}, err
 	}
 
-	expiresAt := s.now().Add(sessionTTL)
+	expiresAt := now.Add(sessionTTL)
 	if err := s.repo.CreateSession(ctx, sessionID, sessionToken, ml.UserID, expiresAt); err != nil {
 		return VerifiedSession{}, err
 	}
@@ -151,7 +152,7 @@ func (s *Service) Logout(ctx context.Context, userID int) error {
 }
 
 func (s *Service) AuthenticateSession(ctx context.Context, sessionToken string) (domain.CurrentUser, error) {
-	sess, err := s.repo.GetSessionByToken(ctx, sessionToken)
+	sess, err := s.repo.GetSessionByToken(ctx, sessionToken, s.now())
 	if err != nil {
 		return domain.CurrentUser{}, err
 	}

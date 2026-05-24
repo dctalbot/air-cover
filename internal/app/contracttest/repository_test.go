@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
 )
@@ -86,7 +87,7 @@ func (r *memoryRepository) CreateMagicLink(ctx context.Context, userID int, toke
 	return nil
 }
 
-func (r *memoryRepository) UseMagicLink(ctx context.Context, tokenHash string) (*domain.MagicLink, error) {
+func (r *memoryRepository) UseMagicLink(ctx context.Context, tokenHash string, now time.Time) (*domain.MagicLink, error) {
 	link, ok := r.magicLinks[tokenHash]
 	if !ok {
 		return nil, apperrors.ErrNotFound
@@ -100,7 +101,7 @@ func (r *memoryRepository) CreateSession(ctx context.Context, sessionID, session
 	return nil
 }
 
-func (r *memoryRepository) GetSessionByToken(ctx context.Context, sessionToken string) (*domain.Session, error) {
+func (r *memoryRepository) GetSessionByToken(ctx context.Context, sessionToken string, now time.Time) (*domain.Session, error) {
 	session, ok := r.sessions[sessionToken]
 	if !ok {
 		return nil, apperrors.ErrNotFound
@@ -117,8 +118,12 @@ func (r *memoryRepository) DeleteSessionsByUserID(ctx context.Context, userID in
 	return nil
 }
 
-func (r *memoryRepository) ListSubRequests(ctx context.Context) ([]*domain.SubRequest, error) {
-	return r.subRequests, nil
+func (r *memoryRepository) ListSubRequests(ctx context.Context) ([]subrequestsapp.SubRequestRecord, error) {
+	requests := make([]subrequestsapp.SubRequestRecord, 0, len(r.subRequests))
+	for _, request := range r.subRequests {
+		requests = append(requests, subrequestsapp.SubRequestRecord{Request: request})
+	}
+	return requests, nil
 }
 
 func (r *memoryRepository) CreateSubRequest(ctx context.Context, request *domain.SubRequest) error {
@@ -147,7 +152,7 @@ func (r *memoryRepository) DeleteSubRequest(ctx context.Context, id int) error {
 	return apperrors.ErrNotFound
 }
 
-func (r *memoryRepository) TakeSubRequest(ctx context.Context, id int, userID int) error {
+func (r *memoryRepository) TakeSubRequest(ctx context.Context, id int, userID int, updatedAt time.Time) error {
 	request, err := r.GetSubRequestByID(ctx, id)
 	if err != nil {
 		return err
@@ -160,7 +165,7 @@ func (r *memoryRepository) TakeSubRequest(ctx context.Context, id int, userID in
 	return nil
 }
 
-func (r *memoryRepository) UntakeSubRequest(ctx context.Context, id int) error {
+func (r *memoryRepository) UntakeSubRequest(ctx context.Context, id int, updatedAt time.Time) error {
 	request, err := r.GetSubRequestByID(ctx, id)
 	if err != nil {
 		return err

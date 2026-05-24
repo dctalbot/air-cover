@@ -29,15 +29,15 @@ func AdminUsers(users []*domain.User, currentUserID int) []ui.UserView {
 	return views
 }
 
-func subRequestViews(items []subrequests.SubRequest) []ui.SubRequestView {
+func subRequestViews(items []subrequests.DashboardSubRequest) []ui.SubRequestView {
 	views := make([]ui.SubRequestView, 0, len(items))
 	for _, item := range items {
 		sr := item.Request
 		views = append(views, ui.SubRequestView{
 			ID:             sr.ID,
 			ShowTitle:      item.ShowTitle,
-			RequesterEmail: sr.RequesterEmail,
-			TakerEmail:     sr.TakerEmail,
+			RequesterEmail: item.RequesterEmail,
+			TakerEmail:     item.TakerEmail,
 			StartTime:      sr.StartTime.Format("Jan 2, 3:04pm"),
 			EndTime:        sr.EndTime.Format(time.RFC3339),
 			Duration:       FormatDuration(sr.EndTime.Sub(sr.StartTime)),

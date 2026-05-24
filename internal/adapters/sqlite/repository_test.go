@@ -125,7 +125,7 @@ func TestRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ml, err := repo.UseMagicLink(ctx, "hash123")
+	ml, err := repo.UseMagicLink(ctx, "hash123", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,12 +144,12 @@ func TestRepository(t *testing.T) {
 	}
 
 	// Using it again should fail with ErrNotFound
-	_, err = repo.UseMagicLink(ctx, "hash123")
+	_, err = repo.UseMagicLink(ctx, "hash123", time.Now())
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound using link twice, got %v", err)
 	}
 
-	_, err = repo.UseMagicLink(ctx, "notfound")
+	_, err = repo.UseMagicLink(ctx, "notfound", time.Now())
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
@@ -159,7 +159,7 @@ func TestRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = repo.UseMagicLink(ctx, "expired-hash")
+	_, err = repo.UseMagicLink(ctx, "expired-hash", time.Now())
 	if err == nil {
 		t.Fatal("expected error for expired magic link")
 	}
@@ -170,7 +170,7 @@ func TestRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s, err := repo.GetSessionByToken(ctx, "stoken")
+	s, err := repo.GetSessionByToken(ctx, "stoken", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestRepository(t *testing.T) {
 		t.Fatalf("expected userid %v, got %v", u.ID, s.UserID)
 	}
 
-	_, err = repo.GetSessionByToken(ctx, "notfound")
+	_, err = repo.GetSessionByToken(ctx, "notfound", time.Now())
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
@@ -188,7 +188,7 @@ func TestRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = repo.GetSessionByToken(ctx, "stoken2")
+	_, err = repo.GetSessionByToken(ctx, "stoken2", time.Now())
 	if err == nil {
 		t.Fatal("expected error for expired session")
 	}
@@ -198,7 +198,7 @@ func TestRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = repo.GetSessionByToken(ctx, "stoken")
+	_, err = repo.GetSessionByToken(ctx, "stoken", time.Now())
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
@@ -226,12 +226,12 @@ func TestRepository(t *testing.T) {
 	if len(list) == 0 {
 		t.Fatal("expected at least one sub request")
 	}
-	if list[0].ID == 0 {
+	if list[0].Request.ID == 0 {
 		t.Fatal("expected non-zero id for created sub request")
 	}
-	sr.ID = list[0].ID
-	if list[0].ID != sr.ID {
-		t.Fatalf("expected id %v, got %v", sr.ID, list[0].ID)
+	sr.ID = list[0].Request.ID
+	if list[0].Request.ID != sr.ID {
+		t.Fatalf("expected id %v, got %v", sr.ID, list[0].Request.ID)
 	}
 	if list[0].RequesterEmail != u.Email {
 		t.Fatalf("expected email %v, got %v", u.Email, list[0].RequesterEmail)
@@ -281,7 +281,7 @@ func TestRepository(t *testing.T) {
 	}
 
 	u4, _ := repo.CreateUser(ctx, "taker@example.com", "member")
-	err = repo.TakeSubRequest(ctx, sr3.ID, u4.ID)
+	err = repo.TakeSubRequest(ctx, sr3.ID, u4.ID, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,12 +293,12 @@ func TestRepository(t *testing.T) {
 	}
 	found := false
 	for _, item := range list2 {
-		if item.ID == sr3.ID {
+		if item.Request.ID == sr3.ID {
 			found = true
 			if item.TakerEmail != u4.Email {
 				t.Fatalf("expected taker email %v, got %v", u4.Email, item.TakerEmail)
 			}
-			if item.TakenByUserID == nil || *item.TakenByUserID != u4.ID {
+			if item.Request.TakenByUserID == nil || *item.Request.TakenByUserID != u4.ID {
 				t.Fatalf("expected taken_by_user_id %v", u4.ID)
 			}
 		}
@@ -307,18 +307,18 @@ func TestRepository(t *testing.T) {
 		t.Fatal("expected to find the taken sub request")
 	}
 
-	err = repo.TakeSubRequest(ctx, 99999, u4.ID)
+	err = repo.TakeSubRequest(ctx, 99999, u4.ID, time.Now())
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound for TakeSubRequest, got %v", err)
 	}
 
-	err = repo.TakeSubRequest(ctx, sr3.ID, u4.ID)
+	err = repo.TakeSubRequest(ctx, sr3.ID, u4.ID, time.Now())
 	if err != ErrConflict {
 		t.Fatalf("expected ErrConflict for already taken TakeSubRequest, got %v", err)
 	}
 
 	// UntakeSubRequest
-	err = repo.UntakeSubRequest(ctx, sr3.ID)
+	err = repo.UntakeSubRequest(ctx, sr3.ID, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,7 +331,7 @@ func TestRepository(t *testing.T) {
 		t.Fatal("expected TakenByUserID to be nil after untake")
 	}
 
-	err = repo.UntakeSubRequest(ctx, 99999)
+	err = repo.UntakeSubRequest(ctx, 99999, time.Now())
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound for UntakeSubRequest, got %v", err)
 	}
@@ -412,7 +412,7 @@ func TestRepositoryErrors(t *testing.T) {
 		t.Error("expected error with cancelled context in CreateMagicLink")
 	}
 
-	_, err = repo.UseMagicLink(ctx, "hash")
+	_, err = repo.UseMagicLink(ctx, "hash", time.Now())
 	if err == nil {
 		t.Error("expected error with cancelled context in UseMagicLink")
 	}
@@ -422,7 +422,7 @@ func TestRepositoryErrors(t *testing.T) {
 		t.Error("expected error with cancelled context in CreateSession")
 	}
 
-	_, err = repo.GetSessionByToken(ctx, "stoken")
+	_, err = repo.GetSessionByToken(ctx, "stoken", time.Now())
 	if err == nil {
 		t.Error("expected error with cancelled context in GetSessionByToken")
 	}
@@ -469,12 +469,12 @@ func TestRepositoryErrors(t *testing.T) {
 		t.Error("expected error with cancelled context in UpdateUser")
 	}
 
-	err = repo.TakeSubRequest(ctx, 1, 1)
+	err = repo.TakeSubRequest(ctx, 1, 1, time.Now())
 	if err == nil {
 		t.Error("expected error with cancelled context in TakeSubRequest")
 	}
 
-	err = repo.UntakeSubRequest(ctx, 1)
+	err = repo.UntakeSubRequest(ctx, 1, time.Now())
 	if err == nil {
 		t.Error("expected error with cancelled context in UntakeSubRequest")
 	}
@@ -776,7 +776,7 @@ func TestUseMagicLink_AlreadyUsed(t *testing.T) {
 	}
 
 	// Should fail with "magic link expired or already used"
-	_, err = repo.UseMagicLink(ctx, "used-hash")
+	_, err = repo.UseMagicLink(ctx, "used-hash", time.Now())
 	if err == nil {
 		t.Fatal("expected error for already-used magic link")
 	}
@@ -790,7 +790,7 @@ func TestUseMagicLink_ConsumeError(t *testing.T) {
 		WithArgs("del-hash", sqlmock.AnyArg()).
 		WillReturnError(errors.New("consume failed"))
 
-	if _, err := repo.UseMagicLink(context.Background(), "del-hash"); err == nil {
+	if _, err := repo.UseMagicLink(context.Background(), "del-hash", time.Now()); err == nil {
 		t.Fatal("expected consume error")
 	}
 }
@@ -877,11 +877,11 @@ func TestListSubRequestsOrdering(t *testing.T) {
 	}
 
 	// Verify they are ordered by start time ascending
-	if !list[0].StartTime.Before(list[1].StartTime) {
-		t.Errorf("expected %v before %v", list[0].StartTime, list[1].StartTime)
+	if !list[0].Request.StartTime.Before(list[1].Request.StartTime) {
+		t.Errorf("expected %v before %v", list[0].Request.StartTime, list[1].Request.StartTime)
 	}
-	if !list[1].StartTime.Before(list[2].StartTime) {
-		t.Errorf("expected %v before %v", list[1].StartTime, list[2].StartTime)
+	if !list[1].Request.StartTime.Before(list[2].Request.StartTime) {
+		t.Errorf("expected %v before %v", list[1].Request.StartTime, list[2].Request.StartTime)
 	}
 }
 
@@ -942,7 +942,7 @@ func TestRepositoryDriverLevelErrors(t *testing.T) {
 			WithArgs(2, sqlmock.AnyArg(), 9).
 			WillReturnResult(sqlmock.NewErrorResult(errors.New("rows affected failed")))
 
-		err := repo.TakeSubRequest(context.Background(), 9, 2)
+		err := repo.TakeSubRequest(context.Background(), 9, 2, time.Now())
 		if err == nil {
 			t.Fatal("expected RowsAffected error")
 		}
@@ -956,7 +956,7 @@ func TestRepositoryDriverLevelErrors(t *testing.T) {
 			WithArgs(sqlmock.AnyArg(), 9).
 			WillReturnResult(sqlmock.NewErrorResult(errors.New("rows affected failed")))
 
-		err := repo.UntakeSubRequest(context.Background(), 9)
+		err := repo.UntakeSubRequest(context.Background(), 9, time.Now())
 		if err == nil {
 			t.Fatal("expected RowsAffected error")
 		}

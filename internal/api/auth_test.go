@@ -384,7 +384,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 	}
 
 	// Verify session is deleted
-	session, err := repo.GetSessionByToken(context.Background(), "stoken")
+	session, err := repo.GetSessionByToken(context.Background(), "stoken", time.Now())
 	if err == nil {
 		t.Errorf("expected session to be deleted, but found session for user %d", session.UserID)
 	}

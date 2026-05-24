@@ -3,7 +3,6 @@ package policy
 import (
 	"testing"
 
-	"air-cover/internal/app/session"
 	"air-cover/internal/domain"
 )
 
@@ -11,7 +10,7 @@ func TestSubRequestPermissions(t *testing.T) {
 	takerID := 2
 	tests := []struct {
 		name      string
-		viewer    session.CurrentUser
+		viewer    domain.CurrentUser
 		request   *domain.SubRequest
 		canDelete bool
 		canTake   bool
@@ -19,32 +18,32 @@ func TestSubRequestPermissions(t *testing.T) {
 	}{
 		{
 			name:      "poster can delete but cannot take own request",
-			viewer:    session.CurrentUser{ID: 1, Role: "member"},
+			viewer:    domain.CurrentUser{ID: 1, Role: "member"},
 			request:   &domain.SubRequest{PostedByUserID: 1},
 			canDelete: true,
 		},
 		{
 			name:    "member can take someone else's open request",
-			viewer:  session.CurrentUser{ID: 2, Role: "member"},
+			viewer:  domain.CurrentUser{ID: 2, Role: "member"},
 			request: &domain.SubRequest{PostedByUserID: 1},
 			canTake: true,
 		},
 		{
 			name:      "admin can delete and take own open request",
-			viewer:    session.CurrentUser{ID: 1, Role: "admin"},
+			viewer:    domain.CurrentUser{ID: 1, Role: "admin"},
 			request:   &domain.SubRequest{PostedByUserID: 1},
 			canDelete: true,
 			canTake:   true,
 		},
 		{
 			name:      "taker can untake filled request",
-			viewer:    session.CurrentUser{ID: takerID, Role: "member"},
+			viewer:    domain.CurrentUser{ID: takerID, Role: "member"},
 			request:   &domain.SubRequest{PostedByUserID: 1, TakenByUserID: &takerID},
 			canUntake: true,
 		},
 		{
 			name:    "other member cannot modify filled request",
-			viewer:  session.CurrentUser{ID: 3, Role: "member"},
+			viewer:  domain.CurrentUser{ID: 3, Role: "member"},
 			request: &domain.SubRequest{PostedByUserID: 1, TakenByUserID: &takerID},
 		},
 	}
@@ -65,7 +64,7 @@ func TestSubRequestPermissions(t *testing.T) {
 }
 
 func TestCanDeactivateUser(t *testing.T) {
-	viewer := session.CurrentUser{ID: 1}
+	viewer := domain.CurrentUser{ID: 1}
 	if CanDeactivateUser(viewer, 1) {
 		t.Error("expected users not to be able to deactivate themselves")
 	}

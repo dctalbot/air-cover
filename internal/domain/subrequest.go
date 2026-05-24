@@ -9,15 +9,12 @@ const (
 	SubRequestStatusFilled SubRequestStatus = "filled"
 )
 
-// SubRequest is the core request entity. Email fields are read-model
-// enrichment for dashboards until those query models are split out fully.
+// SubRequest is the core request entity.
 type SubRequest struct {
 	ID             int       `json:"id"`
 	ShowID         int       `json:"show_id"`
 	PostedByUserID int       `json:"posted_by_user_id"`
 	TakenByUserID  *int      `json:"taken_by_user_id"`
-	RequesterEmail string    `json:"requester_email,omitempty"`
-	TakerEmail     string    `json:"taker_email,omitempty"`
 	SubstituteID   *int      `json:"substitute_id"`
 	StartTime      time.Time `json:"start_time"`
 	EndTime        time.Time `json:"end_time"`

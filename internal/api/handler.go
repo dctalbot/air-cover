@@ -17,6 +17,8 @@ import (
 	"air-cover/internal/ui"
 )
 
+const maxFormBodyBytes = 1024 * 1024
+
 type Server struct {
 	auth        *AuthHandler
 	subRequests *subrequestsapp.Service
@@ -153,52 +155,15 @@ func (s *Server) GetAuthVerify(w http.ResponseWriter, r *http.Request, params Ge
 // Create a new sub request
 // (POST /sub-requests)
 func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {
-	// Limit request body size to 1MB to prevent memory exhaustion (G120)
-	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
-
-	if err := r.ParseForm(); err != nil {
-		slog.Error("Failed to parse form", "error", err)
-		http.Error(w, "Invalid form data", http.StatusBadRequest)
+	input, ok := parseCreateSubRequestInput(w, r)
+	if !ok {
 		return
 	}
-
-	showIDStr := r.FormValue("show")
-	showID, err := strconv.Atoi(showIDStr)
-	if err != nil {
-		slog.Error("Invalid show ID", "show", strconv.Quote(showIDStr), "error", err)
-		http.Error(w, "Invalid show ID", http.StatusBadRequest)
-		return
-	}
-
-	startTimeStr := r.FormValue("start_time")
-	startTime, err := time.Parse("2006-01-02T15:04", startTimeStr)
-	if err != nil {
-		slog.Error("Invalid start time", "start_time", strconv.Quote(startTimeStr), "error", err)
-		http.Error(w, "Invalid start time", http.StatusBadRequest)
-		return
-	}
-
-	endTimeStr := r.FormValue("end_time")
-	endTime, err := time.Parse("2006-01-02T15:04", endTimeStr)
-	if err != nil {
-		slog.Error("Invalid end time", "end_time", strconv.Quote(endTimeStr), "error", err)
-		http.Error(w, "Invalid end time", http.StatusBadRequest)
-		return
-	}
-
-	notes := r.FormValue("notes")
 
 	viewer, ok := requireCurrentUser(w, r)
 	if !ok {
 		slog.Error("User ID not found in context")
 		return
-	}
-
-	input := subrequestsapp.CreateInput{
-		ShowID:    showID,
-		StartTime: startTime,
-		EndTime:   endTime,
-		Notes:     notes,
 	}
 
 	if err := s.subRequests.Create(r.Context(), viewer, input); err != nil {
@@ -269,39 +234,9 @@ func (s *Server) PatchSubRequestsId(w http.ResponseWriter, r *http.Request, id i
 // Update a user's status
 // (POST /users/{id})
 func (s *Server) PostUsersId(w http.ResponseWriter, r *http.Request, id int) {
-	var isEnabled *bool
-	var role *string
-
-	// Limit request body size to 1MB to prevent memory exhaustion
-	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
-
-	contentType := r.Header.Get("Content-Type")
-	isForm := strings.HasPrefix(contentType, "application/x-www-form-urlencoded")
-
-	if isForm {
-		if err := r.ParseForm(); err != nil {
-			slog.Error("Failed to parse form", "error", err)
-			http.Error(w, "Invalid form data", http.StatusBadRequest)
-			return
-		}
-		if val := r.FormValue("is_enabled"); val != "" {
-			b := val == "true"
-			isEnabled = &b
-		}
-		if val := r.FormValue("role"); val != "" {
-			role = &val
-		}
-	} else {
-		var req struct {
-			IsEnabled *bool   `json:"is_enabled"`
-			Role      *string `json:"role"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
-			return
-		}
-		isEnabled = req.IsEnabled
-		role = req.Role
+	input, isForm, ok := parseUpdateUserInput(w, r, id)
+	if !ok {
+		return
 	}
 
 	viewer, ok := requireCurrentUser(w, r)
@@ -309,11 +244,6 @@ func (s *Server) PostUsersId(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 
-	input := adminapp.UpdateUserInput{
-		ID:        id,
-		Role:      role,
-		IsEnabled: isEnabled,
-	}
 	if err := s.admin.UpdateUser(r.Context(), viewer, input); err != nil {
 		if writeAppError(w, err) {
 			return
@@ -379,6 +309,85 @@ func userFromContext(r *http.Request) (session.CurrentUser, bool) {
 		Email: email,
 		Role:  role,
 	}, true
+}
+
+func parseCreateSubRequestInput(w http.ResponseWriter, r *http.Request) (subrequestsapp.CreateInput, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxFormBodyBytes)
+
+	if err := r.ParseForm(); err != nil {
+		slog.Error("Failed to parse form", "error", err)
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return subrequestsapp.CreateInput{}, false
+	}
+
+	showIDStr := r.FormValue("show")
+	showID, err := strconv.Atoi(showIDStr)
+	if err != nil {
+		slog.Error("Invalid show ID", "show", strconv.Quote(showIDStr), "error", err)
+		http.Error(w, "Invalid show ID", http.StatusBadRequest)
+		return subrequestsapp.CreateInput{}, false
+	}
+
+	startTimeStr := r.FormValue("start_time")
+	startTime, err := time.Parse("2006-01-02T15:04", startTimeStr)
+	if err != nil {
+		slog.Error("Invalid start time", "start_time", strconv.Quote(startTimeStr), "error", err)
+		http.Error(w, "Invalid start time", http.StatusBadRequest)
+		return subrequestsapp.CreateInput{}, false
+	}
+
+	endTimeStr := r.FormValue("end_time")
+	endTime, err := time.Parse("2006-01-02T15:04", endTimeStr)
+	if err != nil {
+		slog.Error("Invalid end time", "end_time", strconv.Quote(endTimeStr), "error", err)
+		http.Error(w, "Invalid end time", http.StatusBadRequest)
+		return subrequestsapp.CreateInput{}, false
+	}
+
+	return subrequestsapp.CreateInput{
+		ShowID:    showID,
+		StartTime: startTime,
+		EndTime:   endTime,
+		Notes:     r.FormValue("notes"),
+	}, true
+}
+
+func parseUpdateUserInput(w http.ResponseWriter, r *http.Request, id int) (adminapp.UpdateUserInput, bool, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxFormBodyBytes)
+
+	contentType := r.Header.Get("Content-Type")
+	isForm := strings.HasPrefix(contentType, "application/x-www-form-urlencoded")
+
+	var input adminapp.UpdateUserInput
+	input.ID = id
+
+	if isForm {
+		if err := r.ParseForm(); err != nil {
+			slog.Error("Failed to parse form", "error", err)
+			http.Error(w, "Invalid form data", http.StatusBadRequest)
+			return adminapp.UpdateUserInput{}, isForm, false
+		}
+		if val := r.FormValue("is_enabled"); val != "" {
+			b := val == "true"
+			input.IsEnabled = &b
+		}
+		if val := r.FormValue("role"); val != "" {
+			input.Role = &val
+		}
+		return input, isForm, true
+	}
+
+	var req struct {
+		IsEnabled *bool   `json:"is_enabled"`
+		Role      *string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return adminapp.UpdateUserInput{}, isForm, false
+	}
+	input.IsEnabled = req.IsEnabled
+	input.Role = req.Role
+	return input, isForm, true
 }
 
 func writeAppError(w http.ResponseWriter, err error) bool {

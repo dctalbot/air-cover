@@ -13,7 +13,6 @@ import (
 	adapterspinitron "air-cover/internal/adapters/spinitron"
 	"air-cover/internal/adapters/sqlite"
 	"air-cover/internal/api"
-	coreapp "air-cover/internal/app"
 	adminapp "air-cover/internal/app/admin"
 	authapp "air-cover/internal/app/auth"
 	appcatalog "air-cover/internal/app/catalog"
@@ -106,7 +105,7 @@ func (f *fakeStartupRepo) CreateUser(ctx context.Context, email string, role str
 	return &domain.User{ID: 1, Email: email, Role: role, IsEnabled: true}, nil
 }
 
-func newTestAPIServer(repo *sqlite.Repository, authHandler *api.AuthHandler, catalog coreapp.Catalog) *api.Server {
+func newTestAPIServer(repo *sqlite.Repository, authHandler *api.AuthHandler, catalog catalog) *api.Server {
 	var subRequests *subrequestsapp.Service
 	var admin *adminapp.Service
 	if repo != nil {
@@ -130,7 +129,7 @@ func testServerDeps(cfg *config.Config, repo startupRepository) serverDeps {
 		newSpinitron: func(apiKey, baseURL string) adapterspinitron.PageClient {
 			return &fakeSpinitronPageClient{}
 		},
-		newCatalog: func(source adapterspinitron.PageClient) coreapp.Catalog {
+		newCatalog: func(source adapterspinitron.PageClient) catalog {
 			return &fakeShowsService{}
 		},
 		newRouter: func(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
@@ -143,7 +142,7 @@ func testServerDeps(cfg *config.Config, repo startupRepository) serverDeps {
 		newAuthHandler: func(repo authapp.Repository, sender authapp.Sender) *api.AuthHandler {
 			return api.NewAuthHandler(repo, sender)
 		},
-		newAPIServer: func(subRequestsRepo subrequestsapp.Repository, adminRepo adminapp.Repository, authHandler *api.AuthHandler, catalog coreapp.Catalog) *api.Server {
+		newAPIServer: func(subRequestsRepo subrequestsapp.Repository, adminRepo adminapp.Repository, authHandler *api.AuthHandler, catalog catalog) *api.Server {
 			return api.NewServer(
 				authHandler,
 				subrequestsapp.NewService(subRequestsRepo, catalog),
@@ -708,7 +707,7 @@ func TestRunServer_DependencyFailures(t *testing.T) {
 	t.Run("prefetch starts in background", func(t *testing.T) {
 		deps := testServerDeps(cfg, &fakeStartupRepo{})
 		service := &fakeShowsService{done: make(chan struct{})}
-		deps.newCatalog = func(source adapterspinitron.PageClient) coreapp.Catalog {
+		deps.newCatalog = func(source adapterspinitron.PageClient) catalog {
 			return service
 		}
 

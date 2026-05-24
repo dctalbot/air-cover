@@ -14,7 +14,7 @@ import (
 )
 
 type fakeRepository struct {
-	subRequests []*domain.SubRequest
+	subRequests []SubRequestRecord
 	subRequest  *domain.SubRequest
 	listErr     error
 	createErr   error
@@ -26,10 +26,12 @@ type fakeRepository struct {
 	deletedID   int
 	takenID     int
 	takenUserID int
+	takenAt     time.Time
 	untakenID   int
+	untakenAt   time.Time
 }
 
-func (f *fakeRepository) ListSubRequests(ctx context.Context) ([]*domain.SubRequest, error) {
+func (f *fakeRepository) ListSubRequests(ctx context.Context) ([]SubRequestRecord, error) {
 	return f.subRequests, f.listErr
 }
 
@@ -50,14 +52,16 @@ func (f *fakeRepository) DeleteSubRequest(ctx context.Context, id int) error {
 	return f.deleteErr
 }
 
-func (f *fakeRepository) TakeSubRequest(ctx context.Context, id int, userID int) error {
+func (f *fakeRepository) TakeSubRequest(ctx context.Context, id int, userID int, updatedAt time.Time) error {
 	f.takenID = id
 	f.takenUserID = userID
+	f.takenAt = updatedAt
 	return f.takeErr
 }
 
-func (f *fakeRepository) UntakeSubRequest(ctx context.Context, id int) error {
+func (f *fakeRepository) UntakeSubRequest(ctx context.Context, id int, updatedAt time.Time) error {
 	f.untakenID = id
+	f.untakenAt = updatedAt
 	return f.untakeErr
 }
 
@@ -73,10 +77,10 @@ func (f *fakeCatalog) ListShows(ctx context.Context) ([]appcatalog.Show, error) 
 func TestListDashboard(t *testing.T) {
 	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
 	takerID := 2
-	repo := &fakeRepository{subRequests: []*domain.SubRequest{
-		{ID: 1, ShowID: 2, PostedByUserID: 1, StartTime: now.Add(2 * time.Hour), EndTime: now.Add(3 * time.Hour)},
-		{ID: 2, ShowID: 999, PostedByUserID: 1, TakenByUserID: &takerID, StartTime: now.Add(-2 * time.Hour), EndTime: now.Add(-1 * time.Hour)},
-		{ID: 3, ShowID: 1, PostedByUserID: 3, StartTime: now.Add(-4 * time.Hour), EndTime: now.Add(-3 * time.Hour)},
+	repo := &fakeRepository{subRequests: []SubRequestRecord{
+		{Request: &domain.SubRequest{ID: 1, ShowID: 2, PostedByUserID: 1, StartTime: now.Add(2 * time.Hour), EndTime: now.Add(3 * time.Hour)}},
+		{Request: &domain.SubRequest{ID: 2, ShowID: 999, PostedByUserID: 1, TakenByUserID: &takerID, StartTime: now.Add(-2 * time.Hour), EndTime: now.Add(-1 * time.Hour)}},
+		{Request: &domain.SubRequest{ID: 3, ShowID: 1, PostedByUserID: 3, StartTime: now.Add(-4 * time.Hour), EndTime: now.Add(-3 * time.Hour)}},
 	}}
 	svc := NewService(repo, &fakeCatalog{shows: []appcatalog.Show{
 		{ID: "2", Title: "Beta"},
@@ -232,7 +236,7 @@ func TestApplyAction(t *testing.T) {
 	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionTake); err != nil {
 		t.Fatalf("take returned error: %v", err)
 	}
-	if repo.takenID != 1 || repo.takenUserID != takerID {
+	if repo.takenID != 1 || repo.takenUserID != takerID || repo.takenAt.IsZero() {
 		t.Errorf("unexpected take call: %+v", repo)
 	}
 
@@ -240,7 +244,7 @@ func TestApplyAction(t *testing.T) {
 	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionUntake); err != nil {
 		t.Fatalf("untake returned error: %v", err)
 	}
-	if repo.untakenID != 1 {
+	if repo.untakenID != 1 || repo.untakenAt.IsZero() {
 		t.Errorf("untaken ID = %d, want 1", repo.untakenID)
 	}
 

@@ -23,6 +23,8 @@ type fakeRepository struct {
 	createdMagicLinkHash string
 	createdSessionToken  string
 	deletedUserID        int
+	usedMagicLinkAt      time.Time
+	readSessionAt        time.Time
 }
 
 func (f *fakeRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
@@ -50,7 +52,8 @@ func (f *fakeRepository) CreateMagicLink(ctx context.Context, userID int, tokenH
 	return f.err
 }
 
-func (f *fakeRepository) UseMagicLink(ctx context.Context, tokenHash string) (*domain.MagicLink, error) {
+func (f *fakeRepository) UseMagicLink(ctx context.Context, tokenHash string, now time.Time) (*domain.MagicLink, error) {
+	f.usedMagicLinkAt = now
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -62,7 +65,8 @@ func (f *fakeRepository) CreateSession(ctx context.Context, sessionID, sessionTo
 	return f.err
 }
 
-func (f *fakeRepository) GetSessionByToken(ctx context.Context, sessionToken string) (*domain.Session, error) {
+func (f *fakeRepository) GetSessionByToken(ctx context.Context, sessionToken string, now time.Time) (*domain.Session, error) {
+	f.readSessionAt = now
 	if f.err != nil {
 		return nil, f.err
 	}
