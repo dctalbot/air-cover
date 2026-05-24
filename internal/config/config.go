@@ -17,7 +17,7 @@ type Config struct {
 	Port            int    `validate:"gte=1,lte=65535"`
 	DBURI           string `mapstructure:"db_uri" validate:"required"`
 	ENV             string `validate:"oneof=production development test"`
-	MasterEmail     string `validate:"omitempty,email"`
+	MasterEmail     string `validate:"required,email"`
 	SendGridAPIKey  string `validate:"omitempty"`
 	FromEmail       string `mapstructure:"from_email" validate:"required,email"`
 	SpinitronAPIURL string `mapstructure:"spinitron_api_url" validate:"required,url"`

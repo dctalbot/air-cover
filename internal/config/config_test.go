@@ -17,6 +17,8 @@ func TestLoad_Success(t *testing.T) {
 	defer os.Unsetenv("SPINITRON_API_URL")
 	os.Unsetenv("PORT")
 	os.Unsetenv("ENV")
+	os.Setenv("MASTER_EMAIL", "admin@example.com")
+	defer os.Unsetenv("MASTER_EMAIL")
 	os.Setenv("FROM_EMAIL", "noreply@example.com")
 	defer os.Unsetenv("FROM_EMAIL")
 
@@ -34,6 +36,9 @@ func TestLoad_Success(t *testing.T) {
 	if cfg.ENV != "production" {
 		t.Errorf("expected env to default to production, got %s", cfg.ENV)
 	}
+	if cfg.MasterEmail != "admin@example.com" {
+		t.Errorf("expected master email to be admin@example.com, got %s", cfg.MasterEmail)
+	}
 	if cfg.SpinitronAPIURL != "https://proxy.example.test/api" {
 		t.Errorf("expected SPINITRON_API_URL to be loaded, got %s", cfg.SpinitronAPIURL)
 	}
@@ -47,6 +52,8 @@ func TestLoad_InvalidPort(t *testing.T) {
 	defer os.Unsetenv("SPINITRON_API_URL")
 	os.Setenv("PORT", "invalid")
 	defer os.Unsetenv("PORT")
+	os.Setenv("MASTER_EMAIL", "admin@example.com")
+	defer os.Unsetenv("MASTER_EMAIL")
 	os.Setenv("FROM_EMAIL", "noreply@example.com")
 	defer os.Unsetenv("FROM_EMAIL")
 
@@ -64,6 +71,8 @@ func TestLoad_PortFromEnv(t *testing.T) {
 	defer os.Unsetenv("SPINITRON_API_URL")
 	os.Setenv("PORT", "9090")
 	defer os.Unsetenv("PORT")
+	os.Setenv("MASTER_EMAIL", "admin@example.com")
+	defer os.Unsetenv("MASTER_EMAIL")
 	os.Setenv("FROM_EMAIL", "noreply@example.com")
 	defer os.Unsetenv("FROM_EMAIL")
 
@@ -85,6 +94,8 @@ func TestLoad_EnvFromEnv(t *testing.T) {
 	defer os.Unsetenv("SPINITRON_API_URL")
 	os.Setenv("ENV", "development")
 	defer os.Unsetenv("ENV")
+	os.Setenv("MASTER_EMAIL", "admin@example.com")
+	defer os.Unsetenv("MASTER_EMAIL")
 	os.Setenv("FROM_EMAIL", "noreply@example.com")
 	defer os.Unsetenv("FROM_EMAIL")
 
@@ -102,10 +113,27 @@ func TestLoad_ValidationError(t *testing.T) {
 	viper.Reset()
 	os.Unsetenv("DB_URI")
 	os.Unsetenv("SPINITRON_API_URL")
+	os.Unsetenv("MASTER_EMAIL")
 
 	_, err := Load(nil)
 	if err == nil {
 		t.Fatalf("expected validation error for missing required env vars, got nil")
+	}
+}
+
+func TestLoad_MissingMasterEmail(t *testing.T) {
+	viper.Reset()
+	os.Setenv("DB_URI", "postgres://localhost/db")
+	defer os.Unsetenv("DB_URI")
+	os.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
+	defer os.Unsetenv("SPINITRON_API_URL")
+	os.Unsetenv("MASTER_EMAIL")
+	os.Setenv("FROM_EMAIL", "noreply@example.com")
+	defer os.Unsetenv("FROM_EMAIL")
+
+	_, err := Load(nil)
+	if err == nil {
+		t.Fatalf("expected validation error for missing MASTER_EMAIL, got nil")
 	}
 }
 
@@ -115,6 +143,8 @@ func TestLoad_WithCmd(t *testing.T) {
 	defer os.Unsetenv("DB_URI")
 	os.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
 	defer os.Unsetenv("SPINITRON_API_URL")
+	os.Setenv("MASTER_EMAIL", "admin@example.com")
+	defer os.Unsetenv("MASTER_EMAIL")
 	os.Setenv("FROM_EMAIL", "noreply@example.com")
 	defer os.Unsetenv("FROM_EMAIL")
 
@@ -144,6 +174,8 @@ func TestLoad_BindFlagsError(t *testing.T) {
 	defer os.Unsetenv("DB_URI")
 	os.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
 	defer os.Unsetenv("SPINITRON_API_URL")
+	os.Setenv("MASTER_EMAIL", "admin@example.com")
+	defer os.Unsetenv("MASTER_EMAIL")
 	os.Setenv("FROM_EMAIL", "noreply@example.com")
 	defer os.Unsetenv("FROM_EMAIL")
 

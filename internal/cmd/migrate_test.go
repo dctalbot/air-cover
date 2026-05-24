@@ -17,6 +17,7 @@ func TestMigrateCmds(t *testing.T) {
 	f.Close()
 	defer os.Remove(f.Name())
 	t.Setenv("DB_URI", "file:"+f.Name())
+	t.Setenv("MASTER_EMAIL", "admin@example.com")
 	t.Setenv("FROM_EMAIL", "test@example.com")
 	t.Setenv("SPINITRON_API_URL", "http://example.com")
 
@@ -51,6 +52,7 @@ func TestMigrateCmds_ConfigError(t *testing.T) {
 	}
 
 	t.Setenv("DB_URI", "") // Invalid config
+	t.Setenv("MASTER_EMAIL", "admin@example.com")
 	t.Setenv("FROM_EMAIL", "test@example.com")
 	t.Setenv("SPINITRON_API_URL", "http://example.com")
 
@@ -82,6 +84,7 @@ func TestMigrateCmds_DBError(t *testing.T) {
 	}
 
 	t.Setenv("DB_URI", "invalid-uri://")
+	t.Setenv("MASTER_EMAIL", "admin@example.com")
 	t.Setenv("FROM_EMAIL", "test@example.com")
 	t.Setenv("SPINITRON_API_URL", "http://example.com")
 
@@ -120,6 +123,7 @@ func TestMigrateCmds_MigrationError(t *testing.T) {
 	defer os.Remove(f.Name())
 
 	t.Setenv("DB_URI", "file:"+f.Name())
+	t.Setenv("MASTER_EMAIL", "admin@example.com")
 	t.Setenv("FROM_EMAIL", "test@example.com")
 	t.Setenv("SPINITRON_API_URL", "http://example.com")
 
@@ -158,6 +162,7 @@ func TestMigrateCmds_OpenError(t *testing.T) {
 	}
 
 	t.Setenv("DB_URI", "file::memory:")
+	t.Setenv("MASTER_EMAIL", "admin@example.com")
 	t.Setenv("FROM_EMAIL", "test@example.com")
 	t.Setenv("SPINITRON_API_URL", "http://example.com")
 
