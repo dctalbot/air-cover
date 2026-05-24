@@ -1,11 +1,12 @@
-GO_VERSION := 1.26.0
+GO_VERSION := 1.26.3
 GO := GOTOOLCHAIN=go$(GO_VERSION) go
 include tools.mk
 
-.PHONY: setup start build lint test check generate codecov-html coverage-summary db-reset db-down db-status
+.PHONY: setup start build lint test vuln check generate codecov-html coverage-summary db-reset db-down db-status
 
 setup:
 	GOBIN="$$(pwd)/bin" $(GO) install $(GOLANGCI_LINT)
+	GOBIN="$$(pwd)/bin" $(GO) install $(GOVULNCHECK)
 
 build:
 	$(GO) build -o bin/aircover cmd/aircover/main.go
@@ -51,7 +52,15 @@ test:
 		exit 1; \
 	fi
 
-check: lint test build
+vuln:
+	@GOBIN="$$(pwd)/bin" $(GO) install $(GOVULNCHECK)
+	@output="$$(./bin/govulncheck ./... 2>&1)"; status=$$?; \
+	if [ $$status -ne 0 ] || ! printf '%s\n' "$$output" | grep -q 'No vulnerabilities found.'; then \
+		printf '%s\n' "$$output"; \
+	fi; \
+	exit $$status
+
+check: lint test vuln build
 
 coverage-summary: test
 	@echo "Raw coverage:"
