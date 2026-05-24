@@ -195,6 +195,10 @@ func newTestAPIServer(repo *sqlite.Repository, authHandler *httpadapter.AuthHand
 	return httpadapter.NewServer(authHandler, subRequests, admin)
 }
 
+func markSameOrigin(req *http.Request) {
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+}
+
 func testServerDeps(cfg *config.Config, repo bootstrapapp.Repository) serverDeps {
 	return serverDeps{
 		loadConfig: func(cmd *cobra.Command) (*config.Config, error) {
@@ -906,6 +910,7 @@ func TestNewRouter(t *testing.T) {
 
 	// Test invalid ID in sub-requests Delete route (now handled by generated wrapper)
 	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/abc", nil)
+	markSameOrigin(req)
 	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
@@ -916,6 +921,7 @@ func TestNewRouter(t *testing.T) {
 	// Test invalid ID in users Post route (now handled by generated wrapper)
 	req = httptest.NewRequest(http.MethodPost, "/users/abc", strings.NewReader(`{"is_enabled":false}`))
 	req.Header.Set("Content-Type", "application/json")
+	markSameOrigin(req)
 	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
 	rr = httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
@@ -926,6 +932,7 @@ func TestNewRouter(t *testing.T) {
 	// Test valid wiring for POST /users/{id}
 	req = httptest.NewRequest(http.MethodPost, "/users/123", strings.NewReader(`{"is_enabled":false}`))
 	req.Header.Set("Content-Type", "application/json")
+	markSameOrigin(req)
 	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
 	rr = httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
@@ -938,11 +945,198 @@ func TestNewRouter(t *testing.T) {
 	form := "email=newuser@example.com&role=member"
 	req = httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(form))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	markSameOrigin(req)
 	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
 	rr = httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 	if rr.Code != http.StatusSeeOther {
 		t.Errorf("expected status 303 for user creation, got %d", rr.Code)
+	}
+}
+
+func TestNewRouter_RejectsCrossSiteMutations(t *testing.T) {
+	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("failed to init db: %v", err)
+	}
+	defer dbConn.Close()
+
+	repo := sqlite.NewRepository(dbConn)
+	auth := httpadapter.NewAuthHandler(authapp.NewService(repo, nil))
+	server := newTestAPIServer(repo, auth, nil)
+	r := newRouter(server, auth)
+
+	admin, err := repo.CreateUser(context.Background(), "csrf_admin@example.com", "admin")
+	if err != nil {
+		t.Fatalf("failed to create admin user: %v", err)
+	}
+	if err := repo.CreateSession(context.Background(), "csrf_sid_admin", "csrf_token_admin", admin.ID, time.Now().Add(time.Hour)); err != nil {
+		t.Fatalf("failed to create admin session: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		method      string
+		path        string
+		body        string
+		contentType string
+	}{
+		{
+			name:   "logout",
+			method: http.MethodPost,
+			path:   "/auth/logout",
+		},
+		{
+			name:        "create sub request",
+			method:      http.MethodPost,
+			path:        "/sub-requests",
+			body:        "show=1&start_time=2036-01-01T10%3A00&end_time=2036-01-01T12%3A00",
+			contentType: "application/x-www-form-urlencoded",
+		},
+		{
+			name:   "delete sub request",
+			method: http.MethodDelete,
+			path:   "/sub-requests/1",
+		},
+		{
+			name:        "patch sub request",
+			method:      http.MethodPatch,
+			path:        "/sub-requests/1",
+			body:        `{"action":"take"}`,
+			contentType: "application/json",
+		},
+		{
+			name:        "create user",
+			method:      http.MethodPost,
+			path:        "/users",
+			body:        "email=csrf_user@example.com&role=member",
+			contentType: "application/x-www-form-urlencoded",
+		},
+		{
+			name:   "import users",
+			method: http.MethodPost,
+			path:   "/users/import/spinitron",
+		},
+		{
+			name:        "update user",
+			method:      http.MethodPost,
+			path:        "/users/1",
+			body:        `{"is_enabled":false}`,
+			contentType: "application/json",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+			req.Header.Set("Sec-Fetch-Site", "cross-site")
+			if tt.contentType != "" {
+				req.Header.Set("Content-Type", tt.contentType)
+			}
+			req.AddCookie(&http.Cookie{Name: "session_id", Value: "csrf_token_admin"})
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusForbidden {
+				t.Fatalf("expected status %d, got %d", http.StatusForbidden, rr.Code)
+			}
+		})
+	}
+}
+
+func TestSameOriginMutationChecks(t *testing.T) {
+	tests := []struct {
+		name    string
+		method  string
+		headers map[string]string
+		want    bool
+	}{
+		{
+			name:   "safe method skips mutation protection",
+			method: http.MethodGet,
+			want:   true,
+		},
+		{
+			name:    "same-site fetch metadata accepted",
+			method:  http.MethodPost,
+			headers: map[string]string{"Sec-Fetch-Site": "same-site"},
+			want:    true,
+		},
+		{
+			name:    "browser-initiated none fetch metadata accepted",
+			method:  http.MethodPost,
+			headers: map[string]string{"Sec-Fetch-Site": "none"},
+			want:    true,
+		},
+		{
+			name:    "cross-site fetch metadata rejected",
+			method:  http.MethodPost,
+			headers: map[string]string{"Sec-Fetch-Site": "cross-site"},
+			want:    false,
+		},
+		{
+			name:    "matching origin accepted",
+			method:  http.MethodPost,
+			headers: map[string]string{"Origin": "http://example.com"},
+			want:    true,
+		},
+		{
+			name:    "matching forwarded proto origin accepted",
+			method:  http.MethodPost,
+			headers: map[string]string{"Origin": "https://example.com", "X-Forwarded-Proto": "https"},
+			want:    true,
+		},
+		{
+			name:    "matching referer accepted",
+			method:  http.MethodPost,
+			headers: map[string]string{"Referer": "http://example.com/app"},
+			want:    true,
+		},
+		{
+			name:    "different origin rejected",
+			method:  http.MethodPost,
+			headers: map[string]string{"Origin": "http://evil.example"},
+			want:    false,
+		},
+		{
+			name:    "malformed origin rejected",
+			method:  http.MethodPost,
+			headers: map[string]string{"Origin": "://bad-origin"},
+			want:    false,
+		},
+		{
+			name:   "missing origin metadata rejected",
+			method: http.MethodPost,
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, "http://example.com/app", nil)
+			for key, value := range tt.headers {
+				req.Header.Set(key, value)
+			}
+
+			called := false
+			handler := requireSameOriginMutation(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				called = true
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			if called != tt.want {
+				t.Fatalf("handler called = %v, want %v", called, tt.want)
+			}
+			if tt.want && rr.Code != http.StatusNoContent {
+				t.Fatalf("expected accepted status %d, got %d", http.StatusNoContent, rr.Code)
+			}
+			if !tt.want && rr.Code != http.StatusForbidden {
+				t.Fatalf("expected rejected status %d, got %d", http.StatusForbidden, rr.Code)
+			}
+		})
 	}
 }
 

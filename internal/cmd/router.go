@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"log/slog"
+	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	httpadapter "air-cover/internal/adapters/http"
@@ -40,6 +43,7 @@ func newRouter(apiServer *httpadapter.Server, authHandler *httpadapter.AuthHandl
 
 	r.Group(func(r chi.Router) {
 		r.Use(authHandler.AuthMiddleware)
+		r.Use(requireSameOriginMutation)
 		r.Get("/app", wrapper.GetApp)
 		r.Post("/auth/logout", wrapper.PostAuthLogout)
 		r.Post("/sub-requests", wrapper.PostSubRequests)
@@ -50,6 +54,7 @@ func newRouter(apiServer *httpadapter.Server, authHandler *httpadapter.AuthHandl
 	r.Group(func(r chi.Router) {
 		r.Use(authHandler.AuthMiddleware)
 		r.Use(authHandler.RequireAdmin)
+		r.Use(requireSameOriginMutation)
 		r.Get("/admin", wrapper.GetAdmin)
 		r.Post("/users", wrapper.PostUsers)
 		r.Post("/users/import/spinitron", wrapper.PostUsersImportSpinitron)
@@ -57,4 +62,51 @@ func newRouter(apiServer *httpadapter.Server, authHandler *httpadapter.AuthHandl
 	})
 
 	return r
+}
+
+func requireSameOriginMutation(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isMutation(r.Method) || isSameOriginRequest(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		http.Error(w, "Forbidden", http.StatusForbidden)
+	})
+}
+
+func isMutation(method string) bool {
+	return method == http.MethodPost || method == http.MethodPatch || method == http.MethodDelete
+}
+
+func isSameOriginRequest(r *http.Request) bool {
+	switch strings.ToLower(r.Header.Get("Sec-Fetch-Site")) {
+	case "same-origin", "same-site", "none":
+		return true
+	case "cross-site":
+		return false
+	}
+
+	if origin := r.Header.Get("Origin"); origin != "" {
+		return requestOriginMatches(r, origin)
+	}
+	if referer := r.Header.Get("Referer"); referer != "" {
+		return requestOriginMatches(r, referer)
+	}
+	return false
+}
+
+func requestOriginMatches(r *http.Request, rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return false
+	}
+	return strings.EqualFold(u.Scheme, requestScheme(r)) && strings.EqualFold(u.Host, r.Host)
+}
+
+func requestScheme(r *http.Request) string {
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		return "https"
+	}
+	return "http"
 }
