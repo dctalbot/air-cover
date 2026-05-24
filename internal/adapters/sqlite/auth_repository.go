@@ -55,17 +55,17 @@ func (r *Repository) UseMagicLink(ctx context.Context, tokenHash string, now tim
 	return magicLinkFromSQL(ml), nil
 }
 
-func (r *Repository) CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error {
+func (r *Repository) CreateSession(ctx context.Context, sessionID, sessionTokenHash string, userID int, expiresAt time.Time) error {
 	return r.queries.CreateSession(ctx, dbgen.CreateSessionParams{
-		ID:           sessionID,
-		UserID:       int64(userID),
-		SessionToken: sessionToken,
-		ExpiresAt:    expiresAt,
+		ID:        sessionID,
+		UserID:    int64(userID),
+		TokenHash: sessionTokenHash,
+		ExpiresAt: expiresAt,
 	})
 }
 
-func (r *Repository) GetSessionByToken(ctx context.Context, sessionToken string, now time.Time) (*domain.Session, error) {
-	row, err := r.queries.GetSessionByToken(ctx, sessionToken)
+func (r *Repository) GetSessionByToken(ctx context.Context, sessionTokenHash string, now time.Time) (*domain.Session, error) {
+	row, err := r.queries.GetSessionByToken(ctx, sessionTokenHash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound

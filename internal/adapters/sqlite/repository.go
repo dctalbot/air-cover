@@ -97,10 +97,10 @@ func magicLinkFromSQL(row dbgen.MagicLink) *domain.MagicLink {
 
 func sessionFromSQL(row dbgen.Session) *domain.Session {
 	return &domain.Session{
-		ID:           row.ID,
-		UserID:       int(row.UserID),
-		SessionToken: row.SessionToken,
-		ExpiresAt:    row.ExpiresAt,
+		ID:        row.ID,
+		UserID:    int(row.UserID),
+		TokenHash: row.TokenHash,
+		ExpiresAt: row.ExpiresAt,
 	}
 }
 

@@ -21,7 +21,8 @@ type fakeRepository struct {
 	createMagicLinkErr error
 
 	createdMagicLinkHash string
-	createdSessionToken  string
+	createdSessionHash   string
+	readSessionHash      string
 	deletedUserID        int
 	usedMagicLinkAt      time.Time
 	readSessionAt        time.Time
@@ -60,12 +61,13 @@ func (f *fakeRepository) UseMagicLink(ctx context.Context, tokenHash string, now
 	return f.magicLink, nil
 }
 
-func (f *fakeRepository) CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error {
-	f.createdSessionToken = sessionToken
+func (f *fakeRepository) CreateSession(ctx context.Context, sessionID, sessionTokenHash string, userID int, expiresAt time.Time) error {
+	f.createdSessionHash = sessionTokenHash
 	return f.err
 }
 
-func (f *fakeRepository) GetSessionByToken(ctx context.Context, sessionToken string, now time.Time) (*domain.Session, error) {
+func (f *fakeRepository) GetSessionByToken(ctx context.Context, sessionTokenHash string, now time.Time) (*domain.Session, error) {
+	f.readSessionHash = sessionTokenHash
 	f.readSessionAt = now
 	if f.err != nil {
 		return nil, f.err
@@ -163,7 +165,7 @@ func TestVerifyMagicLink(t *testing.T) {
 	if err != nil {
 		t.Fatalf("VerifyMagicLink returned error: %v", err)
 	}
-	if session.Token != "session-token" || repo.createdSessionToken != "session-token" {
+	if session.Token != "session-token" || repo.createdSessionHash != HashToken("session-token") {
 		t.Fatalf("unexpected session: %+v repo=%+v", session, repo)
 	}
 }
@@ -231,6 +233,9 @@ func TestLogoutAndAuthenticateSession(t *testing.T) {
 	}
 	if !user.IsAdmin() || user.Email != "u@example.com" {
 		t.Fatalf("unexpected current user: %+v", user)
+	}
+	if repo.readSessionHash != HashToken("token") {
+		t.Fatalf("session lookup hash = %q, want %q", repo.readSessionHash, HashToken("token"))
 	}
 }
 

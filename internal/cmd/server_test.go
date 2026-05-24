@@ -110,12 +110,12 @@ func (f *fakeAuthRepo) UseMagicLink(ctx context.Context, tokenHash string, now t
 	return &domain.MagicLink{UserID: 1, ExpiresAt: now.Add(time.Hour)}, nil
 }
 
-func (f *fakeAuthRepo) CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error {
+func (f *fakeAuthRepo) CreateSession(ctx context.Context, sessionID, sessionTokenHash string, userID int, expiresAt time.Time) error {
 	return nil
 }
 
-func (f *fakeAuthRepo) GetSessionByToken(ctx context.Context, sessionToken string, now time.Time) (*domain.Session, error) {
-	return &domain.Session{ID: "session", UserID: 1, SessionToken: sessionToken, ExpiresAt: now.Add(time.Hour)}, nil
+func (f *fakeAuthRepo) GetSessionByToken(ctx context.Context, sessionTokenHash string, now time.Time) (*domain.Session, error) {
+	return &domain.Session{ID: "session", UserID: 1, TokenHash: sessionTokenHash, ExpiresAt: now.Add(time.Hour)}, nil
 }
 
 func (f *fakeAuthRepo) DeleteSessionsByUserID(ctx context.Context, userID int) error {
@@ -272,7 +272,7 @@ func TestIndexHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}
-	err = repo.CreateSession(ctx, "sid", "stoken", user.ID, time.Now().Add(1*time.Hour))
+	err = repo.CreateSession(ctx, "sid", authapp.HashToken("stoken"), user.ID, time.Now().Add(1*time.Hour))
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
 	}
@@ -903,7 +903,7 @@ func TestNewRouter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create admin user: %v", err)
 	}
-	err = repo.CreateSession(context.Background(), "sid_admin", "stoken_admin", admin.ID, time.Now().Add(1*time.Hour))
+	err = repo.CreateSession(context.Background(), "sid_admin", authapp.HashToken("stoken_admin"), admin.ID, time.Now().Add(1*time.Hour))
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
 	}
@@ -970,7 +970,7 @@ func TestNewRouter_RejectsCrossSiteMutations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create admin user: %v", err)
 	}
-	if err := repo.CreateSession(context.Background(), "csrf_sid_admin", "csrf_token_admin", admin.ID, time.Now().Add(time.Hour)); err != nil {
+	if err := repo.CreateSession(context.Background(), "csrf_sid_admin", authapp.HashToken("csrf_token_admin"), admin.ID, time.Now().Add(time.Hour)); err != nil {
 		t.Fatalf("failed to create admin session: %v", err)
 	}
 

@@ -288,7 +288,7 @@ func TestAuthMiddleware(t *testing.T) {
 	repo := setupTestDB(t)
 	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	u, _ := repo.CreateUser(context.Background(), "test3@example.com", "member")
-	_ = repo.CreateSession(context.Background(), "sid", "stoken", u.ID, time.Now().Add(1*time.Hour))
+	_ = repo.CreateSession(context.Background(), "sid", authapp.HashToken("stoken"), u.ID, time.Now().Add(1*time.Hour))
 
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -339,7 +339,7 @@ func TestAuthMiddleware_Disabled(t *testing.T) {
 	repo := setupTestDB(t)
 	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	u, _ := repo.CreateUser(context.Background(), "disabled-session@example.com", "member")
-	_ = repo.CreateSession(context.Background(), "sid", "stoken", u.ID, time.Now().Add(1*time.Hour))
+	_ = repo.CreateSession(context.Background(), "sid", authapp.HashToken("stoken"), u.ID, time.Now().Add(1*time.Hour))
 
 	// Disable user
 	_, _ = repo.DB().Exec("UPDATE users SET is_enabled = 0 WHERE id = ?", u.ID)
@@ -369,7 +369,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create user: %v", err)
 	}
-	err = repo.CreateSession(context.Background(), "sid", "stoken", u.ID, time.Now().Add(1*time.Hour))
+	err = repo.CreateSession(context.Background(), "sid", authapp.HashToken("stoken"), u.ID, time.Now().Add(1*time.Hour))
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
 	}
@@ -386,7 +386,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 	}
 
 	// Verify session is deleted
-	session, err := repo.GetSessionByToken(context.Background(), "stoken", time.Now())
+	session, err := repo.GetSessionByToken(context.Background(), authapp.HashToken("stoken"), time.Now())
 	if err == nil {
 		t.Errorf("expected session to be deleted, but found session for user %d", session.UserID)
 	}
@@ -410,7 +410,7 @@ func TestAuthHandler_Logout_HTTPSSecureCookie(t *testing.T) {
 	repo := setupTestDB(t)
 	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	u, _ := repo.CreateUser(context.Background(), "logout-https@example.com", "member")
-	_ = repo.CreateSession(context.Background(), "sid2", "stoken2", u.ID, time.Now().Add(1*time.Hour))
+	_ = repo.CreateSession(context.Background(), "sid2", authapp.HashToken("stoken2"), u.ID, time.Now().Add(1*time.Hour))
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
 	req.Header.Set("X-Forwarded-Proto", "https")
@@ -592,7 +592,7 @@ func TestAuthMiddleware_UserNotFound(t *testing.T) {
 	}
 	repo := sqlite.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "deleteduser@example.com", "member")
-	_ = repo.CreateSession(context.Background(), "sid-del", "stoken-del", u.ID, time.Now().Add(1*time.Hour))
+	_ = repo.CreateSession(context.Background(), "sid-del", authapp.HashToken("stoken-del"), u.ID, time.Now().Add(1*time.Hour))
 	// Close DB to force GetUserByID to fail
 	dbConn.Close()
 
@@ -618,7 +618,7 @@ func TestAuthMiddleware_GetUserByIDError(t *testing.T) {
 	}
 	repo := sqlite.NewRepository(dbConn)
 	u, _ := repo.CreateUser(context.Background(), "miderr@example.com", "member")
-	_ = repo.CreateSession(context.Background(), "sid-mid", "stoken-mid", u.ID, time.Now().Add(1*time.Hour))
+	_ = repo.CreateSession(context.Background(), "sid-mid", authapp.HashToken("stoken-mid"), u.ID, time.Now().Add(1*time.Hour))
 
 	handler := NewAuthHandler(authapp.NewService(repo, nil))
 	mw := handler.AuthMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

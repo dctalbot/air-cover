@@ -11,8 +11,8 @@ type MagicLink struct {
 }
 
 type Session struct {
-	ID           string
-	UserID       int
-	SessionToken string
-	ExpiresAt    time.Time
+	ID        string
+	UserID    int
+	TokenHash string
+	ExpiresAt time.Time
 }

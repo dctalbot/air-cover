@@ -13,7 +13,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.42
 	github.com/oapi-codegen/nethttp-middleware v1.1.2
-	github.com/oapi-codegen/runtime v1.4.0
+	github.com/oapi-codegen/runtime v1.4.1
 	github.com/pressly/goose/v3 v3.27.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10

@@ -18,10 +18,10 @@ type MagicLink struct {
 }
 
 type Session struct {
-	ID           string    `json:"id"`
-	UserID       int64     `json:"user_id"`
-	SessionToken string    `json:"session_token"`
-	ExpiresAt    time.Time `json:"expires_at"`
+	ID        string    `json:"id"`
+	UserID    int64     `json:"user_id"`
+	TokenHash string    `json:"token_hash"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 type SubRequest struct {

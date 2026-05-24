@@ -26,21 +26,21 @@ func (q *Queries) CreateMagicLink(ctx context.Context, arg CreateMagicLinkParams
 }
 
 const createSession = `-- name: CreateSession :exec
-INSERT INTO sessions (id, user_id, session_token, expires_at) VALUES (?, ?, ?, ?)
+INSERT INTO sessions (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?)
 `
 
 type CreateSessionParams struct {
-	ID           string    `json:"id"`
-	UserID       int64     `json:"user_id"`
-	SessionToken string    `json:"session_token"`
-	ExpiresAt    time.Time `json:"expires_at"`
+	ID        string    `json:"id"`
+	UserID    int64     `json:"user_id"`
+	TokenHash string    `json:"token_hash"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
 	_, err := q.db.ExecContext(ctx, createSession,
 		arg.ID,
 		arg.UserID,
-		arg.SessionToken,
+		arg.TokenHash,
 		arg.ExpiresAt,
 	)
 	return err
@@ -56,16 +56,16 @@ func (q *Queries) DeleteSessionsByUserID(ctx context.Context, userID int64) erro
 }
 
 const getSessionByToken = `-- name: GetSessionByToken :one
-SELECT id, user_id, session_token, expires_at FROM sessions WHERE session_token = ?
+SELECT id, user_id, token_hash, expires_at FROM sessions WHERE token_hash = ?
 `
 
-func (q *Queries) GetSessionByToken(ctx context.Context, sessionToken string) (Session, error) {
-	row := q.db.QueryRowContext(ctx, getSessionByToken, sessionToken)
+func (q *Queries) GetSessionByToken(ctx context.Context, tokenHash string) (Session, error) {
+	row := q.db.QueryRowContext(ctx, getSessionByToken, tokenHash)
 	var i Session
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.SessionToken,
+		&i.TokenHash,
 		&i.ExpiresAt,
 	)
 	return i, err

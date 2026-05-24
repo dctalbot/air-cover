@@ -18,8 +18,8 @@ type MagicLinkStore interface {
 }
 
 type SessionStore interface {
-	CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error
-	GetSessionByToken(ctx context.Context, sessionToken string, now time.Time) (*domain.Session, error)
+	CreateSession(ctx context.Context, sessionID, sessionTokenHash string, userID int, expiresAt time.Time) error
+	GetSessionByToken(ctx context.Context, sessionTokenHash string, now time.Time) (*domain.Session, error)
 	DeleteSessionsByUserID(ctx context.Context, userID int) error
 }
 

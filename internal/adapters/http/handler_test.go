@@ -58,7 +58,7 @@ type fakeServerRepo struct {
 	createSubErr  error
 }
 
-func (f *fakeServerRepo) GetSessionByToken(ctx context.Context, sessionToken string, now time.Time) (*domain.Session, error) {
+func (f *fakeServerRepo) GetSessionByToken(ctx context.Context, sessionTokenHash string, now time.Time) (*domain.Session, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -90,7 +90,7 @@ func (f *fakeServerRepo) UseMagicLink(ctx context.Context, tokenHash string, now
 	return &domain.MagicLink{UserID: 1, ExpiresAt: time.Now().Add(time.Hour)}, nil
 }
 
-func (f *fakeServerRepo) CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error {
+func (f *fakeServerRepo) CreateSession(ctx context.Context, sessionID, sessionTokenHash string, userID int, expiresAt time.Time) error {
 	return nil
 }
 
@@ -463,7 +463,7 @@ func TestServer_Get(t *testing.T) {
 
 	t.Run("authenticated", func(t *testing.T) {
 		u, _ := repo.CreateUser(context.Background(), "test@example.com", "member")
-		_ = repo.CreateSession(context.Background(), "sid", "stoken", u.ID, time.Now().Add(1*time.Hour))
+		_ = repo.CreateSession(context.Background(), "sid", authapp.HashToken("stoken"), u.ID, time.Now().Add(1*time.Hour))
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken"})
 		rr := httptest.NewRecorder()
@@ -498,7 +498,7 @@ func TestServer_Get(t *testing.T) {
 func TestServer_Get_WithAuthHandler(t *testing.T) {
 	repo := setupTestDB(t)
 	user, _ := repo.CreateUser(context.Background(), "withauth@example.com", "member")
-	_ = repo.CreateSession(context.Background(), "with-auth-session", "with-auth-token", user.ID, time.Now().Add(time.Hour))
+	_ = repo.CreateSession(context.Background(), "with-auth-session", authapp.HashToken("with-auth-token"), user.ID, time.Now().Add(time.Hour))
 	s := NewServer(NewAuthHandler(authapp.NewService(repo, nil)), nil, nil)
 
 	t.Run("authenticated", func(t *testing.T) {

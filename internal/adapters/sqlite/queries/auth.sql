@@ -7,10 +7,10 @@ WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?
 RETURNING id, user_id, token_hash, expires_at, used_at;
 
 -- name: CreateSession :exec
-INSERT INTO sessions (id, user_id, session_token, expires_at) VALUES (?, ?, ?, ?);
+INSERT INTO sessions (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, ?);
 
 -- name: GetSessionByToken :one
-SELECT id, user_id, session_token, expires_at FROM sessions WHERE session_token = ?;
+SELECT id, user_id, token_hash, expires_at FROM sessions WHERE token_hash = ?;
 
 -- name: DeleteSessionsByUserID :exec
 DELETE FROM sessions WHERE user_id = ?;

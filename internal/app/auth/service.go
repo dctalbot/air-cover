@@ -127,7 +127,7 @@ func (s *Service) VerifyMagicLink(ctx context.Context, rawToken string) (Verifie
 	}
 
 	expiresAt := now.Add(sessionTTL)
-	if err := s.repo.CreateSession(ctx, sessionID, sessionToken, ml.UserID, expiresAt); err != nil {
+	if err := s.repo.CreateSession(ctx, sessionID, HashToken(sessionToken), ml.UserID, expiresAt); err != nil {
 		return VerifiedSession{}, err
 	}
 	return VerifiedSession{Token: sessionToken, ExpiresAt: expiresAt}, nil
@@ -138,7 +138,7 @@ func (s *Service) Logout(ctx context.Context, userID int) error {
 }
 
 func (s *Service) AuthenticateSession(ctx context.Context, sessionToken string) (domain.CurrentUser, error) {
-	sess, err := s.repo.GetSessionByToken(ctx, sessionToken, s.now())
+	sess, err := s.repo.GetSessionByToken(ctx, HashToken(sessionToken), s.now())
 	if err != nil {
 		return domain.CurrentUser{}, err
 	}

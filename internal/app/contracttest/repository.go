@@ -180,19 +180,21 @@ func checkSessionStore(ctx context.Context, repo SessionStore) {
 	user, err := repo.CreateUser(ctx, "contract-session@example.com", "member")
 	mustNoErr(err, "CreateUser session user returned error")
 	now := time.Now().Truncate(time.Second)
-	err = repo.CreateSession(ctx, "contract-auth-session", "contract-auth-token", user.ID, now.Add(time.Hour))
+	sessionTokenHash := "contract-auth-token-hash"
+	err = repo.CreateSession(ctx, "contract-auth-session", sessionTokenHash, user.ID, now.Add(time.Hour))
 	mustNoErr(err, "CreateSession returned error")
-	session, err := repo.GetSessionByToken(ctx, "contract-auth-token", now)
+	session, err := repo.GetSessionByToken(ctx, sessionTokenHash, now)
 	must(err == nil && session.UserID == user.ID, "GetSessionByToken = %+v, %v; want user %d", session, err, user.ID)
 	_, err = repo.GetSessionByToken(ctx, "contract-auth-missing-token", now)
 	must(errors.Is(err, apperrors.ErrNotFound), "missing session error = %v, want not found", err)
-	err = repo.CreateSession(ctx, "contract-auth-expired-session", "contract-auth-expired-token", user.ID, now.Add(-time.Minute))
+	expiredSessionDigest := "contract-auth-expired-digest"
+	err = repo.CreateSession(ctx, "contract-auth-expired-session", expiredSessionDigest, user.ID, now.Add(-time.Minute))
 	mustNoErr(err, "CreateSession expired returned error")
-	_, err = repo.GetSessionByToken(ctx, "contract-auth-expired-token", now)
+	_, err = repo.GetSessionByToken(ctx, expiredSessionDigest, now)
 	must(err != nil, "expired session unexpectedly authenticated")
 	err = repo.DeleteSessionsByUserID(ctx, user.ID)
 	mustNoErr(err, "DeleteSessionsByUserID returned error")
-	_, err = repo.GetSessionByToken(ctx, "contract-auth-token", now)
+	_, err = repo.GetSessionByToken(ctx, sessionTokenHash, now)
 	must(errors.Is(err, apperrors.ErrNotFound), "deleted session error = %v, want not found", err)
 
 }

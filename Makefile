@@ -2,7 +2,7 @@ GO_VERSION := 1.26.3
 GO := GOTOOLCHAIN=go$(GO_VERSION) go
 include tools.mk
 
-.PHONY: setup start build lint test vuln check generate codecov-html coverage-summary db-reset db-down db-status
+.PHONY: setup start build lint test vuln check generate codecov-html coverage-summary db-reset db-down db-status db-up
 
 setup:
 	GOBIN="$$(pwd)/bin" $(GO) install $(GOLANGCI_LINT)
@@ -25,6 +25,9 @@ generate:
 
 db-reset:
 	$(GO) run cmd/aircover/main.go migrate reset
+
+db-up:
+	$(GO) run cmd/aircover/main.go migrate up
 
 db-down:
 	$(GO) run cmd/aircover/main.go migrate down

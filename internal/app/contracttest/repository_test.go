@@ -103,13 +103,13 @@ func (r *memoryRepository) UseMagicLink(ctx context.Context, tokenHash string, n
 	return link, nil
 }
 
-func (r *memoryRepository) CreateSession(ctx context.Context, sessionID, sessionToken string, userID int, expiresAt time.Time) error {
-	r.sessions[sessionToken] = &domain.Session{ID: sessionID, SessionToken: sessionToken, UserID: userID, ExpiresAt: expiresAt}
+func (r *memoryRepository) CreateSession(ctx context.Context, sessionID, sessionTokenHash string, userID int, expiresAt time.Time) error {
+	r.sessions[sessionTokenHash] = &domain.Session{ID: sessionID, TokenHash: sessionTokenHash, UserID: userID, ExpiresAt: expiresAt}
 	return nil
 }
 
-func (r *memoryRepository) GetSessionByToken(ctx context.Context, sessionToken string, now time.Time) (*domain.Session, error) {
-	session, ok := r.sessions[sessionToken]
+func (r *memoryRepository) GetSessionByToken(ctx context.Context, sessionTokenHash string, now time.Time) (*domain.Session, error) {
+	session, ok := r.sessions[sessionTokenHash]
 	if !ok {
 		return nil, apperrors.ErrNotFound
 	}

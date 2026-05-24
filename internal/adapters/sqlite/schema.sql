@@ -18,7 +18,7 @@ CREATE TABLE magic_links (
 CREATE TABLE sessions (
     id TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
-    session_token TEXT UNIQUE NOT NULL,
+    token_hash TEXT UNIQUE NOT NULL,
     expires_at DATETIME NOT NULL,
     FOREIGN KEY(user_id) REFERENCES users(id)
 );
@@ -39,7 +39,7 @@ CREATE TABLE sub_requests (
 
 CREATE INDEX idx_magic_links_token_hash ON magic_links(token_hash);
 CREATE INDEX idx_magic_links_user_id ON magic_links(user_id);
-CREATE INDEX idx_sessions_session_token ON sessions(session_token);
+CREATE INDEX idx_sessions_token_hash ON sessions(token_hash);
 CREATE INDEX idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX idx_sub_requests_start_time ON sub_requests(start_time);
 CREATE INDEX idx_sub_requests_posted_by_user_id ON sub_requests(posted_by_user_id);

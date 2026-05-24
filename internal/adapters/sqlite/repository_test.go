@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	authapp "air-cover/internal/app/auth"
 	"air-cover/internal/domain"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -23,7 +24,7 @@ func TestInitDB(t *testing.T) {
 	defer db.Close()
 
 	assertIndexesExist(t, db, "magic_links", "idx_magic_links_token_hash", "idx_magic_links_user_id")
-	assertIndexesExist(t, db, "sessions", "idx_sessions_session_token", "idx_sessions_user_id")
+	assertIndexesExist(t, db, "sessions", "idx_sessions_token_hash", "idx_sessions_user_id")
 	assertIndexesExist(t, db, "sub_requests", "idx_sub_requests_start_time", "idx_sub_requests_posted_by_user_id", "idx_sub_requests_taken_by_user_id")
 
 	// test errors
@@ -165,12 +166,22 @@ func TestRepository(t *testing.T) {
 	}
 
 	// Session
-	err = repo.CreateSession(ctx, "sid", "stoken", u.ID, time.Now().Add(1*time.Hour))
+	sessionTokenHash := authapp.HashToken("stoken")
+	err = repo.CreateSession(ctx, "sid", sessionTokenHash, u.ID, time.Now().Add(1*time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	s, err := repo.GetSessionByToken(ctx, "stoken", time.Now())
+	var rawTokenCount int
+	err = repo.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions WHERE token_hash = ?", "stoken").Scan(&rawTokenCount)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rawTokenCount != 0 {
+		t.Fatal("raw session token was stored in sessions")
+	}
+
+	s, err := repo.GetSessionByToken(ctx, sessionTokenHash, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,17 +189,18 @@ func TestRepository(t *testing.T) {
 		t.Fatalf("expected userid %v, got %v", u.ID, s.UserID)
 	}
 
-	_, err = repo.GetSessionByToken(ctx, "notfound", time.Now())
+	_, err = repo.GetSessionByToken(ctx, authapp.HashToken("notfound"), time.Now())
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 
 	// Expired session
-	err = repo.CreateSession(ctx, "sid2", "stoken2", u.ID, time.Now().Add(-1*time.Hour))
+	expiredSessionTokenHash := authapp.HashToken("stoken2")
+	err = repo.CreateSession(ctx, "sid2", expiredSessionTokenHash, u.ID, time.Now().Add(-1*time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = repo.GetSessionByToken(ctx, "stoken2", time.Now())
+	_, err = repo.GetSessionByToken(ctx, expiredSessionTokenHash, time.Now())
 	if err == nil {
 		t.Fatal("expected error for expired session")
 	}
@@ -198,7 +210,7 @@ func TestRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = repo.GetSessionByToken(ctx, "stoken", time.Now())
+	_, err = repo.GetSessionByToken(ctx, sessionTokenHash, time.Now())
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
@@ -417,12 +429,12 @@ func TestRepositoryErrors(t *testing.T) {
 		t.Error("expected error with cancelled context in UseMagicLink")
 	}
 
-	err = repo.CreateSession(ctx, "sid", "stoken", 1, time.Now())
+	err = repo.CreateSession(ctx, "sid", authapp.HashToken("stoken"), 1, time.Now())
 	if err == nil {
 		t.Error("expected error with cancelled context in CreateSession")
 	}
 
-	_, err = repo.GetSessionByToken(ctx, "stoken", time.Now())
+	_, err = repo.GetSessionByToken(ctx, authapp.HashToken("stoken"), time.Now())
 	if err == nil {
 		t.Error("expected error with cancelled context in GetSessionByToken")
 	}
