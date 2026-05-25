@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -21,7 +22,7 @@ func TestConsoleSender(t *testing.T) {
 	if err := s.SendMagicLink("test@example.com", "http://example.com/verify?token=abc"); err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
-	if err := s.SendSubRequestCreated("test@example.com", testSubRequestMessage()); err != nil {
+	if err := s.SendSubRequestCreated([]string{"test@example.com"}, testSubRequestMessage()); err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
 }
@@ -78,11 +79,18 @@ func TestResendSender_SubRequestCreated(t *testing.T) {
 	emails := &fakeResendEmails{}
 	s := &ResendSender{FromEmail: "noreply@example.com", Emails: emails}
 
-	if err := s.SendSubRequestCreated("active@example.com", testSubRequestMessage()); err != nil {
+	recipients := []string{"one@example.com", "two@example.com"}
+	if err := s.SendSubRequestCreated(recipients, testSubRequestMessage()); err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
 	if emails.request == nil {
 		t.Fatal("expected email request")
+	}
+	if len(emails.request.To) != 1 || emails.request.To[0] != "noreply@example.com" {
+		t.Fatalf("expected visible recipient noreply@example.com, got %v", emails.request.To)
+	}
+	if !sameStrings(emails.request.Bcc, recipients) {
+		t.Fatalf("expected bcc recipients %v, got %v", recipients, emails.request.Bcc)
 	}
 	if emails.request.Subject != "New sub request: Test Show" {
 		t.Fatalf("unexpected subject: %s", emails.request.Subject)
@@ -103,8 +111,19 @@ func TestResendSender_SubRequestCreatedError(t *testing.T) {
 		FromEmail: "noreply@example.com",
 		Emails:    &fakeResendEmails{err: errors.New("resend down")},
 	}
-	if err := s.SendSubRequestCreated("active@example.com", testSubRequestMessage()); err == nil {
+	if err := s.SendSubRequestCreated([]string{"active@example.com"}, testSubRequestMessage()); err == nil {
 		t.Fatal("expected resend error")
+	}
+}
+
+func TestResendSender_SubRequestCreatedNoRecipients(t *testing.T) {
+	emails := &fakeResendEmails{}
+	s := &ResendSender{FromEmail: "noreply@example.com", Emails: emails}
+	if err := s.SendSubRequestCreated(nil, testSubRequestMessage()); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if emails.request != nil {
+		t.Fatal("expected no email request")
 	}
 }
 
@@ -170,8 +189,18 @@ func TestSendGridSender_SubRequestCreated(t *testing.T) {
 		},
 	}
 
-	if err := s.SendSubRequestCreated("active@example.com", testSubRequestMessage()); err != nil {
+	recipients := []string{"one@example.com", "two@example.com"}
+	if err := s.SendSubRequestCreated(recipients, testSubRequestMessage()); err != nil {
 		t.Errorf("expected no error, got %v", err)
+	}
+	if len(payload.Personalizations) != 1 {
+		t.Fatalf("expected one personalization, got %d", len(payload.Personalizations))
+	}
+	if !sameAddresses(payload.Personalizations[0].To, []string{"noreply@example.com"}) {
+		t.Fatalf("expected visible recipient noreply@example.com, got %v", payload.Personalizations[0].To)
+	}
+	if !sameAddresses(payload.Personalizations[0].BCC, recipients) {
+		t.Fatalf("expected bcc recipients %v, got %v", recipients, payload.Personalizations[0].BCC)
 	}
 	if payload.Subject != "New sub request: Test Show" {
 		t.Fatalf("unexpected subject: %s", payload.Subject)
@@ -191,8 +220,33 @@ func TestSendGridSender_SubRequestCreatedError(t *testing.T) {
 			Transport: &errorTransport{},
 		},
 	}
-	if err := s.SendSubRequestCreated("active@example.com", testSubRequestMessage()); err == nil {
+	if err := s.SendSubRequestCreated([]string{"active@example.com"}, testSubRequestMessage()); err == nil {
 		t.Fatal("expected sendgrid error")
+	}
+}
+
+func TestSendGridSender_SubRequestCreatedHTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	s := &SendGridSender{
+		APIKey: "test-key",
+		HTTPClient: &http.Client{
+			Transport: &proxyTransport{target: srv.URL},
+		},
+	}
+
+	if err := s.SendSubRequestCreated([]string{"active@example.com"}, testSubRequestMessage()); err == nil {
+		t.Fatal("expected sendgrid HTTP error")
+	}
+}
+
+func TestSendGridSender_SubRequestCreatedNoRecipients(t *testing.T) {
+	s := &SendGridSender{APIKey: "test-key", HTTPClient: &http.Client{}}
+	if err := s.SendSubRequestCreated(nil, testSubRequestMessage()); err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
 }
 
@@ -295,11 +349,33 @@ type fakeResendEmails struct {
 }
 
 type sendGridPayload struct {
-	Subject string `json:"subject"`
-	Content []struct {
-		Type  string `json:"type"`
-		Value string `json:"value"`
-	} `json:"content"`
+	Personalizations []struct {
+		To  []sendGridAddress `json:"to"`
+		BCC []sendGridAddress `json:"bcc"`
+	} `json:"personalizations"`
+	Subject string            `json:"subject"`
+	Content []sendGridContent `json:"content"`
+}
+
+type sendGridAddress struct {
+	Email string `json:"email"`
+}
+
+type sendGridContent struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+func sameStrings(got, want []string) bool {
+	return slices.Equal(got, want)
+}
+
+func sameAddresses(got []sendGridAddress, want []string) bool {
+	emails := make([]string, 0, len(got))
+	for _, address := range got {
+		emails = append(emails, address.Email)
+	}
+	return slices.Equal(emails, want)
 }
 
 func (f *fakeResendEmails) Send(params *resend.SendEmailRequest) (*resend.SendEmailResponse, error) {
@@ -338,12 +414,40 @@ func TestSendGridSender_MarshalAndRequestErrors(t *testing.T) {
 	})
 }
 
+func TestSendGridSender_SubRequestCreatedMarshalAndRequestErrors(t *testing.T) {
+	t.Run("marshal error", func(t *testing.T) {
+		originalJSONMarshal := jsonMarshal
+		t.Cleanup(func() { jsonMarshal = originalJSONMarshal })
+		jsonMarshal = func(v any) ([]byte, error) {
+			return nil, errors.New("marshal failed")
+		}
+
+		s := &SendGridSender{APIKey: "test-key", HTTPClient: &http.Client{}}
+		if err := s.SendSubRequestCreated([]string{"active@example.com"}, testSubRequestMessage()); err == nil {
+			t.Fatal("expected marshal error")
+		}
+	})
+
+	t.Run("request creation error", func(t *testing.T) {
+		originalNewHTTPRequest := newHTTPRequest
+		t.Cleanup(func() { newHTTPRequest = originalNewHTTPRequest })
+		newHTTPRequest = func(method, url string, body io.Reader) (*http.Request, error) {
+			return nil, errors.New("request failed")
+		}
+
+		s := &SendGridSender{APIKey: "test-key", HTTPClient: &http.Client{}}
+		if err := s.SendSubRequestCreated([]string{"active@example.com"}, testSubRequestMessage()); err == nil {
+			t.Fatal("expected request creation error")
+		}
+	})
+}
+
 func TestSubRequestNotifier(t *testing.T) {
 	users := &fakeActiveUsers{users: []*domain.User{
 		{Email: "one@example.com", IsEnabled: true},
 		{Email: "two@example.com", IsEnabled: true},
 	}}
-	sender := &fakeSubRequestSender{errFor: "two@example.com"}
+	sender := &fakeSubRequestSender{}
 	notifier := &SubRequestNotifier{
 		Users:   users,
 		Sender:  sender,
@@ -359,8 +463,11 @@ func TestSubRequestNotifier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected send failures to be logged but not returned, got %v", err)
 	}
-	if len(sender.messages) != 2 {
-		t.Fatalf("expected two send attempts, got %d", len(sender.messages))
+	if len(sender.messages) != 1 {
+		t.Fatalf("expected one send attempt, got %d", len(sender.messages))
+	}
+	if !sameStrings(sender.recipients[0], []string{"one@example.com", "two@example.com"}) {
+		t.Fatalf("expected batched recipients, got %v", sender.recipients[0])
 	}
 	if sender.messages[0].DetailURL != "https://aircover.example.com/sub-requests/42" {
 		t.Fatalf("detail URL = %q", sender.messages[0].DetailURL)
@@ -381,6 +488,34 @@ func TestSubRequestNotifierRelativeDetailURL(t *testing.T) {
 	}
 	if sender.messages[0].DetailURL != "/sub-requests/42" {
 		t.Fatalf("expected relative detail URL, got %q", sender.messages[0].DetailURL)
+	}
+}
+
+func TestSubRequestNotifierNoRecipients(t *testing.T) {
+	sender := &fakeSubRequestSender{}
+	notifier := &SubRequestNotifier{
+		Users:  &fakeActiveUsers{},
+		Sender: sender,
+	}
+	if err := notifier.SubRequestCreated(context.Background(), subrequestsapp.SubRequestCreatedEvent{
+		Request: &domain.SubRequest{ID: 42},
+	}); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(sender.messages) != 0 {
+		t.Fatalf("expected no sends, got %d", len(sender.messages))
+	}
+}
+
+func TestSubRequestNotifierLogsSendError(t *testing.T) {
+	notifier := &SubRequestNotifier{
+		Users:  &fakeActiveUsers{users: []*domain.User{{Email: "one@example.com", IsEnabled: true}}},
+		Sender: &fakeSubRequestSender{err: errors.New("send failed")},
+	}
+	if err := notifier.SubRequestCreated(context.Background(), subrequestsapp.SubRequestCreatedEvent{
+		Request: &domain.SubRequest{ID: 42},
+	}); err != nil {
+		t.Fatalf("expected send failures to be logged but not returned, got %v", err)
 	}
 }
 
@@ -502,20 +637,19 @@ func (f *fakeActiveUsers) ListActiveUsers(ctx context.Context) ([]*domain.User, 
 }
 
 type fakeSubRequestSender struct {
-	messages []SubRequestCreatedMessage
-	errFor   string
+	recipients [][]string
+	messages   []SubRequestCreatedMessage
+	err        error
 }
 
 func (f *fakeSubRequestSender) SendMagicLink(toEmail, magicLink string) error {
 	return nil
 }
 
-func (f *fakeSubRequestSender) SendSubRequestCreated(toEmail string, message SubRequestCreatedMessage) error {
+func (f *fakeSubRequestSender) SendSubRequestCreated(bccEmails []string, message SubRequestCreatedMessage) error {
+	f.recipients = append(f.recipients, append([]string(nil), bccEmails...))
 	f.messages = append(f.messages, message)
-	if toEmail == f.errFor {
-		return errors.New("send failed")
-	}
-	return nil
+	return f.err
 }
 
 type fakeNotifier struct {

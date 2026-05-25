@@ -80,7 +80,7 @@ func (m *mockSender) SendMagicLink(toEmail, magicLink string) error {
 	return nil
 }
 
-func (m *mockSender) SendSubRequestCreated(toEmail string, message adapteremail.SubRequestCreatedMessage) error {
+func (m *mockSender) SendSubRequestCreated(bccEmails []string, message adapteremail.SubRequestCreatedMessage) error {
 	return nil
 }
 

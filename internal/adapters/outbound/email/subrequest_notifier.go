@@ -29,6 +29,13 @@ func (n *SubRequestNotifier) SubRequestCreated(ctx context.Context, event subreq
 	if err != nil {
 		return fmt.Errorf("list active users: %w", err)
 	}
+	recipients := make([]string, 0, len(users))
+	for _, user := range users {
+		recipients = append(recipients, user.Email)
+	}
+	if len(recipients) == 0 {
+		return nil
+	}
 
 	message := SubRequestCreatedMessage{
 		ShowTitle:      event.ShowTitle,
@@ -38,10 +45,8 @@ func (n *SubRequestNotifier) SubRequestCreated(ctx context.Context, event subreq
 		Notes:          event.Request.Notes,
 		DetailURL:      n.detailURL(event.DetailPath),
 	}
-	for _, user := range users {
-		if err := n.Sender.SendSubRequestCreated(user.Email, message); err != nil {
-			slog.Error("Failed to send sub request notification email", "to", user.Email, "sub_request_id", event.Request.ID, "error", err)
-		}
+	if err := n.Sender.SendSubRequestCreated(recipients, message); err != nil {
+		slog.Error("Failed to send sub request notification email", "bcc_count", len(recipients), "sub_request_id", event.Request.ID, "error", err)
 	}
 	return nil
 }

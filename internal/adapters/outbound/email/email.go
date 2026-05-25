@@ -16,7 +16,7 @@ import (
 
 type Sender interface {
 	SendMagicLink(toEmail, magicLink string) error
-	SendSubRequestCreated(toEmail string, message SubRequestCreatedMessage) error
+	SendSubRequestCreated(bccEmails []string, message SubRequestCreatedMessage) error
 }
 
 type ConsoleSender struct{}
@@ -26,8 +26,8 @@ func (c *ConsoleSender) SendMagicLink(toEmail, magicLink string) error {
 	return nil
 }
 
-func (c *ConsoleSender) SendSubRequestCreated(toEmail string, message SubRequestCreatedMessage) error {
-	slog.Info("Simulating sub request notification email send", "to", toEmail, "detailURL", message.DetailURL)
+func (c *ConsoleSender) SendSubRequestCreated(bccEmails []string, message SubRequestCreatedMessage) error {
+	slog.Info("Simulating sub request notification email send", "bcc_count", len(bccEmails), "detailURL", message.DetailURL)
 	return nil
 }
 
@@ -204,12 +204,15 @@ func (s *ResendSender) SendMagicLink(toEmail, magicLink string) error {
 	return nil
 }
 
-func (s *ResendSender) SendSubRequestCreated(toEmail string, subRequestMessage SubRequestCreatedMessage) error {
-	if err := s.send(toEmail, renderEmail(subRequestCreatedMessage(subRequestMessage))); err != nil {
+func (s *ResendSender) SendSubRequestCreated(bccEmails []string, subRequestMessage SubRequestCreatedMessage) error {
+	if len(bccEmails) == 0 {
+		return nil
+	}
+	if err := s.sendBCC(bccEmails, renderEmail(subRequestCreatedMessage(subRequestMessage))); err != nil {
 		return fmt.Errorf("failed to send sub request email via resend: %w", err)
 	}
 
-	slog.Info("Successfully sent sub request notification via Resend", "to", toEmail)
+	slog.Info("Successfully sent sub request notification via Resend", "bcc_count", len(bccEmails))
 	return nil
 }
 
@@ -217,6 +220,20 @@ func (s *ResendSender) send(toEmail string, message renderedEmail) error {
 	if _, err := s.Emails.Send(&resend.SendEmailRequest{
 		From:    s.FromEmail,
 		To:      []string{toEmail},
+		Subject: message.Subject,
+		Html:    message.HTML,
+		Text:    message.Text,
+	}); err != nil {
+		return fmt.Errorf("failed to send email via resend: %w", err)
+	}
+	return nil
+}
+
+func (s *ResendSender) sendBCC(bccEmails []string, message renderedEmail) error {
+	if _, err := s.Emails.Send(&resend.SendEmailRequest{
+		From:    s.FromEmail,
+		To:      []string{s.FromEmail},
+		Bcc:     bccEmails,
 		Subject: message.Subject,
 		Html:    message.HTML,
 		Text:    message.Text,
@@ -235,23 +252,81 @@ func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
 	return nil
 }
 
-func (s *SendGridSender) SendSubRequestCreated(toEmail string, subRequestMessage SubRequestCreatedMessage) error {
-	if err := s.send(toEmail, renderEmail(subRequestCreatedMessage(subRequestMessage))); err != nil {
+func (s *SendGridSender) SendSubRequestCreated(bccEmails []string, subRequestMessage SubRequestCreatedMessage) error {
+	if len(bccEmails) == 0 {
+		return nil
+	}
+	if err := s.sendBCC(bccEmails, renderEmail(subRequestCreatedMessage(subRequestMessage))); err != nil {
 		return fmt.Errorf("failed to send sub request email via sendgrid: %w", err)
 	}
 
-	slog.Info("Successfully sent sub request notification via SendGrid", "to", toEmail)
+	slog.Info("Successfully sent sub request notification via SendGrid", "bcc_count", len(bccEmails))
 	return nil
 }
 
 func (s *SendGridSender) send(toEmail string, message renderedEmail) error {
-	// SendGrid v3 API minimal payload
 	payload := map[string]interface{}{
 		"personalizations": []map[string]interface{}{
 			{
 				"to": []map[string]string{
 					{"email": toEmail},
 				},
+			},
+		},
+		"from": map[string]string{
+			"email": s.FromEmail,
+			"name":  "Air Cover",
+		},
+		"subject": message.Subject,
+		"content": []map[string]string{
+			{
+				"type":  "text/plain",
+				"value": message.Text,
+			},
+			{
+				"type":  "text/html",
+				"value": message.HTML,
+			},
+		},
+	}
+
+	body, err := jsonMarshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal sendgrid payload: %w", err)
+	}
+
+	req, err := newHTTPRequest("POST", "https://api.sendgrid.com/v3/mail/send", bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("failed to create sendgrid request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+s.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.HTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send email via sendgrid: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("sendgrid api returned error status: %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (s *SendGridSender) sendBCC(bccEmails []string, message renderedEmail) error {
+	bcc := make([]map[string]string, 0, len(bccEmails))
+	for _, email := range bccEmails {
+		bcc = append(bcc, map[string]string{"email": email})
+	}
+
+	payload := map[string]interface{}{
+		"personalizations": []map[string]interface{}{
+			{
+				"to": []map[string]string{
+					{"email": s.FromEmail},
+				},
+				"bcc": bcc,
 			},
 		},
 		"from": map[string]string{
