@@ -135,3 +135,21 @@ func subRequestSummaryFromSQL(row dbgen.ListSubRequestsRow) subrequestsapp.Dashb
 		TakerEmail:     row.TakerEmail,
 	}
 }
+
+func subRequestDetailFromSQL(row dbgen.GetSubRequestDetailByIDRow) subrequestsapp.DetailReadModel {
+	return subrequestsapp.DetailReadModel{
+		Request: &domain.SubRequest{
+			ID:             int(row.ID),
+			ShowID:         int(row.ShowID),
+			PostedByUserID: int(row.PostedByUserID),
+			TakenByUserID:  ptrFromSQLNullInt(row.TakenByUserID),
+			StartTime:      row.StartTime,
+			EndTime:        row.EndTime,
+			Notes:          stringFromSQLNull(row.Notes),
+			CreatedAt:      timeFromSQLNull(row.CreatedAt),
+			UpdatedAt:      timeFromSQLNull(row.UpdatedAt),
+		},
+		RequesterEmail: row.RequesterEmail,
+		TakerEmail:     row.TakerEmail,
+	}
+}

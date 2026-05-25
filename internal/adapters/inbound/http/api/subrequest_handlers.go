@@ -37,6 +37,30 @@ func (s *Server) GetApp(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Sub request details page
+// (GET /sub-requests/{id})
+func (s *Server) GetSubRequestsId(w http.ResponseWriter, r *http.Request, id int) {
+	viewer := currentUser(r)
+	detail, err := s.subRequests.Get(r.Context(), viewer, id)
+	if err != nil {
+		slog.Error("Failed to load sub request details", "id", id, "error", err)
+		if writeAppError(w, r, err) {
+			return
+		}
+		if errors.Is(err, subrequestsapp.ErrCatalog) {
+			http.Error(w, "Unable to load show", http.StatusBadGateway)
+		} else {
+			http.Error(w, "Unable to load sub request", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	view := presenter.SubRequestDetail(detail)
+	if err := ui.SubRequestDetails(viewer.Email, view, viewer.IsAdmin()).Render(r.Context(), w); err != nil {
+		slog.Error("Failed to write response", "error", err)
+	}
+}
+
 // Create a new sub request
 // (POST /sub-requests)
 func (s *Server) PostSubRequests(w http.ResponseWriter, r *http.Request) {

@@ -51,6 +51,32 @@ func TestSubRequestDashboard(t *testing.T) {
 	}
 }
 
+func TestSubRequestDetail(t *testing.T) {
+	start := time.Date(2026, 5, 23, 15, 4, 0, 0, time.UTC)
+	takerID := 3
+	view := SubRequestDetail(subrequests.Detail{
+		Request: &domain.SubRequest{
+			ID:            4,
+			TakenByUserID: &takerID,
+			StartTime:     start,
+			EndTime:       start.Add(2 * time.Hour),
+			Notes:         "details",
+		},
+		RequesterEmail: "requester@example.com",
+		TakerEmail:     "taker@example.com",
+		ShowTitle:      "Detail Show",
+		CanDelete:      true,
+		CanUntake:      true,
+	})
+
+	if view.ID != 4 || view.ShowTitle != "Detail Show" || view.Status != "filled" {
+		t.Fatalf("unexpected detail view: %+v", view)
+	}
+	if !view.CanDelete || !view.CanUntake || view.Duration != "2 hours" || view.Notes != "details" {
+		t.Fatalf("unexpected detail fields: %+v", view)
+	}
+}
+
 func TestAdminUsers(t *testing.T) {
 	created := time.Date(2026, 5, 23, 15, 4, 0, 0, time.UTC)
 	views := AdminUsers([]*domain.User{{

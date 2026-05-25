@@ -71,6 +71,47 @@ func (q *Queries) GetSubRequestByID(ctx context.Context, id int64) (SubRequest, 
 	return i, err
 }
 
+const getSubRequestDetailByID = `-- name: GetSubRequestDetailByID :one
+SELECT sr.id, sr.show_id, sr.posted_by_user_id, sr.taken_by_user_id, u.email AS requester_email, COALESCE(u2.email, '') AS taker_email, sr.start_time, sr.end_time, sr.notes, sr.created_at, sr.updated_at
+FROM sub_requests sr
+JOIN users u ON sr.posted_by_user_id = u.id
+LEFT JOIN users u2 ON sr.taken_by_user_id = u2.id
+WHERE sr.id = ?
+`
+
+type GetSubRequestDetailByIDRow struct {
+	ID             int64          `json:"id"`
+	ShowID         int64          `json:"show_id"`
+	PostedByUserID int64          `json:"posted_by_user_id"`
+	TakenByUserID  sql.NullInt64  `json:"taken_by_user_id"`
+	RequesterEmail string         `json:"requester_email"`
+	TakerEmail     string         `json:"taker_email"`
+	StartTime      time.Time      `json:"start_time"`
+	EndTime        time.Time      `json:"end_time"`
+	Notes          sql.NullString `json:"notes"`
+	CreatedAt      sql.NullTime   `json:"created_at"`
+	UpdatedAt      sql.NullTime   `json:"updated_at"`
+}
+
+func (q *Queries) GetSubRequestDetailByID(ctx context.Context, id int64) (GetSubRequestDetailByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getSubRequestDetailByID, id)
+	var i GetSubRequestDetailByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.ShowID,
+		&i.PostedByUserID,
+		&i.TakenByUserID,
+		&i.RequesterEmail,
+		&i.TakerEmail,
+		&i.StartTime,
+		&i.EndTime,
+		&i.Notes,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listSubRequests = `-- name: ListSubRequests :many
 SELECT sr.id, sr.show_id, sr.posted_by_user_id, sr.taken_by_user_id, u.email, COALESCE(u2.email, '') AS taker_email, sr.start_time, sr.end_time, sr.notes, sr.created_at, sr.updated_at
 FROM sub_requests sr

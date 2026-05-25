@@ -222,6 +222,66 @@ func TestSubRequestTable_ActionVisibility(t *testing.T) {
 	}
 }
 
+func TestSubRequestDetails(t *testing.T) {
+	req := presenter.SubRequestView{
+		ID:             5,
+		ShowTitle:      "Detail Show",
+		RequesterEmail: "requester@example.com",
+		TakerEmail:     "taker@example.com",
+		StartTime:      "May 23, 3:04pm",
+		EndTime:        "May 23, 5:04pm",
+		Duration:       "2 hours",
+		Notes:          "Bring records",
+		Status:         "filled",
+		CanDelete:      true,
+		CanUntake:      true,
+	}
+	buf := new(bytes.Buffer)
+	if err := SubRequestDetails("admin@example.com", req, true).Render(context.Background(), buf); err != nil {
+		t.Fatalf("failed to render: %v", err)
+	}
+
+	output := buf.String()
+	for _, want := range []string{
+		"Sub Request Details",
+		"Detail Show",
+		"requester@example.com",
+		"taker@example.com",
+		"Bring records",
+		`<a href="/admin">Admin</a>`,
+		`deleteRequest('5')`,
+		`untakeRequest('5')`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("expected detail output to contain %q", want)
+		}
+	}
+}
+
+func TestSubRequestDetails_EmptyOptionalFields(t *testing.T) {
+	req := presenter.SubRequestView{
+		ID:             6,
+		ShowTitle:      "Open Show",
+		RequesterEmail: "requester@example.com",
+		Status:         "open",
+		CanTake:        true,
+	}
+	buf := new(bytes.Buffer)
+	if err := SubRequestDetails("user@example.com", req, false).Render(context.Background(), buf); err != nil {
+		t.Fatalf("failed to render: %v", err)
+	}
+
+	output := buf.String()
+	for _, want := range []string{"None yet", "No notes provided.", `takeRequest('6')`} {
+		if !strings.Contains(output, want) {
+			t.Errorf("expected detail output to contain %q", want)
+		}
+	}
+	if strings.Contains(output, `<a href="/admin">Admin</a>`) {
+		t.Error("admin link should be hidden for non-admin users")
+	}
+}
+
 func TestAuthenticated_Empty(t *testing.T) {
 	buf := new(bytes.Buffer)
 	component := Authenticated(nil, "user@example.com", nil, nil, false)

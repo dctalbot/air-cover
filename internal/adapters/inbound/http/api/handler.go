@@ -24,6 +24,7 @@ type Server struct {
 
 type subRequestService interface {
 	ListDashboard(context.Context, domain.CurrentUser) (subrequestsapp.Dashboard, error)
+	Get(context.Context, domain.CurrentUser, int) (subrequestsapp.Detail, error)
 	Create(context.Context, domain.CurrentUser, subrequestsapp.CreateInput) error
 	Delete(context.Context, domain.CurrentUser, int) error
 	ApplyAction(context.Context, domain.CurrentUser, int, subrequestsapp.Action) error

@@ -1,0 +1,112 @@
+package ui
+
+import "air-cover/internal/adapters/inbound/http/presenter"
+
+templ SubRequestDetails(email string, req presenter.SubRequestView, isAdmin bool) {
+	@Layout("Air Cover - Sub Request") {
+		@BaseStyles()
+		@TableStyles()
+		@PageHeader("Sub Request Details") {
+			<a href="/app">Dashboard</a>
+			if isAdmin {
+				<a href="/admin">Admin</a>
+			}
+			@UserMenu(email)
+		}
+		<section class="detail-card">
+			<p><a href="/app">&larr; Back to dashboard</a></p>
+			<h2>{ req.ShowTitle }</h2>
+			<p class="detail-status">{ req.Status }</p>
+			<dl class="detail-list">
+				<div>
+					<dt>Requester</dt>
+					<dd>{ req.RequesterEmail }</dd>
+				</div>
+				<div>
+					<dt>Taker</dt>
+					<dd>
+						if req.TakerEmail != "" {
+							{ req.TakerEmail }
+						} else {
+							<span>None yet</span>
+						}
+					</dd>
+				</div>
+				<div>
+					<dt>Starts</dt>
+					<dd>{ req.StartTime }</dd>
+				</div>
+				<div>
+					<dt>Ends</dt>
+					<dd>{ req.EndTime }</dd>
+				</div>
+				<div>
+					<dt>Duration</dt>
+					<dd>{ req.Duration }</dd>
+				</div>
+				<div>
+					<dt>Notes</dt>
+					<dd>
+						if req.Notes != "" {
+							{ req.Notes }
+						} else {
+							<span>No notes provided.</span>
+						}
+					</dd>
+				</div>
+			</dl>
+			if req.CanDelete || req.CanTake || req.CanUntake {
+				<div class="detail-actions">
+					@SubRequestActionButtons(req)
+				</div>
+			}
+		</section>
+		<style>
+		  .detail-card {
+			border: 1px solid #eee;
+			border-radius: 8px;
+			padding: 1.5rem;
+			background: #fff;
+		  }
+
+		  .detail-card h2 {
+			margin-bottom: 0.25rem;
+		  }
+
+		  .detail-status {
+			margin-top: 0;
+			color: #666;
+			text-transform: capitalize;
+		  }
+
+		  .detail-list {
+			display: grid;
+			gap: 1rem;
+			margin: 1.5rem 0;
+		  }
+
+		  .detail-list div {
+			display: grid;
+			grid-template-columns: 8rem 1fr;
+			gap: 1rem;
+		  }
+
+		  .detail-list dt {
+			font-weight: 600;
+			color: #555;
+		  }
+
+		  .detail-list dd {
+			margin: 0;
+			white-space: pre-wrap;
+		  }
+
+		  .detail-actions {
+			display: flex;
+			gap: 0.5rem;
+			align-items: center;
+		  }
+		</style>
+		@SubRequestActionScripts()
+	}
+}

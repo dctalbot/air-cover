@@ -114,6 +114,11 @@ func (f *fakeSubRequestsRepo) ListDashboardSubRequests(ctx context.Context) ([]s
 	return nil, nil
 }
 
+func (f *fakeSubRequestsRepo) GetSubRequestDetailByID(ctx context.Context, id int) (subrequestsapp.DetailReadModel, error) {
+	request := &domain.SubRequest{ID: id, PostedByUserID: 1, StartTime: time.Now().Add(time.Hour)}
+	return subrequestsapp.DetailReadModel{Request: request, RequesterEmail: "requester@example.com"}, nil
+}
+
 func (f *fakeSubRequestsRepo) CreateSubRequest(ctx context.Context, sr *domain.SubRequest) error {
 	sr.ID = 1
 	return nil

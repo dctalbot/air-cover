@@ -249,6 +249,17 @@ func TestRepository(t *testing.T) {
 		t.Fatalf("expected email %v, got %v", u.Email, list[0].RequesterEmail)
 	}
 
+	detail, err := repo.GetSubRequestDetailByID(ctx, sr.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.Request.ID != sr.ID {
+		t.Fatalf("expected detail id %v, got %v", sr.ID, detail.Request.ID)
+	}
+	if detail.RequesterEmail != u.Email {
+		t.Fatalf("expected detail requester email %v, got %v", u.Email, detail.RequesterEmail)
+	}
+
 	// GetSubRequestByID
 	sr2, err := repo.GetSubRequestByID(ctx, sr.ID)
 	if err != nil {
@@ -261,6 +272,10 @@ func TestRepository(t *testing.T) {
 	_, err = repo.GetSubRequestByID(ctx, 999)
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+	_, err = repo.GetSubRequestDetailByID(ctx, 999)
+	if err != ErrNotFound {
+		t.Fatalf("expected detail ErrNotFound, got %v", err)
 	}
 
 	// DeleteSubRequest
@@ -317,6 +332,13 @@ func TestRepository(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected to find the taken sub request")
+	}
+	detailTaken, err := repo.GetSubRequestDetailByID(ctx, sr3.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detailTaken.TakerEmail != u4.Email {
+		t.Fatalf("expected detail taker email %v, got %v", u4.Email, detailTaken.TakerEmail)
 	}
 
 	err = repo.TakeSubRequest(ctx, 99999, u4.ID, time.Now())
@@ -457,6 +479,10 @@ func TestRepositoryErrors(t *testing.T) {
 	_, err = repo.GetSubRequestByID(ctx, 1)
 	if err == nil {
 		t.Error("expected error with cancelled context in GetSubRequestByID")
+	}
+	_, err = repo.GetSubRequestDetailByID(ctx, 1)
+	if err == nil {
+		t.Error("expected error with cancelled context in GetSubRequestDetailByID")
 	}
 
 	err = repo.DeleteSubRequest(ctx, 1)
@@ -628,6 +654,10 @@ func TestScanErrors(t *testing.T) {
 	_, err = repo.GetSubRequestByID(ctx, 123)
 	if err == nil {
 		t.Error("expected scan error in GetSubRequestByID")
+	}
+	_, err = repo.GetSubRequestDetailByID(ctx, 123)
+	if err == nil {
+		t.Error("expected scan error in GetSubRequestDetailByID")
 	}
 
 	// ListUsers scan error

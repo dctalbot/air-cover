@@ -117,6 +117,25 @@ paths:
                 - start_time
                 - end_time
   /sub-requests/{id}:
+    get:
+      summary: Sub request details page
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: HTML content
+          content:
+            text/html:
+              schema:
+                type: string
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
     delete:
       summary: Delete a sub request
       parameters:

@@ -46,6 +46,7 @@ func (b *badShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Person
 type fakeServerRepo struct {
 	session       *domain.Session
 	subRequests   []subrequestsapp.DashboardReadModel
+	detail        subrequestsapp.DetailReadModel
 	subRequest    *domain.SubRequest
 	users         []*domain.User
 	err           error
@@ -110,6 +111,16 @@ func (f *fakeServerRepo) ListDashboardSubRequests(ctx context.Context) ([]subreq
 	return f.subRequests, nil
 }
 
+func (f *fakeServerRepo) GetSubRequestDetailByID(ctx context.Context, id int) (subrequestsapp.DetailReadModel, error) {
+	if f.err != nil {
+		return subrequestsapp.DetailReadModel{}, f.err
+	}
+	if f.detail.Request == nil {
+		return subrequestsapp.DetailReadModel{}, apperrors.ErrNotFound
+	}
+	return f.detail, nil
+}
+
 func (f *fakeServerRepo) ListUsers(ctx context.Context) ([]*domain.User, error) {
 	if f.err != nil {
 		return nil, f.err
@@ -160,6 +171,7 @@ func (f *fakeServerRepo) ImportUsers(ctx context.Context, emails []string) error
 
 type fakeSubRequestService struct {
 	dashboard    subrequestsapp.Dashboard
+	detail       subrequestsapp.Detail
 	err          error
 	createInput  subrequestsapp.CreateInput
 	deleteID     int
@@ -172,6 +184,10 @@ type fakeSubRequestService struct {
 
 func (f *fakeSubRequestService) ListDashboard(ctx context.Context, viewer domain.CurrentUser) (subrequestsapp.Dashboard, error) {
 	return f.dashboard, f.err
+}
+
+func (f *fakeSubRequestService) Get(ctx context.Context, viewer domain.CurrentUser, id int) (subrequestsapp.Detail, error) {
+	return f.detail, f.err
 }
 
 func (f *fakeSubRequestService) Create(ctx context.Context, viewer domain.CurrentUser, input subrequestsapp.CreateInput) error {
@@ -629,6 +645,102 @@ func TestServer_GetApp(t *testing.T) {
 	}
 }
 
+func TestServer_GetSubRequestsId(t *testing.T) {
+	repo := setupTestDB(t)
+	requester, _ := repo.CreateUser(context.Background(), "requester@example.com", "member")
+	taker, _ := repo.CreateUser(context.Background(), "taker@example.com", "member")
+	server := newTestServer(repo, nil, &MockShowsService{})
+	sr := &domain.SubRequest{
+		ShowID:         1,
+		PostedByUserID: requester.ID,
+		TakenByUserID:  &taker.ID,
+		StartTime:      time.Now().Add(24 * time.Hour),
+		EndTime:        time.Now().Add(26 * time.Hour),
+		Notes:          "Bring records",
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}
+	if err := repo.CreateSubRequest(context.Background(), sr); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/sub-requests/"+strconv.Itoa(sr.ID), nil)
+	ctx := context.WithValue(req.Context(), UserEmailKey, "taker@example.com")
+	ctx = context.WithValue(ctx, UserIDKey, taker.ID)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	server.GetSubRequestsId(rr, req, sr.ID)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected OK, got %d", rr.Code)
+	}
+	body := rr.Body.String()
+	for _, want := range []string{"Sub Request Details", "Test Show", "requester@example.com", "taker@example.com", "Bring records", "Untake"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected body to contain %q", want)
+		}
+	}
+}
+
+func TestServer_GetSubRequestsId_Errors(t *testing.T) {
+	t.Run("not found", func(t *testing.T) {
+		server := newTestServer(setupTestDB(t), nil, &MockShowsService{})
+		req := httptest.NewRequest(http.MethodGet, "/sub-requests/999", nil)
+		req = req.WithContext(context.WithValue(req.Context(), UserIDKey, 1))
+		rr := httptest.NewRecorder()
+
+		server.GetSubRequestsId(rr, req, 999)
+
+		if rr.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", rr.Code)
+		}
+	})
+
+	t.Run("catalog error", func(t *testing.T) {
+		repo := setupTestDB(t)
+		u, _ := repo.CreateUser(context.Background(), "catalog-detail@example.com", "member")
+		sr := &domain.SubRequest{
+			ShowID:         1,
+			PostedByUserID: u.ID,
+			StartTime:      time.Now().Add(time.Hour),
+			EndTime:        time.Now().Add(2 * time.Hour),
+		}
+		_ = repo.CreateSubRequest(context.Background(), sr)
+		server := newTestServer(repo, nil, &faultyShowsService{})
+		req := httptest.NewRequest(http.MethodGet, "/sub-requests/"+strconv.Itoa(sr.ID), nil)
+		req = req.WithContext(context.WithValue(req.Context(), UserIDKey, u.ID))
+		rr := httptest.NewRecorder()
+
+		server.GetSubRequestsId(rr, req, sr.ID)
+
+		if rr.Code != http.StatusBadGateway {
+			t.Fatalf("expected 502, got %d", rr.Code)
+		}
+	})
+
+	t.Run("service error", func(t *testing.T) {
+		server := NewServer(nil, &fakeSubRequestService{err: errors.New("detail failed")}, nil)
+		req := httptest.NewRequest(http.MethodGet, "/sub-requests/1", nil)
+		rr := httptest.NewRecorder()
+
+		server.GetSubRequestsId(rr, req, 1)
+
+		if rr.Code != http.StatusInternalServerError {
+			t.Fatalf("expected 500, got %d", rr.Code)
+		}
+	})
+
+	t.Run("render error", func(t *testing.T) {
+		server := NewServer(nil, &fakeSubRequestService{detail: subrequestsapp.Detail{
+			Request: &domain.SubRequest{ID: 1, StartTime: time.Now(), EndTime: time.Now().Add(time.Hour)},
+		}}, nil)
+		req := httptest.NewRequest(http.MethodGet, "/sub-requests/1", nil)
+
+		server.GetSubRequestsId(&errorResponseWriter{}, req, 1)
+	})
+}
+
 func TestServer_GetApp_BadShowID(t *testing.T) {
 	// Tests the branch where show ID cannot be parsed as int
 	repo := setupTestDB(t)
@@ -1027,6 +1139,10 @@ func TestUnimplemented(t *testing.T) {
 	check("GetApp", rr.Code)
 
 	rr = httptest.NewRecorder()
+	u.GetSubRequestsId(rr, req, 123)
+	check("GetSubRequestsId", rr.Code)
+
+	rr = httptest.NewRecorder()
 	u.PostAuthLogin(rr, req)
 	check("PostAuthLogin", rr.Code)
 
@@ -1167,6 +1283,17 @@ func TestHandlerViaHTTP(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode == http.StatusNotImplemented {
 		t.Error("expected /app to not return 501")
+	}
+
+	// GET /sub-requests/{id} → exercises ServerInterfaceWrapper.GetSubRequestsId
+	req, _ = http.NewRequest(http.MethodGet, ts.URL+"/sub-requests/123", nil)
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatalf("GET /sub-requests/{id}: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode == http.StatusNotImplemented {
+		t.Error("expected GET /sub-requests/{id} to not return 501")
 	}
 
 	// POST /auth/logout → exercises ServerInterfaceWrapper.PostAuthLogout
@@ -1367,6 +1494,7 @@ func TestHandlerWithMiddleware(t *testing.T) {
 		{http.MethodGet, "/", "", ""},
 		{http.MethodGet, "/health", "", ""},
 		{http.MethodGet, "/app", "", ""},
+		{http.MethodGet, "/sub-requests/123", "", ""},
 		{http.MethodPost, "/auth/login", `{"email":"x@y.com"}`, "application/json"},
 		{http.MethodPost, "/auth/logout", "", ""},
 		{http.MethodGet, "/auth/verify", "", ""}, // Missing token → 400 but middleware still runs

@@ -38,6 +38,10 @@ func SubRequestDashboard(dashboard subrequests.Dashboard) ([]SubRequestView, []S
 	return subRequestViews(dashboard.Upcoming), subRequestViews(dashboard.Past)
 }
 
+func SubRequestDetail(detail subrequests.Detail) SubRequestView {
+	return subRequestView(subrequests.DashboardSubRequest(detail))
+}
+
 func AdminUsers(users []*domain.User, currentUserID int) []UserView {
 	views := make([]UserView, 0, len(users))
 	for _, u := range users {
@@ -56,24 +60,28 @@ func AdminUsers(users []*domain.User, currentUserID int) []UserView {
 func subRequestViews(items []subrequests.DashboardSubRequest) []SubRequestView {
 	views := make([]SubRequestView, 0, len(items))
 	for _, item := range items {
-		sr := item.Request
-		views = append(views, SubRequestView{
-			ID:             sr.ID,
-			ShowTitle:      item.ShowTitle,
-			RequesterEmail: item.RequesterEmail,
-			TakerEmail:     item.TakerEmail,
-			StartTime:      sr.StartTime.Format("Jan 2, 3:04pm"),
-			EndTime:        sr.EndTime.Format(time.RFC3339),
-			Duration:       FormatDuration(sr.EndTime.Sub(sr.StartTime)),
-			Notes:          sr.Notes,
-			Status:         sr.GetStatus(),
-			CanDelete:      item.CanDelete,
-			CanTake:        item.CanTake,
-			CanUntake:      item.CanUntake,
-			IsPast:         item.IsPast,
-		})
+		views = append(views, subRequestView(item))
 	}
 	return views
+}
+
+func subRequestView(item subrequests.DashboardSubRequest) SubRequestView {
+	sr := item.Request
+	return SubRequestView{
+		ID:             sr.ID,
+		ShowTitle:      item.ShowTitle,
+		RequesterEmail: item.RequesterEmail,
+		TakerEmail:     item.TakerEmail,
+		StartTime:      sr.StartTime.Format("Jan 2, 3:04pm"),
+		EndTime:        sr.EndTime.Format("Jan 2, 3:04pm"),
+		Duration:       FormatDuration(sr.EndTime.Sub(sr.StartTime)),
+		Notes:          sr.Notes,
+		Status:         sr.GetStatus(),
+		CanDelete:      item.CanDelete,
+		CanTake:        item.CanTake,
+		CanUntake:      item.CanUntake,
+		IsPast:         item.IsPast,
+	}
 }
 
 func FormatDuration(duration time.Duration) string {

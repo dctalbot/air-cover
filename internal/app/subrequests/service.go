@@ -44,7 +44,24 @@ type DashboardReadModel struct {
 	TakerEmail     string
 }
 
+type DetailReadModel struct {
+	Request        *domain.SubRequest
+	RequesterEmail string
+	TakerEmail     string
+}
+
 type DashboardSubRequest struct {
+	Request        *domain.SubRequest
+	RequesterEmail string
+	TakerEmail     string
+	ShowTitle      string
+	CanDelete      bool
+	CanTake        bool
+	CanUntake      bool
+	IsPast         bool
+}
+
+type Detail struct {
 	Request        *domain.SubRequest
 	RequesterEmail string
 	TakerEmail     string
@@ -123,6 +140,30 @@ func (s *Service) ListDashboard(ctx context.Context, viewer domain.CurrentUser) 
 		Shows:    shows,
 		Upcoming: upcoming,
 		Past:     past,
+	}, nil
+}
+
+func (s *Service) Get(ctx context.Context, viewer domain.CurrentUser, id int) (Detail, error) {
+	record, err := s.repo.GetSubRequestDetailByID(ctx, id)
+	if err != nil {
+		return Detail{}, mapRepositoryError(err)
+	}
+
+	showTitleValue, err := s.showTitleFor(ctx, record.Request.ShowID)
+	if err != nil {
+		return Detail{}, err
+	}
+
+	sr := record.Request
+	return Detail{
+		Request:        sr,
+		RequesterEmail: record.RequesterEmail,
+		TakerEmail:     record.TakerEmail,
+		ShowTitle:      showTitleValue,
+		CanDelete:      sr.CanBeDeletedBy(viewer),
+		CanTake:        sr.CanBeTakenBy(viewer),
+		CanUntake:      sr.CanBeUntakenBy(viewer),
+		IsPast:         sr.StartTime.Before(s.now()),
 	}, nil
 }
 
@@ -239,6 +280,17 @@ func showTitle(showMap map[int]string, showID int) string {
 		return title
 	}
 	return "Unknown Show"
+}
+
+func (s *Service) showTitleFor(ctx context.Context, showID int) (string, error) {
+	if s.catalog == nil {
+		return "Unknown Show", nil
+	}
+	shows, err := s.catalog.ListShows(ctx)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrCatalog, err)
+	}
+	return showTitle(showTitlesByID(shows), showID), nil
 }
 
 func showExists(shows []appcatalog.Show, showID int) bool {

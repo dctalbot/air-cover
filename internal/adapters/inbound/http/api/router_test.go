@@ -123,6 +123,15 @@ func TestNewRouter(t *testing.T) {
 	if rr.Code != http.StatusSeeOther {
 		t.Errorf("expected status 303 for user creation, got %d", rr.Code)
 	}
+
+	// Test invalid ID in sub-requests Get route (handled by generated wrapper)
+	req = httptest.NewRequest(http.MethodGet, "/sub-requests/abc", nil)
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
+	rr = httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for invalid detail ID, got %d", rr.Code)
+	}
 }
 
 func TestNewRouter_RouteAuthorization(t *testing.T) {
@@ -222,6 +231,18 @@ func TestNewRouter_RouteAuthorization(t *testing.T) {
 			sessionToken: sessions["admin"].rawToken,
 			wantStatus:   http.StatusOK,
 			wantBody:     "Authorization Test Show",
+		},
+		{
+			name:         "sub request detail member",
+			path:         "/sub-requests/999",
+			sessionToken: sessions["member"].rawToken,
+			wantStatus:   http.StatusNotFound,
+		},
+		{
+			name:         "sub request detail unauthenticated",
+			path:         "/sub-requests/999",
+			wantStatus:   http.StatusFound,
+			wantLocation: "/",
 		},
 		{
 			name:         "app disabled user",

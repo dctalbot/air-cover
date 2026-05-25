@@ -57,6 +57,17 @@ func (r *Repository) GetSubRequestByID(ctx context.Context, id int) (*domain.Sub
 	return subRequestFromSQL(sr), nil
 }
 
+func (r *Repository) GetSubRequestDetailByID(ctx context.Context, id int) (subrequestsapp.DetailReadModel, error) {
+	row, err := r.queries.GetSubRequestDetailByID(ctx, int64(id))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return subrequestsapp.DetailReadModel{}, ErrNotFound
+		}
+		return subrequestsapp.DetailReadModel{}, err
+	}
+	return subRequestDetailFromSQL(row), nil
+}
+
 func (r *Repository) DeleteSubRequest(ctx context.Context, id int) error {
 	res, err := r.queries.DeleteSubRequest(ctx, int64(id))
 	if err != nil {

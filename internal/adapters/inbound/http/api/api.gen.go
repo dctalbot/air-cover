@@ -220,6 +220,9 @@ type ServerInterface interface {
 	// Delete a sub request
 	// (DELETE /sub-requests/{id})
 	DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id int)
+	// Sub request details page
+	// (GET /sub-requests/{id})
+	GetSubRequestsId(w http.ResponseWriter, r *http.Request, id int)
 	// Take or untake a sub request
 	// (PATCH /sub-requests/{id})
 	PatchSubRequestsId(w http.ResponseWriter, r *http.Request, id int)
@@ -289,6 +292,12 @@ func (_ Unimplemented) PostSubRequests(w http.ResponseWriter, r *http.Request) {
 // Delete a sub request
 // (DELETE /sub-requests/{id})
 func (_ Unimplemented) DeleteSubRequestsId(w http.ResponseWriter, r *http.Request, id int) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Sub request details page
+// (GET /sub-requests/{id})
+func (_ Unimplemented) GetSubRequestsId(w http.ResponseWriter, r *http.Request, id int) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -473,6 +482,31 @@ func (siw *ServerInterfaceWrapper) DeleteSubRequestsId(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteSubRequestsId(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSubRequestsId operation middleware
+func (siw *ServerInterfaceWrapper) GetSubRequestsId(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id int
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSubRequestsId(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -701,6 +735,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Delete(options.BaseURL+"/sub-requests/{id}", wrapper.DeleteSubRequestsId)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/sub-requests/{id}", wrapper.GetSubRequestsId)
+	})
+	r.Group(func(r chi.Router) {
 		r.Patch(options.BaseURL+"/sub-requests/{id}", wrapper.PatchSubRequestsId)
 	})
 	r.Group(func(r chi.Router) {
@@ -719,26 +756,27 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/8xX3VLjRhN9lan5vqpAlcBe2FzEd4TUZp1dFgqW3GxRW2Opbc1aMyN6WvyE8runesbG",
-	"+jHGcQjFDchSa9Tn9OnTMw8ydaZ0Fix5OXiQPs3BqHD52U20PYfrCjzx7xJdCUgawlMwShd8MXZoFMnB",
-	"/E4i6b4EOZCeUNuJnM0SiXBdaYRMDr7No64ew9zoB6QkZ4k8Ae/VBM7Bl8566H7SxAC+7H6jtRzf0nbs",
-	"ODgDn6IuSTsrB/LobCjGDsWRRnHsbgCFB++1s8IoqyZgwJJQNhM+d7eCUKVTbSf7DExTwd9Yvnl0NpSJ",
-	"vAH0ce13+/39PmNxJVhVajmQh/v9/UOZyFJRHlD0+M8EAqWMTnFew0wO5O9AksmK+EPwQb/P/1JnCWx4",
-	"heCOejmZYlmtVYTMkhbsj19PPovFOvzYV8YovOdHzoAo1QSEQ1Fw1cOvENVTmdF2XcpHIeCV8k7k+/67",
-	"bk0vraood6j/giwGHXaDPjgc6SwD24IfAIhM+XzkFGZz2GW5FnRZvinITUAV5WBJp4ogE6osC75khdfK",
-	"WlHeC7UOfeb8CpxnzhOvFYxAxjYGT7+67L6FtPaN3g/vbBPw/xHGciD/11taTW/uM72GyXBm9aXu9m5v",
-	"b/fYYPYqLMCmLmMT2XLthhERVjB7toLb42qb2Yoyn6iJTkWh7VT4x0r3u5Ue2htV6ExgjaVlsef4hBJm",
-	"ud540cjNYruKNqo2x7W4OewfdDM7h0wjpCTIidwZ2Eas8XPBcHUEqggWluxr+d8A6vH92qasKP8zRrHf",
-	"ojJAgF4Ovj1I1rm8rgD5mVWGO5DcFBa6XqoiWdOqV9uwwq7KdvIUOYv6OhRwV3IiImbWJCoiq1eZOUsR",
-	"anxFunJQBeXrmPoYIzZzsLJQuqV8uFOmDLPw9NOKid+R+umn9sgJCYg0h3Qak/bVaG+ucL9epBfV6HwR",
-	"uKkpbeAkre2Nzb6TNqs2G4m0jmJU5wnvGWoPtCWYAIYnpJCeWrK1RwqrNF5JlgldrdzrrHM2WxVFnfzj",
-	"qBklLNwKX40aztIoRO9BZ7Oo2AIIuvX4LdyvVWSYPdF7vP9Ztp7ONum7R/o6jXfQf99tpIslFBETzl5o",
-	"xyB2rCNBOcR+c7gb31mRxBdHYuwq2/a5yJRQTcLDvjDNVwidb78Sr9tN9Wa/qDTi586pDIuY1JR1W9lw",
-	"cfXcuWC+wD9X9wZiqEoeKtnmE/aFtpnPS4QjfulGHDs7LnRKYkcVCCq7F0yi3W1p6quahukSOW5ri5u5",
-	"8kEs6+z0MoT8d0a66TkxkegKqCvIgBkBykTGM8jVtkfL5xW0fo6PVDrlYa7aB4VXltPsSRPnMtcK3tOm",
-	"dEg9X2qrCZ3dQAHD8MrF4xsvx9CLNNLPq4kmQKsK4QH5OA6IDls8RVyBIS/G6IxYYqwxthh0z7H0xm1Y",
-	"++9g1aiIPTn/zsi5ApTdtsXa3ZT8O0Nopvg4LbDiaTFWhV81LF4m8+0mCRd+MULEzh8Xp1/C9N+qI8TO",
-	"B4dm9w1OokbTXAa0QoW2+ckLT4oqPozNZn8HAAD//xNjAwoxFAAA",
+	"H4sIAAAAAAAC/8xX31MbNxD+VzRqZ0pmDuyE9KF+o3TSuAmBgdCXDJOR79Y+xSfpWO3xo4z/985KNr4f",
+	"xjguJbzA+bQn7fft7rerO5k6UzoLlrwc3Emf5mBUePzoJtqewmUFnvh3ia4EJA1hFYzSBT+MHRpFcjB/",
+	"k0i6LUEOpCfUdiJns0QiXFYaIZODL3Ori3szN/oGKclZIo/AezWBU/Clsx66R5powI/dM1rb8Sttx46N",
+	"M/Ap6pK0s3IgD06GYuxQHGgUh+4KUHjwXjsrjLJqAgYsCWUz4XN3LQhVOtV2ssfANBV8xvLLg5OhTOQV",
+	"oI97v97r7/UZiyvBqlLLgdzf6+/ty0SWivKAosd/JhAoZXSK/RpmciD/BJJMVsQfjN/0+/wvdZbAhk8I",
+	"bqiXkymW0VpFyCxpwX7/+eijWOzDy74yRuEtLzkDolQTEA5FwVEPv4JVT2VG23UuHwSDZ/I7kW/7r7sx",
+	"Pbeqotyh/geyaLTfNXrncKSzDGwLfgAgMuXzkVOYzWGX5VrQZfmiIDcBVZSDJZ0qgkyosiz4kTO8FtaK",
+	"8l6Idagz51fgPHGeeK8gBDKWMXj63WW3LaS1M3rfvLNNwD8jjOVA/tRbSk1vrjO9hsiwZ/Wtbnavr693",
+	"WWB2KyzApi5jEdly74YQEVYwezSC2+Nqi9mKMB+piU5Foe1U+PtI97uRHtorVehMYI2lZbDn+IQSZrnf",
+	"eFHIzWC7ijaKNtu1uNnvv+l6dgqZRkhJkBO5M7BNssbjguDqCFQRLCTZ1/y/AtTj27VFWVH+d7RivUVl",
+	"gAC9HHy5k5zn8rIC5DWrDFcguSks8nqZFcmaUr3YhhVWVZaTh8hZxNehgJuSHRHRsyZREVk9ysxZilDj",
+	"K9KVgyooX8fU+2ixmYKVhdKtzIcbZcrQC48/rOj4nVQ//tBuOcEBkeaQTqPTvhrtzjPcr0/Ss2p0ujDc",
+	"VJQ2UJLWeGOzr6TNqmEjkdZRtOqs8MxQW9CWYAIYVkghPbRla0YKuzQ+SZYOXaycddYpm62Kok7+YcwZ",
+	"JSxcC1+NGsrSCETvTmezmLEFEHTj8Ud4X4vIMHug9nj+WZaezjapu3v6OoX3pv+2W0hnSygiOpw90cQg",
+	"dqwjQTnEenP4Kn6zwolPjsTYVbatc5EpoZqEJw+W6I/g9AfPbN/BZjPUpHTh58NNmLTTfIV08OtnYnW7",
+	"OampQCqNHLAWVYZlgdSUlaCy4eHisZvWfIPv14sNyqsquU1nm88sTzS4P54mbPFb1+LQ2XGhUxI7qkBQ",
+	"2a1gEu2rVl59VtPQryPH7Wpleax8SJZ1Deo8mPx/rWnTm3ci0RVQzyADZgQoExlvdRfbXtYfz6D1k9FI",
+	"pVMej1T76vXM6TR7sC1ymGsB72lTOqSeL7XVhM5ukAHD8MnZ/RdPx9CTFNKvq4kmQKsK4QGvAAUgOmzx",
+	"FHEFhrwYozNiibHG2GJ0eIylFy7D2n8Fq0ZFrMn5OSPnClB22xJrV1Py3wSh6eJ9t8CKu8VYFX5Vs3ga",
+	"z7frJBz4RQsRO3+dHX8K89RWFSF23jk0r15gJ2oUzXlAK1Qom1+88KSo4uvtbPZvAAAA//+4vq8MgxUA",
+	"AA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

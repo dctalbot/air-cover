@@ -160,69 +160,8 @@ templ Authenticated(shows []appcatalog.Show, email string, upcoming []presenter.
 
 		  // Run once on load in case browser remembers values
 		  updatePreview();
-
-		  async function deleteRequest(id) {
-			if (!confirm("Are you sure you want to delete this sub request?")) {
-			  return;
-			}
-
-			try {
-			  const response = await fetch(`/sub-requests/${id}`, {
-				method: "DELETE",
-			  });
-
-			  if (response.ok) {
-				window.location.reload();
-			  } else {
-				const text = await response.text();
-				alert(`Failed to delete request: ${text || response.statusText}`);
-			  }
-			} catch (error) {
-			  console.error("Error deleting request:", error);
-			  alert("An error occurred while deleting the request.");
-			}
-		  }
-
-		  async function takeRequest(id) {
-			try {
-			  const response = await fetch(`/sub-requests/${id}`, {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ action: "take" }),
-			  });
-
-			  if (response.ok) {
-				window.location.reload();
-			  } else {
-				const text = await response.text();
-				alert(`Failed to take request: ${text || response.statusText}`);
-			  }
-			} catch (error) {
-			  console.error("Error taking request:", error);
-			  alert("An error occurred while taking the request.");
-			}
-		  }
-
-		  async function untakeRequest(id) {
-			try {
-			  const response = await fetch(`/sub-requests/${id}`, {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ action: "untake" }),
-			  });
-
-			  if (response.ok) {
-				window.location.reload();
-			  } else {
-				const text = await response.text();
-				alert(`Failed to untake request: ${text || response.statusText}`);
-			  }
-			} catch (error) {
-			  console.error("Error untaking request:", error);
-			  alert("An error occurred while untaking the request.");
-			}
-		  }
 		</script>
+		@SubRequestActionScripts()
 	}
 }
 
@@ -240,7 +179,7 @@ templ SubRequestTable(subRequests []presenter.SubRequestView) {
 			<tbody class="row-group">
 				<tr id={ "sub-request-row-" + strconv.Itoa(req.ID) } class={ templ.KV("row-available", req.TakerEmail == ""), templ.KV("row-taken", req.TakerEmail != "") }>
 					<td rowspan="2">{ req.StartTime }</td>
-					<td>{ req.ShowTitle }</td>
+					<td><a href={ templ.SafeURL("/sub-requests/" + strconv.Itoa(req.ID)) }>{ req.ShowTitle }</a></td>
 					<td>🗣 { req.RequesterEmail }</td>
 					<td rowspan="2" class="actions-cell">
 						if req.CanDelete {
@@ -288,4 +227,97 @@ templ SubRequestTable(subRequests []presenter.SubRequestView) {
 			</tbody>
 		}
 	</table>
+}
+
+templ SubRequestActionButtons(req presenter.SubRequestView) {
+	if req.CanDelete {
+		<button
+			class="btn-action btn-action-danger"
+			onclick={ templ.ComponentScript{Call: "deleteRequest('" + strconv.Itoa(req.ID) + "')"} }
+		>
+			Delete
+		</button>
+	}
+	if req.CanTake {
+		<button
+			class="btn-action btn-action-primary"
+			onclick={ templ.ComponentScript{Call: "takeRequest('" + strconv.Itoa(req.ID) + "')"} }
+		>
+			Take
+		</button>
+	}
+	if req.CanUntake {
+		<button
+			class="btn-action btn-action-warning"
+			onclick={ templ.ComponentScript{Call: "untakeRequest('" + strconv.Itoa(req.ID) + "')"} }
+		>
+			Untake
+		</button>
+	}
+}
+
+templ SubRequestActionScripts() {
+	<script>
+	  async function deleteRequest(id) {
+		if (!confirm("Are you sure you want to delete this sub request?")) {
+		  return;
+		}
+
+		try {
+		  const response = await fetch(`/sub-requests/${id}`, {
+			method: "DELETE",
+		  });
+
+		  if (response.ok) {
+			window.location.href = "/app";
+		  } else {
+			const text = await response.text();
+			alert(`Failed to delete request: ${text || response.statusText}`);
+		  }
+		} catch (error) {
+		  console.error("Error deleting request:", error);
+		  alert("An error occurred while deleting the request.");
+		}
+	  }
+
+	  async function takeRequest(id) {
+		try {
+		  const response = await fetch(`/sub-requests/${id}`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ action: "take" }),
+		  });
+
+		  if (response.ok) {
+			window.location.reload();
+		  } else {
+			const text = await response.text();
+			alert(`Failed to take request: ${text || response.statusText}`);
+		  }
+		} catch (error) {
+		  console.error("Error taking request:", error);
+		  alert("An error occurred while taking the request.");
+		}
+	  }
+
+	  async function untakeRequest(id) {
+		try {
+		  const response = await fetch(`/sub-requests/${id}`, {
+			method: "PATCH",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ action: "untake" }),
+		  });
+
+		  if (response.ok) {
+			window.location.reload();
+		  } else {
+			const text = await response.text();
+			alert(`Failed to untake request: ${text || response.statusText}`);
+		  }
+		} catch (error) {
+		  console.error("Error untaking request:", error);
+		  alert("An error occurred while untaking the request.");
+		}
+	  }
+	</script>
 }

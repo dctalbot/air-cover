@@ -50,6 +50,7 @@ func NewRouter(apiServer *Server, authHandler *AuthHandler) chi.Router {
 		r.Use(authHandler.AuthMiddleware)
 		r.Use(requireSameOriginMutation)
 		r.Get("/app", wrapper.GetApp)
+		r.Get("/sub-requests/{id}", wrapper.GetSubRequestsId)
 		r.Post("/auth/logout", wrapper.PostAuthLogout)
 		r.Post("/sub-requests", wrapper.PostSubRequests)
 		r.Delete("/sub-requests/{id}", wrapper.DeleteSubRequestsId)

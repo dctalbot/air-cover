@@ -20,6 +20,10 @@ type DashboardQuery interface {
 	ListDashboardSubRequests(ctx context.Context) ([]DashboardReadModel, error)
 }
 
+type DetailQuery interface {
+	GetSubRequestDetailByID(ctx context.Context, id int) (DetailReadModel, error)
+}
+
 type RequestReader interface {
 	GetSubRequestByID(ctx context.Context, id int) (*domain.SubRequest, error)
 }
@@ -27,6 +31,7 @@ type RequestReader interface {
 type Repository interface {
 	CommandRepository
 	DashboardQuery
+	DetailQuery
 }
 
 type Catalog interface {

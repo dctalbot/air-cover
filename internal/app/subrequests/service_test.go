@@ -14,8 +14,10 @@ import (
 
 type fakeRepository struct {
 	subRequests []DashboardReadModel
+	detail      DetailReadModel
 	subRequest  *domain.SubRequest
 	listErr     error
+	detailErr   error
 	createErr   error
 	getErr      error
 	deleteErr   error
@@ -32,6 +34,13 @@ type fakeRepository struct {
 
 func (f *fakeRepository) ListDashboardSubRequests(ctx context.Context) ([]DashboardReadModel, error) {
 	return f.subRequests, f.listErr
+}
+
+func (f *fakeRepository) GetSubRequestDetailByID(ctx context.Context, id int) (DetailReadModel, error) {
+	if f.detailErr != nil {
+		return DetailReadModel{}, f.detailErr
+	}
+	return f.detail, nil
 }
 
 func (f *fakeRepository) CreateSubRequest(ctx context.Context, sr *domain.SubRequest) error {
@@ -120,6 +129,70 @@ func TestListDashboardErrors(t *testing.T) {
 	if _, err := NewService(&fakeRepository{listErr: wantErr}, &fakeCatalog{}).
 		ListDashboard(context.Background(), domain.CurrentUser{}); !errors.Is(err, wantErr) {
 		t.Errorf("list error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestGet(t *testing.T) {
+	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
+	takerID := 2
+	repo := &fakeRepository{detail: DetailReadModel{
+		Request: &domain.SubRequest{
+			ID:             7,
+			ShowID:         2,
+			PostedByUserID: 1,
+			TakenByUserID:  &takerID,
+			StartTime:      now.Add(2 * time.Hour),
+			EndTime:        now.Add(4 * time.Hour),
+			Notes:          "Bring headphones",
+		},
+		RequesterEmail: "requester@example.com",
+		TakerEmail:     "taker@example.com",
+	}}
+	svc := NewService(repo, &fakeCatalog{shows: []appcatalog.Show{{ID: "2", Title: "Detail Show"}}})
+	svc.nowFunc = func() time.Time { return now }
+
+	detail, err := svc.Get(context.Background(), domain.CurrentUser{ID: takerID, Role: domain.RoleMember}, 7)
+	if err != nil {
+		t.Fatalf("Get returned error: %v", err)
+	}
+	if detail.ShowTitle != "Detail Show" {
+		t.Fatalf("show title = %q, want Detail Show", detail.ShowTitle)
+	}
+	if detail.RequesterEmail != "requester@example.com" || detail.TakerEmail != "taker@example.com" {
+		t.Fatalf("unexpected emails: %+v", detail)
+	}
+	if !detail.CanUntake || detail.CanTake || detail.IsPast {
+		t.Fatalf("unexpected permissions/past flag: %+v", detail)
+	}
+}
+
+func TestGetErrors(t *testing.T) {
+	if _, err := NewService(&fakeRepository{detailErr: apperrors.ErrNotFound}, nil).
+		Get(context.Background(), domain.CurrentUser{}, 99); !errors.Is(err, apperrors.ErrNotFound) {
+		t.Errorf("not found error = %v, want app not found", err)
+	}
+
+	svc := NewService(&fakeRepository{detail: DetailReadModel{Request: &domain.SubRequest{ShowID: 1}}}, &fakeCatalog{err: errors.New("down")})
+	if _, err := svc.Get(context.Background(), domain.CurrentUser{}, 1); !errors.Is(err, ErrCatalog) {
+		t.Errorf("catalog error = %v, want ErrCatalog", err)
+	}
+
+	svc = NewService(&fakeRepository{detail: DetailReadModel{Request: &domain.SubRequest{ShowID: 999}}}, &fakeCatalog{shows: []appcatalog.Show{{ID: "bad", Title: "Bad ID"}}})
+	detail, err := svc.Get(context.Background(), domain.CurrentUser{}, 1)
+	if err != nil {
+		t.Fatalf("Get unknown show returned error: %v", err)
+	}
+	if detail.ShowTitle != "Unknown Show" {
+		t.Fatalf("show title = %q, want Unknown Show", detail.ShowTitle)
+	}
+
+	detail, err = NewService(&fakeRepository{detail: DetailReadModel{Request: &domain.SubRequest{ShowID: 1}}}, nil).
+		Get(context.Background(), domain.CurrentUser{}, 1)
+	if err != nil {
+		t.Fatalf("Get with nil catalog returned error: %v", err)
+	}
+	if detail.ShowTitle != "Unknown Show" {
+		t.Fatalf("nil catalog show title = %q, want Unknown Show", detail.ShowTitle)
 	}
 }
 
