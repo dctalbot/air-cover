@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/resend/resend-go/v3"
@@ -28,6 +29,26 @@ type resendEmailSender interface {
 	Send(params *resend.SendEmailRequest) (*resend.SendEmailResponse, error)
 }
 
+type emailMessage struct {
+	Subject string
+	Preview string
+	Heading string
+	Body    []string
+	CTA     emailCTA
+	Footer  string
+}
+
+type emailCTA struct {
+	Label string
+	URL   string
+}
+
+type renderedEmail struct {
+	Subject string
+	HTML    string
+	Text    string
+}
+
 type ResendSender struct {
 	FromEmail string
 	Emails    resendEmailSender
@@ -46,14 +67,101 @@ var (
 	}
 )
 
+func renderEmail(message emailMessage) renderedEmail {
+	return renderedEmail{
+		Subject: message.Subject,
+		HTML:    renderHTML(message),
+		Text:    renderText(message),
+	}
+}
+
+func renderHTML(message emailMessage) string {
+	var body strings.Builder
+	body.WriteString(`<!doctype html><html><body style="margin:0;padding:0;background:#f8fafc;color:#0f172a;font-family:Arial,sans-serif;">`)
+	if message.Preview != "" {
+		body.WriteString(`<div style="display:none;max-height:0;overflow:hidden;">`)
+		body.WriteString(html.EscapeString(message.Preview))
+		body.WriteString(`</div>`)
+	}
+	body.WriteString(`<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;padding:32px 16px;"><tr><td align="center">`)
+	body.WriteString(`<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:32px;">`)
+	body.WriteString(`<tr><td style="font-size:14px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#2563eb;padding-bottom:24px;">Air Cover</td></tr>`)
+	body.WriteString(`<tr><td><h1 style="margin:0 0 16px;font-size:24px;line-height:1.25;color:#0f172a;">`)
+	body.WriteString(html.EscapeString(message.Heading))
+	body.WriteString(`</h1></td></tr>`)
+	for _, paragraph := range message.Body {
+		body.WriteString(`<tr><td><p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#334155;">`)
+		body.WriteString(html.EscapeString(paragraph))
+		body.WriteString(`</p></td></tr>`)
+	}
+	if message.CTA.Label != "" && message.CTA.URL != "" {
+		escapedURL := html.EscapeString(message.CTA.URL)
+		body.WriteString(`<tr><td style="padding:8px 0 24px;"><a href="`)
+		body.WriteString(escapedURL)
+		body.WriteString(`" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:8px;">`)
+		body.WriteString(html.EscapeString(message.CTA.Label))
+		body.WriteString(`</a></td></tr>`)
+		body.WriteString(`<tr><td><p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#64748b;">If the button does not work, copy and paste this link into your browser:<br><a href="`)
+		body.WriteString(escapedURL)
+		body.WriteString(`" style="color:#2563eb;word-break:break-all;">`)
+		body.WriteString(escapedURL)
+		body.WriteString(`</a></p></td></tr>`)
+	}
+	if message.Footer != "" {
+		body.WriteString(`<tr><td style="border-top:1px solid #e2e8f0;padding-top:16px;"><p style="margin:0;font-size:13px;line-height:1.5;color:#64748b;">`)
+		body.WriteString(html.EscapeString(message.Footer))
+		body.WriteString(`</p></td></tr>`)
+	}
+	body.WriteString(`</table></td></tr></table></body></html>`)
+	return body.String()
+}
+
+func renderText(message emailMessage) string {
+	var body strings.Builder
+	body.WriteString("Air Cover\n\n")
+	body.WriteString(message.Heading)
+	body.WriteString("\n\n")
+	for _, paragraph := range message.Body {
+		body.WriteString(paragraph)
+		body.WriteString("\n\n")
+	}
+	if message.CTA.Label != "" && message.CTA.URL != "" {
+		body.WriteString(message.CTA.Label)
+		body.WriteString(": ")
+		body.WriteString(message.CTA.URL)
+		body.WriteString("\n\n")
+	}
+	if message.Footer != "" {
+		body.WriteString(message.Footer)
+		body.WriteString("\n")
+	}
+	return body.String()
+}
+
+func magicLinkMessage(magicLink string) emailMessage {
+	return emailMessage{
+		Subject: "Log in to Air Cover",
+		Preview: "Use your secure link to log in to Air Cover.",
+		Heading: "Log in to Air Cover",
+		Body: []string{
+			"Use the secure link below to log in to Air Cover. This link expires soon and can only be used once.",
+		},
+		CTA: emailCTA{
+			Label: "Log in to Air Cover",
+			URL:   magicLink,
+		},
+		Footer: "If you did not request this email, you can ignore it.",
+	}
+}
+
 func (s *ResendSender) SendMagicLink(toEmail, magicLink string) error {
-	escapedMagicLink := html.EscapeString(magicLink)
+	message := renderEmail(magicLinkMessage(magicLink))
 	if _, err := s.Emails.Send(&resend.SendEmailRequest{
 		From:    s.FromEmail,
 		To:      []string{toEmail},
-		Subject: "Your Air Cover Login Link",
-		Html:    fmt.Sprintf("<p>Click here to log in: <a href=\"%s\">%s</a></p>", escapedMagicLink, escapedMagicLink),
-		Text:    fmt.Sprintf("Click here to log in: %s", magicLink),
+		Subject: message.Subject,
+		Html:    message.HTML,
+		Text:    message.Text,
 	}); err != nil {
 		return fmt.Errorf("failed to send email via resend: %w", err)
 	}
@@ -63,6 +171,8 @@ func (s *ResendSender) SendMagicLink(toEmail, magicLink string) error {
 }
 
 func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
+	message := renderEmail(magicLinkMessage(magicLink))
+
 	// SendGrid v3 API minimal payload
 	payload := map[string]interface{}{
 		"personalizations": []map[string]interface{}{
@@ -76,11 +186,15 @@ func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
 			"email": s.FromEmail,
 			"name":  "Air Cover",
 		},
-		"subject": "Your Air Cover Login Link",
+		"subject": message.Subject,
 		"content": []map[string]string{
 			{
 				"type":  "text/plain",
-				"value": fmt.Sprintf("Click here to log in: %s", magicLink),
+				"value": message.Text,
+			},
+			{
+				"type":  "text/html",
+				"value": message.HTML,
 			},
 		},
 	}

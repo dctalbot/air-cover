@@ -1,10 +1,12 @@
 package email
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/resend/resend-go/v3"
@@ -21,7 +23,8 @@ func TestResendSender_Success(t *testing.T) {
 	emails := &fakeResendEmails{}
 	s := &ResendSender{FromEmail: "noreply@example.com", Emails: emails}
 
-	if err := s.SendMagicLink("test@example.com", "http://example.com/verify?token=abc"); err != nil {
+	magicLink := "http://example.com/verify?token=abc&next=/dashboard"
+	if err := s.SendMagicLink("test@example.com", magicLink); err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
 	if emails.request == nil {
@@ -33,11 +36,23 @@ func TestResendSender_Success(t *testing.T) {
 	if len(emails.request.To) != 1 || emails.request.To[0] != "test@example.com" {
 		t.Fatalf("expected recipient test@example.com, got %v", emails.request.To)
 	}
-	if emails.request.Subject != "Your Air Cover Login Link" {
+	if emails.request.Subject != "Log in to Air Cover" {
 		t.Fatalf("unexpected subject: %s", emails.request.Subject)
 	}
 	if emails.request.Text == "" || emails.request.Html == "" {
 		t.Fatal("expected text and HTML content")
+	}
+	if !strings.Contains(emails.request.Text, "Use the secure link below to log in to Air Cover.") {
+		t.Fatalf("expected refined copy in text content: %s", emails.request.Text)
+	}
+	if !strings.Contains(emails.request.Text, magicLink) {
+		t.Fatalf("expected raw magic link in text content: %s", emails.request.Text)
+	}
+	if !strings.Contains(emails.request.Html, "Log in to Air Cover") {
+		t.Fatalf("expected CTA copy in HTML content: %s", emails.request.Html)
+	}
+	if !strings.Contains(emails.request.Html, "http://example.com/verify?token=abc&amp;next=/dashboard") {
+		t.Fatalf("expected escaped magic link in HTML content: %s", emails.request.Html)
 	}
 }
 
@@ -53,9 +68,13 @@ func TestResendSender_Error(t *testing.T) {
 }
 
 func TestSendGridSender_Success(t *testing.T) {
+	var payload sendGridPayload
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer test-key" {
 			t.Errorf("unexpected Authorization header: %s", r.Header.Get("Authorization"))
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("failed to decode request body: %v", err)
 		}
 		w.WriteHeader(http.StatusAccepted)
 	}))
@@ -71,6 +90,24 @@ func TestSendGridSender_Success(t *testing.T) {
 
 	if err := s.SendMagicLink("test@example.com", "http://example.com/verify?token=abc"); err != nil {
 		t.Errorf("expected no error, got %v", err)
+	}
+	if payload.Subject != "Log in to Air Cover" {
+		t.Fatalf("unexpected subject: %s", payload.Subject)
+	}
+	if len(payload.Content) != 2 {
+		t.Fatalf("expected text and HTML content, got %d entries", len(payload.Content))
+	}
+	if payload.Content[0].Type != "text/plain" {
+		t.Fatalf("expected first content type text/plain, got %s", payload.Content[0].Type)
+	}
+	if !strings.Contains(payload.Content[0].Value, "Use the secure link below to log in to Air Cover.") {
+		t.Fatalf("expected refined copy in text content: %s", payload.Content[0].Value)
+	}
+	if payload.Content[1].Type != "text/html" {
+		t.Fatalf("expected second content type text/html, got %s", payload.Content[1].Type)
+	}
+	if !strings.Contains(payload.Content[1].Value, "<!doctype html>") {
+		t.Fatalf("expected rendered HTML content: %s", payload.Content[1].Value)
 	}
 }
 
@@ -170,6 +207,14 @@ func (t *errorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 type fakeResendEmails struct {
 	request *resend.SendEmailRequest
 	err     error
+}
+
+type sendGridPayload struct {
+	Subject string `json:"subject"`
+	Content []struct {
+		Type  string `json:"type"`
+		Value string `json:"value"`
+	} `json:"content"`
 }
 
 func (f *fakeResendEmails) Send(params *resend.SendEmailRequest) (*resend.SendEmailResponse, error) {
