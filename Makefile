@@ -16,6 +16,7 @@ start:
 	$(GO) run $(AIR) -c .air.toml
 
 generate:
+	@sqlite3 aircover.db "SELECT sql || ';' FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END, name;" > internal/adapters/outbound/sqlite/schema.gen.sql
 	@$(GO) run $(SQLC) generate -f .sqlc.yaml
 	@$(GO) run $(OAPI_CODEGEN) -package api -generate chi-server,types,spec internal/adapters/inbound/http/api/openapi.yaml > internal/adapters/inbound/http/api/api.gen.go
 	@$(GO) run $(TEMPL) fmt -log-level=warn . 

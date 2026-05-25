@@ -9,6 +9,13 @@ import (
 	"time"
 )
 
+type GooseDbVersion struct {
+	ID        int64        `json:"id"`
+	VersionID int64        `json:"version_id"`
+	IsApplied int64        `json:"is_applied"`
+	Tstamp    sql.NullTime `json:"tstamp"`
+}
+
 type MagicLink struct {
 	ID        int64        `json:"id"`
 	UserID    int64        `json:"user_id"`

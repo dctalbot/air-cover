@@ -1,7 +1,7 @@
 version: "2"
 sql:
   - engine: "sqlite"
-    schema: "internal/adapters/outbound/sqlite/schema.sql"
+    schema: "internal/adapters/outbound/sqlite/schema.gen.sql"
     queries: "internal/adapters/outbound/sqlite/queries"
     gen:
       go:

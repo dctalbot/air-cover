@@ -17,5 +17,5 @@ SQL queries are authored in `internal/adapters/outbound/sqlite/queries` and gene
 into `internal/adapters/outbound/sqlite/dbgen`. The generated package is adapter-internal:
 repository methods map sqlc rows into domain/app types before returning them.
 
-Keep `internal/adapters/outbound/sqlite/schema.sql` in sync with the current goose schema
-when migrations change, then run `make generate`.
+`make generate` dumps the current application schema from `aircover.db` to
+`internal/adapters/outbound/sqlite/schema.gen.sql`, then runs sqlc.
