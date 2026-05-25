@@ -50,7 +50,7 @@ type serverDeps struct {
 	newSender        func(resendAPIKey, sendGridAPIKey, fromEmail string) adapteremail.Sender
 	newSpinitron     func(apiKey, baseURL string) adapterspinitron.PageClient
 	newCatalog       func(adapterspinitron.PageClient) catalog
-	newRouter        func(*api.Server, *api.AuthHandler) chi.Router
+	newRouter        func(*api.Server, *api.AuthHandler, *config.Config) chi.Router
 	listenAndServe   func(*http.Server) error
 	backgroundCtx    func() context.Context
 	newAuthHandler   func(*authapp.Service) *api.AuthHandler
@@ -106,8 +106,10 @@ func defaultServerDeps() serverDeps {
 		newSpinitron: func(apiKey, baseURL string) adapterspinitron.PageClient {
 			return adapterspinitron.NewClient(apiKey, baseURL)
 		},
-		newCatalog:     func(source adapterspinitron.PageClient) catalog { return adapterspinitron.NewCatalog(source) },
-		newRouter:      api.NewRouter,
+		newCatalog: func(source adapterspinitron.PageClient) catalog { return adapterspinitron.NewCatalog(source) },
+		newRouter: func(apiServer *api.Server, authHandler *api.AuthHandler, cfg *config.Config) chi.Router {
+			return api.NewRouter(apiServer, authHandler, cfg.TrustedProxies)
+		},
 		listenAndServe: listenAndServe,
 		backgroundCtx:  context.Background,
 		newAuthHandler: func(service *authapp.Service) *api.AuthHandler {
@@ -223,7 +225,7 @@ func buildApplicationServices(infra infrastructure) applicationServices {
 func buildHTTPServer(cfg *config.Config, services applicationServices, deps serverDeps) *http.Server {
 	authHandler := deps.newAuthHandler(services.auth)
 	apiServer := deps.newAPIServer(services.subRequests, services.admin, authHandler)
-	r := deps.newRouter(apiServer, authHandler)
+	r := deps.newRouter(apiServer, authHandler, cfg)
 
 	portStr := strconv.Itoa(cfg.Port)
 	slog.Info("Listening on port", "port", portStr)

@@ -192,7 +192,7 @@ func (h *AuthHandler) syncTokenGenerator() {
 }
 
 func requestScheme(r *http.Request) string {
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+	if r.TLS != nil || trustedForwardedProto(r) == "https" {
 		return "https"
 	}
 	return "http"
@@ -223,7 +223,7 @@ func clearSessionCookie(w http.ResponseWriter, r *http.Request) {
 }
 
 func isSecureRequest(r *http.Request) bool {
-	return r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
+	return r.TLS != nil || trustedForwardedProto(r) == "https"
 }
 
 func (h *AuthHandler) RequireAdmin(next http.Handler) http.Handler {

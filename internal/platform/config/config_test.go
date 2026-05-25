@@ -119,6 +119,75 @@ func TestLoad_AppBaseURLFromEnv(t *testing.T) {
 	}
 }
 
+func TestLoad_TrustedProxiesFromEnv(t *testing.T) {
+	viper.Reset()
+	os.Setenv("DB_URI", "postgres://localhost/db")
+	defer os.Unsetenv("DB_URI")
+	os.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
+	defer os.Unsetenv("SPINITRON_API_URL")
+	os.Setenv("MASTER_EMAIL", "admin@example.com")
+	defer os.Unsetenv("MASTER_EMAIL")
+	os.Setenv("FROM_EMAIL", "noreply@example.com")
+	defer os.Unsetenv("FROM_EMAIL")
+	os.Setenv("TRUSTED_PROXIES", "127.0.0.1, 10.0.0.0/8")
+	defer os.Unsetenv("TRUSTED_PROXIES")
+
+	cfg, err := Load(nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if got := len(cfg.TrustedProxies); got != 2 {
+		t.Fatalf("expected 2 trusted proxies, got %d", got)
+	}
+	if cfg.TrustedProxies[0].String() != "127.0.0.1/32" {
+		t.Errorf("expected host proxy to become /32 prefix, got %s", cfg.TrustedProxies[0])
+	}
+	if cfg.TrustedProxies[1].String() != "10.0.0.0/8" {
+		t.Errorf("expected CIDR proxy to be preserved, got %s", cfg.TrustedProxies[1])
+	}
+}
+
+func TestLoad_TrustedProxiesSkipsEmptyEntries(t *testing.T) {
+	viper.Reset()
+	os.Setenv("DB_URI", "postgres://localhost/db")
+	defer os.Unsetenv("DB_URI")
+	os.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
+	defer os.Unsetenv("SPINITRON_API_URL")
+	os.Setenv("MASTER_EMAIL", "admin@example.com")
+	defer os.Unsetenv("MASTER_EMAIL")
+	os.Setenv("FROM_EMAIL", "noreply@example.com")
+	defer os.Unsetenv("FROM_EMAIL")
+	os.Setenv("TRUSTED_PROXIES", "127.0.0.1, ,")
+	defer os.Unsetenv("TRUSTED_PROXIES")
+
+	cfg, err := Load(nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if got := len(cfg.TrustedProxies); got != 1 {
+		t.Fatalf("expected 1 trusted proxy, got %d", got)
+	}
+}
+
+func TestLoad_InvalidTrustedProxies(t *testing.T) {
+	viper.Reset()
+	os.Setenv("DB_URI", "postgres://localhost/db")
+	defer os.Unsetenv("DB_URI")
+	os.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
+	defer os.Unsetenv("SPINITRON_API_URL")
+	os.Setenv("MASTER_EMAIL", "admin@example.com")
+	defer os.Unsetenv("MASTER_EMAIL")
+	os.Setenv("FROM_EMAIL", "noreply@example.com")
+	defer os.Unsetenv("FROM_EMAIL")
+	os.Setenv("TRUSTED_PROXIES", "not-an-ip")
+	defer os.Unsetenv("TRUSTED_PROXIES")
+
+	_, err := Load(nil)
+	if err == nil {
+		t.Fatalf("expected error for invalid TRUSTED_PROXIES, got nil")
+	}
+}
+
 func TestLoad_EnvFromEnv(t *testing.T) {
 	viper.Reset()
 	os.Setenv("DB_URI", "postgres://localhost/db")

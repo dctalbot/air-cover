@@ -3,6 +3,7 @@ package api
 import (
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"strings"
@@ -19,7 +20,7 @@ var (
 	getSwagger = GetSwagger
 )
 
-func NewRouter(apiServer *Server, authHandler *AuthHandler) chi.Router {
+func NewRouter(apiServer *Server, authHandler *AuthHandler, trustedProxies []netip.Prefix) chi.Router {
 	swagger, err := getSwagger()
 	if err != nil {
 		slog.Error("Failed to load swagger spec", "error", err)
@@ -35,6 +36,7 @@ func NewRouter(apiServer *Server, authHandler *AuthHandler) chi.Router {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(TrustForwardedHeaders(trustedProxies))
 	r.Use(nethttp_middleware.OapiRequestValidator(swagger))
 
 	r.Get("/", wrapper.Get)

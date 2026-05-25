@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -94,8 +95,7 @@ func TestAuthHandler_Login_Disabled(t *testing.T) {
 	}
 }
 
-func TestAuthHandler_Login_HTTPSScheme(t *testing.T) {
-	// Test that HTTPS scheme is used when X-Forwarded-Proto is https
+func TestAuthHandler_Login_IgnoresUntrustedForwardedProto(t *testing.T) {
 	repo := setupTestDB(t)
 	_, _ = repo.CreateUser(context.Background(), "https@example.com", "member")
 	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
@@ -105,6 +105,22 @@ func TestAuthHandler_Login_HTTPSScheme(t *testing.T) {
 	req.Header.Set("X-Forwarded-Proto", "https")
 	rr := httptest.NewRecorder()
 	handler.HandleLogin(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %v", rr.Code)
+	}
+}
+
+func TestAuthHandler_Login_TrustedForwardedProtoScheme(t *testing.T) {
+	repo := setupTestDB(t)
+	_, _ = repo.CreateUser(context.Background(), "https@example.com", "member")
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"https@example.com"}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	rr := httptest.NewRecorder()
+	TrustForwardedHeaders([]netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")})(http.HandlerFunc(handler.HandleLogin)).ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %v", rr.Code)
 	}
@@ -139,12 +155,13 @@ func TestAuthHandler_Login_DeterministicMagicLink(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"email":"link@example.com"}`))
+	req.RemoteAddr = "127.0.0.1:12345"
 	req.Host = "aircover.example.test"
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Forwarded-Proto", "https")
 	rr := httptest.NewRecorder()
 
-	handler.HandleLogin(rr, req)
+	TrustForwardedHeaders([]netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")})(http.HandlerFunc(handler.HandleLogin)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
@@ -254,8 +271,7 @@ func TestAuthHandler_Verify_TokenGenerationErrors(t *testing.T) {
 	}
 }
 
-func TestAuthHandler_Verify_HTTPSCookie(t *testing.T) {
-	// Test that Secure cookie is set when X-Forwarded-Proto is https
+func TestAuthHandler_Verify_IgnoresUntrustedForwardedProtoForSecureCookie(t *testing.T) {
 	repo := setupTestDB(t)
 	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	u, _ := repo.CreateUser(context.Background(), "secure@example.com", "member")
@@ -271,7 +287,32 @@ func TestAuthHandler_Verify_HTTPSCookie(t *testing.T) {
 	if rr.Code != http.StatusFound {
 		t.Errorf("expected redirect, got %v", rr.Code)
 	}
-	// Verify the cookie is set as Secure
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == "session_id" && c.Secure {
+			t.Fatal("expected untrusted forwarded proto not to set Secure cookie")
+		}
+	}
+}
+
+func TestAuthHandler_Verify_TrustedForwardedProtoSecureCookie(t *testing.T) {
+	repo := setupTestDB(t)
+	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
+	u, _ := repo.CreateUser(context.Background(), "secure@example.com", "member")
+
+	rawToken, _ := authapp.GenerateRandomToken(32)
+	hashedToken := authapp.HashToken(rawToken)
+	_ = repo.CreateMagicLink(context.Background(), u.ID, hashedToken, time.Now().Add(1*time.Hour))
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/verify", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Forwarded-Proto", "https")
+	rr := httptest.NewRecorder()
+	TrustForwardedHeaders([]netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler.HandleVerify(w, r, rawToken)
+	})).ServeHTTP(rr, req)
+	if rr.Code != http.StatusFound {
+		t.Errorf("expected redirect, got %v", rr.Code)
+	}
 	found := false
 	for _, c := range rr.Result().Cookies() {
 		if c.Name == "session_id" && c.Secure {
@@ -405,23 +446,33 @@ func TestAuthHandler_Logout(t *testing.T) {
 	}
 }
 
-func TestAuthHandler_Logout_HTTPSSecureCookie(t *testing.T) {
-	// Test that Secure cookie is cleared properly when HTTPS
+func TestAuthHandler_Logout_TrustedForwardedProtoSecureCookie(t *testing.T) {
 	repo := setupTestDB(t)
 	handler := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	u, _ := repo.CreateUser(context.Background(), "logout-https@example.com", "member")
 	_ = repo.CreateSession(context.Background(), "sid2", authapp.HashToken("stoken2"), u.ID, time.Now().Add(1*time.Hour))
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("X-Forwarded-Proto", "https")
 	ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
 	req = req.WithContext(ctx)
 
 	rr := httptest.NewRecorder()
-	handler.HandleLogout(rr, req)
+	TrustForwardedHeaders([]netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")})(http.HandlerFunc(handler.HandleLogout)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusFound {
 		t.Errorf("expected redirect, got %v", rr.Code)
+	}
+	found := false
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == "session_id" && c.Secure {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected Secure cookie to be cleared for trusted forwarded HTTPS")
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -64,7 +65,7 @@ func TestNewRouter(t *testing.T) {
 	auth := NewAuthHandler(authapp.NewService(repo, nil))
 	server := newRouterTestServer(repo, auth, nil)
 
-	r := NewRouter(server, auth)
+	r := NewRouter(server, auth, nil)
 	if r == nil {
 		t.Fatal("expected non-nil router")
 	}
@@ -148,7 +149,7 @@ func TestNewRouter_RouteAuthorization(t *testing.T) {
 			{ID: "show-1", Title: "Authorization Test Show"},
 		},
 	})
-	r := NewRouter(server, auth)
+	r := NewRouter(server, auth, nil)
 
 	ctx := context.Background()
 	member, err := repo.CreateUser(ctx, "route-member@example.com", "member")
@@ -327,7 +328,7 @@ func TestNewRouter_RejectsCrossSiteMutations(t *testing.T) {
 	repo := sqlite.NewRepository(dbConn)
 	auth := NewAuthHandler(authapp.NewService(repo, nil))
 	server := newRouterTestServer(repo, auth, nil)
-	r := NewRouter(server, auth)
+	r := NewRouter(server, auth, nil)
 
 	admin, err := repo.CreateUser(context.Background(), "csrf_admin@example.com", "admin")
 	if err != nil {
@@ -445,10 +446,10 @@ func TestSameOriginMutationChecks(t *testing.T) {
 			want:    true,
 		},
 		{
-			name:    "matching forwarded proto origin accepted",
+			name:    "untrusted forwarded proto origin rejected",
 			method:  http.MethodPost,
 			headers: map[string]string{"Origin": "https://example.com", "X-Forwarded-Proto": "https"},
-			want:    true,
+			want:    false,
 		},
 		{
 			name:    "matching referer accepted",
@@ -503,6 +504,31 @@ func TestSameOriginMutationChecks(t *testing.T) {
 	}
 }
 
+func TestSameOriginMutationChecksTrustForwardedProtoFromConfiguredProxy(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/app", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("X-Forwarded-Proto", "https")
+
+	called := false
+	handler := TrustForwardedHeaders([]netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")})(
+		requireSameOriginMutation(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			called = true
+			w.WriteHeader(http.StatusNoContent)
+		})),
+	)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if !called {
+		t.Fatal("expected handler to be called for trusted forwarded proto")
+	}
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d", http.StatusNoContent, rr.Code)
+	}
+}
+
 func TestNewRouter_SwaggerError(t *testing.T) {
 	originalGetSwagger := getSwagger
 	originalOsExit := osExit
@@ -529,7 +555,7 @@ func TestNewRouter_SwaggerError(t *testing.T) {
 				panic(r)
 			}
 		}()
-		NewRouter(nil, nil)
+		NewRouter(nil, nil, nil)
 	}()
 
 	if !exited {
@@ -546,7 +572,7 @@ func TestAuthRateLimiting(t *testing.T) {
 	auth := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	server := newRouterTestServer(repo, auth, nil)
 
-	r := NewRouter(server, auth)
+	r := NewRouter(server, auth, nil)
 
 	// Make 5 successful-ish requests
 	for i := 0; i < 5; i++ {

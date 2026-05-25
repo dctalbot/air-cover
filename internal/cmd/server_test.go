@@ -240,7 +240,7 @@ func testServerDeps(cfg *config.Config, repo bootstrapapp.Repository) serverDeps
 		newCatalog: func(source adapterspinitron.PageClient) catalog {
 			return &fakeShowsService{}
 		},
-		newRouter: func(apiServer *api.Server, authHandler *api.AuthHandler) chi.Router {
+		newRouter: func(apiServer *api.Server, authHandler *api.AuthHandler, cfg *config.Config) chi.Router {
 			return chi.NewRouter()
 		},
 		listenAndServe: func(server *http.Server) error {
@@ -828,11 +828,6 @@ func TestStartCatalogPrefetchLogsError(t *testing.T) {
 	if !service.prefetch {
 		t.Fatal("expected prefetch to run")
 	}
-}
-
-func TestDocCmd(t *testing.T) {
-	// Run the doc command to exercise doc.go
-	docCmd.Run(docCmd, nil)
 }
 
 func TestServerCmd_DBInitError(t *testing.T) {

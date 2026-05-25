@@ -3,8 +3,10 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
@@ -23,6 +25,7 @@ type Config struct {
 	FromEmail       string `mapstructure:"from_email" validate:"required,email"`
 	AppBaseURL      string `mapstructure:"app_base_url" validate:"required,url"`
 	SpinitronAPIURL string `mapstructure:"spinitron_api_url" validate:"required,url"`
+	TrustedProxies  []netip.Prefix
 }
 
 var viperBindPFlags = viper.BindPFlags
@@ -45,6 +48,7 @@ func Load(cmd *cobra.Command) (*Config, error) {
 	cfg.FromEmail = os.Getenv("FROM_EMAIL")              // nolint:forbidigo
 	cfg.AppBaseURL = os.Getenv("APP_BASE_URL")           // nolint:forbidigo
 	cfg.SpinitronAPIURL = os.Getenv("SPINITRON_API_URL") // nolint:forbidigo
+	trustedProxies := os.Getenv("TRUSTED_PROXIES")       // nolint:forbidigo
 
 	if osEnvPort != "" {
 		p, err := strconv.Atoi(osEnvPort)
@@ -64,6 +68,13 @@ func Load(cmd *cobra.Command) (*Config, error) {
 	}
 	if cfg.AppBaseURL == "" {
 		cfg.AppBaseURL = fmt.Sprintf("http://localhost:%d", cfg.Port)
+	}
+	if trustedProxies != "" {
+		var err error
+		cfg.TrustedProxies, err = parseTrustedProxies(trustedProxies)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if cmd != nil {
@@ -87,4 +98,28 @@ func Load(cmd *cobra.Command) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func parseTrustedProxies(raw string) ([]netip.Prefix, error) {
+	parts := strings.Split(raw, ",")
+	proxies := make([]netip.Prefix, 0, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			continue
+		}
+
+		prefix, err := netip.ParsePrefix(value)
+		if err == nil {
+			proxies = append(proxies, prefix)
+			continue
+		}
+
+		addr, addrErr := netip.ParseAddr(value)
+		if addrErr != nil {
+			return nil, fmt.Errorf("invalid TRUSTED_PROXIES entry %q: %w", value, addrErr)
+		}
+		proxies = append(proxies, netip.PrefixFrom(addr, addr.BitLen()))
+	}
+	return proxies, nil
 }
