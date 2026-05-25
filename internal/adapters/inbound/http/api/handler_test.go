@@ -69,7 +69,12 @@ func (f *fakeServerRepo) GetUserByEmail(ctx context.Context, email string) (*dom
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &domain.User{ID: 1, Email: email, Role: domain.RoleMember, IsEnabled: true}, nil
+	for _, user := range f.users {
+		if user.Email == email {
+			return user, nil
+		}
+	}
+	return nil, apperrors.ErrNotFound
 }
 
 func (f *fakeServerRepo) GetUserByID(ctx context.Context, id int) (*domain.User, error) {
@@ -291,6 +296,27 @@ func TestServer_WithFakeServices(t *testing.T) {
 
 		if rr.Code != http.StatusBadRequest {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rr.Code)
+		}
+		if !admin.createCalled {
+			t.Fatal("expected create use case to be called")
+		}
+	})
+
+	t.Run("post users redirects when user already exists", func(t *testing.T) {
+		admin := &fakeAdminService{err: adminapp.ErrUserAlreadyExists}
+		server := NewServer(nil, nil, admin)
+		form := url.Values{"email": {"existing@example.com"}, "role": {"member"}}
+		req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		rr := httptest.NewRecorder()
+		server.PostUsers(rr, req)
+
+		if rr.Code != http.StatusSeeOther {
+			t.Fatalf("expected status %d, got %d", http.StatusSeeOther, rr.Code)
+		}
+		if location := rr.Header().Get("Location"); location != "/admin" {
+			t.Fatalf("expected redirect to /admin, got %q", location)
 		}
 		if !admin.createCalled {
 			t.Fatal("expected create use case to be called")
@@ -2028,7 +2054,7 @@ func TestServer_PostUsersId_NotFound(t *testing.T) {
 	}
 }
 
-func TestServer_PostUsers_CreateError(t *testing.T) {
+func TestServer_PostUsers_ExistingUserRedirects(t *testing.T) {
 	dbConn, err := sqlite.InitDB("file::memory:")
 	if err != nil {
 		t.Fatal(err)
@@ -2043,8 +2069,11 @@ func TestServer_PostUsers_CreateError(t *testing.T) {
 	}
 	rr := httptest.NewRecorder()
 	s.PostUsers(rr, req)
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500 for duplicate user creation, got %d", rr.Code)
+	if rr.Code != http.StatusSeeOther {
+		t.Errorf("expected redirect for existing user creation, got %d", rr.Code)
+	}
+	if location := rr.Header().Get("Location"); location != "/admin" {
+		t.Errorf("expected redirect to /admin, got %q", location)
 	}
 }
 

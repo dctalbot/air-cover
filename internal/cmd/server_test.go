@@ -141,6 +141,10 @@ func (f *fakeAdminRepo) ListUsers(ctx context.Context) ([]*domain.User, error) {
 	return nil, nil
 }
 
+func (f *fakeAdminRepo) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+	return nil, apperrors.ErrNotFound
+}
+
 func (f *fakeAdminRepo) CreateUser(ctx context.Context, email string, role string) (*domain.User, error) {
 	return &domain.User{ID: 1, Email: email, Role: domain.Role(role), IsEnabled: true}, nil
 }

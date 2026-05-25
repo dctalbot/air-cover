@@ -13,8 +13,11 @@ import (
 
 type fakeRepository struct {
 	users         []*domain.User
+	userByEmail   *domain.User
+	getByEmailErr error
 	createEmail   string
 	createRole    string
+	createCalled  bool
 	createErr     error
 	updateID      int
 	updateRole    *string
@@ -29,7 +32,18 @@ func (f *fakeRepository) ListUsers(ctx context.Context) ([]*domain.User, error) 
 	return f.users, f.listErr
 }
 
+func (f *fakeRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+	if f.getByEmailErr != nil {
+		return nil, f.getByEmailErr
+	}
+	if f.userByEmail != nil {
+		return f.userByEmail, nil
+	}
+	return nil, apperrors.ErrNotFound
+}
+
 func (f *fakeRepository) CreateUser(ctx context.Context, email string, role string) (*domain.User, error) {
+	f.createCalled = true
 	f.createEmail = email
 	f.createRole = role
 	return &domain.User{Email: email, Role: domain.Role(role)}, f.createErr
@@ -93,6 +107,9 @@ func TestCreateUser(t *testing.T) {
 	if err := svc.CreateUser(context.Background(), CreateUserInput{Email: "user@example.com"}); err != nil {
 		t.Fatalf("CreateUser returned error: %v", err)
 	}
+	if !repo.createCalled {
+		t.Fatal("expected repository CreateUser to be called")
+	}
 	if repo.createRole != "member" {
 		t.Errorf("default role = %q, want member", repo.createRole)
 	}
@@ -102,6 +119,37 @@ func TestCreateUser(t *testing.T) {
 	}
 	if err := svc.CreateUser(context.Background(), CreateUserInput{Email: "user@example.com", Role: "owner"}); !errors.Is(err, apperrors.ErrInvalid) {
 		t.Errorf("invalid role error = %v, want invalid", err)
+	}
+}
+
+func TestCreateUserAlreadyExists(t *testing.T) {
+	repo := &fakeRepository{
+		userByEmail: &domain.User{ID: 1, Email: "user@example.com", Role: domain.RoleMember, IsEnabled: true},
+	}
+	svc := NewService(repo, nil)
+
+	err := svc.CreateUser(context.Background(), CreateUserInput{Email: "user@example.com"})
+
+	if !errors.Is(err, ErrUserAlreadyExists) {
+		t.Fatalf("CreateUser error = %v, want ErrUserAlreadyExists", err)
+	}
+	if repo.createCalled {
+		t.Fatal("expected duplicate user to skip repository CreateUser")
+	}
+}
+
+func TestCreateUserReturnsLookupError(t *testing.T) {
+	wantErr := errors.New("lookup failed")
+	repo := &fakeRepository{getByEmailErr: wantErr}
+	svc := NewService(repo, nil)
+
+	err := svc.CreateUser(context.Background(), CreateUserInput{Email: "user@example.com"})
+
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("CreateUser error = %v, want %v", err, wantErr)
+	}
+	if repo.createCalled {
+		t.Fatal("expected lookup error to skip repository CreateUser")
 	}
 }
 

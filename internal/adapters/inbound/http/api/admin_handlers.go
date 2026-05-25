@@ -48,6 +48,10 @@ func (s *Server) PostUsers(w http.ResponseWriter, r *http.Request) {
 		Role:  r.FormValue("role"),
 	}
 	if err := s.admin.CreateUser(r.Context(), input); err != nil {
+		if errors.Is(err, adminapp.ErrUserAlreadyExists) {
+			http.Redirect(w, r, "/admin", http.StatusSeeOther)
+			return
+		}
 		if errors.Is(err, apperrors.ErrInvalid) {
 			http.Error(w, "Invalid user", http.StatusBadRequest)
 			return

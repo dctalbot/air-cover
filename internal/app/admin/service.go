@@ -16,6 +16,8 @@ type Service struct {
 	catalog Catalog
 }
 
+var ErrUserAlreadyExists = errors.New("user already exists")
+
 func NewService(repo Repository, catalog Catalog) *Service {
 	return &Service{repo: repo, catalog: catalog}
 }
@@ -48,6 +50,12 @@ func (s *Service) CreateUser(ctx context.Context, input CreateUserInput) error {
 	if input.Email == "" || !validRole(role) {
 		return apperrors.ErrInvalid
 	}
+	if _, err := s.repo.GetUserByEmail(ctx, input.Email); err == nil {
+		return ErrUserAlreadyExists
+	} else if !errors.Is(err, apperrors.ErrNotFound) {
+		return err
+	}
+
 	_, err := s.repo.CreateUser(ctx, input.Email, role)
 	return err
 }
