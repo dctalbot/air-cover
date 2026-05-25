@@ -35,11 +35,6 @@ var (
 )
 
 func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
-	if s.APIKey == "" {
-		slog.Warn("SendGrid API Key is empty, falling back to console logging.")
-		return (&ConsoleSender{}).SendMagicLink(toEmail, magicLink)
-	}
-
 	// SendGrid v3 API minimal payload
 	payload := map[string]interface{}{
 		"personalizations": []map[string]interface{}{
@@ -88,8 +83,8 @@ func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
 	return nil
 }
 
-func NewSender(apiKey, fromEmail, env string) Sender {
-	if env == "production" && apiKey != "" {
+func NewSender(apiKey, fromEmail string) Sender {
+	if apiKey != "" {
 		return &SendGridSender{
 			APIKey:    apiKey,
 			FromEmail: fromEmail,

@@ -15,14 +15,6 @@ func TestConsoleSender(t *testing.T) {
 	}
 }
 
-func TestSendGridSender_EmptyAPIKey(t *testing.T) {
-	// Empty API key falls back to ConsoleSender
-	s := &SendGridSender{APIKey: ""}
-	if err := s.SendMagicLink("test@example.com", "http://example.com/verify?token=abc"); err != nil {
-		t.Errorf("expected no error from console fallback, got %v", err)
-	}
-}
-
 func TestSendGridSender_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer test-key" {
@@ -64,8 +56,7 @@ func TestSendGridSender_HTTPError(t *testing.T) {
 }
 
 func TestNewSender(t *testing.T) {
-	// production + non-empty key → SendGridSender
-	s := NewSender("fake-key", "noreply@example.com", "production")
+	s := NewSender("fake-key", "noreply@example.com")
 	sg, ok := s.(*SendGridSender)
 	if !ok {
 		t.Fatal("expected SendGridSender")
@@ -80,16 +71,14 @@ func TestNewSender(t *testing.T) {
 		t.Fatal("expected HTTPClient to be initialized")
 	}
 
-	// production + empty key → ConsoleSender (not SendGridSender because key is empty)
-	s2 := NewSender("", "noreply@example.com", "production")
+	s2 := NewSender("", "noreply@example.com")
 	if _, ok := s2.(*ConsoleSender); !ok {
-		t.Fatal("expected ConsoleSender for empty key in production")
+		t.Fatal("expected ConsoleSender for empty key")
 	}
 
-	// non-production → ConsoleSender
-	s3 := NewSender("any-key", "noreply@example.com", "development")
-	if _, ok := s3.(*ConsoleSender); !ok {
-		t.Fatal("expected ConsoleSender for non-production env")
+	s3 := NewSender("any-key", "noreply@example.com")
+	if _, ok := s3.(*SendGridSender); !ok {
+		t.Fatal("expected SendGridSender for any non-empty key")
 	}
 }
 

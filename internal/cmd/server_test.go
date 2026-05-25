@@ -179,7 +179,7 @@ func testServerDeps(cfg *config.Config, repo bootstrapapp.Repository) serverDeps
 		initDB: func(uri string) (*sql.DB, error) {
 			return nil, nil
 		},
-		newSender: func(apiKey, fromEmail, env string) authapp.Sender {
+		newSender: func(apiKey, fromEmail string) authapp.Sender {
 			return &mockSender{}
 		},
 		newSpinitron: func(apiKey, baseURL string) adapterspinitron.PageClient {
