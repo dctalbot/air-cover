@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/resend/resend-go/v3"
 )
 
 type Sender interface {
@@ -19,6 +22,15 @@ type ConsoleSender struct{}
 func (c *ConsoleSender) SendMagicLink(toEmail, magicLink string) error {
 	slog.Info("Simulating email send", "to", toEmail, "magicLink", magicLink)
 	return nil
+}
+
+type resendEmailSender interface {
+	Send(params *resend.SendEmailRequest) (*resend.SendEmailResponse, error)
+}
+
+type ResendSender struct {
+	FromEmail string
+	Emails    resendEmailSender
 }
 
 type SendGridSender struct {
@@ -33,6 +45,22 @@ var (
 		return http.NewRequest(method, url, body) //nolint:noctx
 	}
 )
+
+func (s *ResendSender) SendMagicLink(toEmail, magicLink string) error {
+	escapedMagicLink := html.EscapeString(magicLink)
+	if _, err := s.Emails.Send(&resend.SendEmailRequest{
+		From:    s.FromEmail,
+		To:      []string{toEmail},
+		Subject: "Your Air Cover Login Link",
+		Html:    fmt.Sprintf("<p>Click here to log in: <a href=\"%s\">%s</a></p>", escapedMagicLink, escapedMagicLink),
+		Text:    fmt.Sprintf("Click here to log in: %s", magicLink),
+	}); err != nil {
+		return fmt.Errorf("failed to send email via resend: %w", err)
+	}
+
+	slog.Info("Successfully sent magic link via Resend", "to", toEmail)
+	return nil
+}
 
 func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
 	// SendGrid v3 API minimal payload
@@ -83,10 +111,16 @@ func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
 	return nil
 }
 
-func NewSender(apiKey, fromEmail string) Sender {
-	if apiKey != "" {
+func NewSender(resendAPIKey, sendGridAPIKey, fromEmail string) Sender {
+	if resendAPIKey != "" {
+		return &ResendSender{
+			FromEmail: fromEmail,
+			Emails:    resend.NewClient(resendAPIKey).Emails,
+		}
+	}
+	if sendGridAPIKey != "" {
 		return &SendGridSender{
-			APIKey:    apiKey,
+			APIKey:    sendGridAPIKey,
 			FromEmail: fromEmail,
 			HTTPClient: &http.Client{
 				Timeout: 10 * time.Second,

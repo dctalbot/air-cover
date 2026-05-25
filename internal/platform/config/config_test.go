@@ -19,6 +19,8 @@ func TestLoad_Success(t *testing.T) {
 	os.Unsetenv("ENV")
 	os.Setenv("MASTER_EMAIL", "admin@example.com")
 	defer os.Unsetenv("MASTER_EMAIL")
+	os.Setenv("RESEND_API_KEY", "resend-key")
+	defer os.Unsetenv("RESEND_API_KEY")
 	os.Setenv("FROM_EMAIL", "noreply@example.com")
 	defer os.Unsetenv("FROM_EMAIL")
 
@@ -38,6 +40,9 @@ func TestLoad_Success(t *testing.T) {
 	}
 	if cfg.MasterEmail != "admin@example.com" {
 		t.Errorf("expected master email to be admin@example.com, got %s", cfg.MasterEmail)
+	}
+	if cfg.ResendAPIKey != "resend-key" {
+		t.Errorf("expected resend API key to be loaded, got %s", cfg.ResendAPIKey)
 	}
 	if cfg.SpinitronAPIURL != "https://proxy.example.test/api" {
 		t.Errorf("expected SPINITRON_API_URL to be loaded, got %s", cfg.SpinitronAPIURL)

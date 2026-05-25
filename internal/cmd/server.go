@@ -47,7 +47,7 @@ const (
 type serverDeps struct {
 	loadConfig       func(*cobra.Command) (*config.Config, error)
 	initDB           func(string) (*sql.DB, error)
-	newSender        func(apiKey, fromEmail string) authapp.Sender
+	newSender        func(resendAPIKey, sendGridAPIKey, fromEmail string) authapp.Sender
 	newSpinitron     func(apiKey, baseURL string) adapterspinitron.PageClient
 	newCatalog       func(adapterspinitron.PageClient) catalog
 	newRouter        func(*api.Server, *api.AuthHandler) chi.Router
@@ -91,8 +91,8 @@ func defaultServerDeps() serverDeps {
 	return serverDeps{
 		loadConfig: config.Load,
 		initDB:     sqlite.InitDB,
-		newSender: func(apiKey, fromEmail string) authapp.Sender {
-			return adapteremail.NewSender(apiKey, fromEmail)
+		newSender: func(resendAPIKey, sendGridAPIKey, fromEmail string) authapp.Sender {
+			return adapteremail.NewSender(resendAPIKey, sendGridAPIKey, fromEmail)
 		},
 		newSpinitron: func(apiKey, baseURL string) adapterspinitron.PageClient {
 			return adapterspinitron.NewClient(apiKey, baseURL)
@@ -182,7 +182,7 @@ func buildInfrastructure(cfg *config.Config, deps serverDeps) (infrastructure, e
 		database:     database,
 		repositories: repo,
 		catalog:      deps.newCatalog(spinitronClient),
-		sender:       deps.newSender(cfg.SendGridAPIKey, cfg.FromEmail),
+		sender:       deps.newSender(cfg.ResendAPIKey, cfg.SendGridAPIKey, cfg.FromEmail),
 	}, nil
 }
 

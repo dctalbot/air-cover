@@ -179,7 +179,7 @@ func testServerDeps(cfg *config.Config, repo bootstrapapp.Repository) serverDeps
 		initDB: func(uri string) (*sql.DB, error) {
 			return nil, nil
 		},
-		newSender: func(apiKey, fromEmail string) authapp.Sender {
+		newSender: func(resendAPIKey, sendGridAPIKey, fromEmail string) authapp.Sender {
 			return &mockSender{}
 		},
 		newSpinitron: func(apiKey, baseURL string) adapterspinitron.PageClient {
@@ -413,6 +413,8 @@ func TestRunServer_ClosesDatabase(t *testing.T) {
 		Port:            8080,
 		DBURI:           "file::memory:",
 		ENV:             "test",
+		ResendAPIKey:    "resend-key",
+		SendGridAPIKey:  "sendgrid-key",
 		FromEmail:       "noreply@example.com",
 		SpinitronAPIURL: "https://proxy.example.test/api",
 	}
@@ -452,6 +454,8 @@ func TestRunServer_DependencyFailures(t *testing.T) {
 		Port:            8080,
 		DBURI:           "file::memory:",
 		ENV:             "test",
+		ResendAPIKey:    "resend-key",
+		SendGridAPIKey:  "sendgrid-key",
 		FromEmail:       "noreply@example.com",
 		SpinitronAPIURL: "https://proxy.example.test/api",
 	}
@@ -665,6 +669,8 @@ func TestRunServer_WiresIndependentRepositoryPorts(t *testing.T) {
 		Port:            8080,
 		DBURI:           "file::memory:",
 		ENV:             "test",
+		ResendAPIKey:    "resend-key",
+		SendGridAPIKey:  "sendgrid-key",
 		FromEmail:       "noreply@example.com",
 		SpinitronAPIURL: "https://proxy.example.test/api",
 	}
@@ -681,6 +687,15 @@ func TestRunServer_WiresIndependentRepositoryPorts(t *testing.T) {
 	deps := testServerDeps(cfg, startupRepo)
 	deps.newDBRepository = func(database *sql.DB) repositories {
 		return repos
+	}
+	var gotResendAPIKey string
+	var gotSendGridAPIKey string
+	var gotFromEmail string
+	deps.newSender = func(resendAPIKey, sendGridAPIKey, fromEmail string) authapp.Sender {
+		gotResendAPIKey = resendAPIKey
+		gotSendGridAPIKey = sendGridAPIKey
+		gotFromEmail = fromEmail
+		return &mockSender{}
 	}
 	var gotAuthService *authapp.Service
 	deps.newAuthHandler = func(service *authapp.Service) *api.AuthHandler {
@@ -706,6 +721,15 @@ func TestRunServer_WiresIndependentRepositoryPorts(t *testing.T) {
 	}
 	if gotAdminService == nil {
 		t.Fatal("expected admin service to be wired")
+	}
+	if gotResendAPIKey != "resend-key" {
+		t.Fatalf("expected resend key to be wired, got %q", gotResendAPIKey)
+	}
+	if gotSendGridAPIKey != "sendgrid-key" {
+		t.Fatalf("expected sendgrid key to be wired, got %q", gotSendGridAPIKey)
+	}
+	if gotFromEmail != "noreply@example.com" {
+		t.Fatalf("expected from email to be wired, got %q", gotFromEmail)
 	}
 }
 

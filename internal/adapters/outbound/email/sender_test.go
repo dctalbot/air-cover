@@ -6,12 +6,49 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/resend/resend-go/v3"
 )
 
 func TestConsoleSender(t *testing.T) {
 	s := &ConsoleSender{}
 	if err := s.SendMagicLink("test@example.com", "http://example.com/verify?token=abc"); err != nil {
 		t.Errorf("expected no error, got %v", err)
+	}
+}
+
+func TestResendSender_Success(t *testing.T) {
+	emails := &fakeResendEmails{}
+	s := &ResendSender{FromEmail: "noreply@example.com", Emails: emails}
+
+	if err := s.SendMagicLink("test@example.com", "http://example.com/verify?token=abc"); err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if emails.request == nil {
+		t.Fatal("expected email request")
+	}
+	if emails.request.From != "noreply@example.com" {
+		t.Fatalf("expected from noreply@example.com, got %s", emails.request.From)
+	}
+	if len(emails.request.To) != 1 || emails.request.To[0] != "test@example.com" {
+		t.Fatalf("expected recipient test@example.com, got %v", emails.request.To)
+	}
+	if emails.request.Subject != "Your Air Cover Login Link" {
+		t.Fatalf("unexpected subject: %s", emails.request.Subject)
+	}
+	if emails.request.Text == "" || emails.request.Html == "" {
+		t.Fatal("expected text and HTML content")
+	}
+}
+
+func TestResendSender_Error(t *testing.T) {
+	s := &ResendSender{
+		FromEmail: "noreply@example.com",
+		Emails:    &fakeResendEmails{err: errors.New("resend down")},
+	}
+
+	if err := s.SendMagicLink("test@example.com", "http://example.com/verify?token=abc"); err == nil {
+		t.Error("expected error for resend failure")
 	}
 }
 
@@ -56,13 +93,25 @@ func TestSendGridSender_HTTPError(t *testing.T) {
 }
 
 func TestNewSender(t *testing.T) {
-	s := NewSender("fake-key", "noreply@example.com")
-	sg, ok := s.(*SendGridSender)
+	s := NewSender("resend-key", "sendgrid-key", "noreply@example.com")
+	resendSender, ok := s.(*ResendSender)
+	if !ok {
+		t.Fatal("expected ResendSender when resend key is present")
+	}
+	if resendSender.FromEmail != "noreply@example.com" {
+		t.Fatalf("expected noreply@example.com, got %s", resendSender.FromEmail)
+	}
+	if resendSender.Emails == nil {
+		t.Fatal("expected Resend emails client to be initialized")
+	}
+
+	s2 := NewSender("", "sendgrid-key", "noreply@example.com")
+	sg, ok := s2.(*SendGridSender)
 	if !ok {
 		t.Fatal("expected SendGridSender")
 	}
-	if sg.APIKey != "fake-key" {
-		t.Fatalf("expected fake-key, got %s", sg.APIKey)
+	if sg.APIKey != "sendgrid-key" {
+		t.Fatalf("expected sendgrid-key, got %s", sg.APIKey)
 	}
 	if sg.FromEmail != "noreply@example.com" {
 		t.Fatalf("expected noreply@example.com, got %s", sg.FromEmail)
@@ -71,14 +120,9 @@ func TestNewSender(t *testing.T) {
 		t.Fatal("expected HTTPClient to be initialized")
 	}
 
-	s2 := NewSender("", "noreply@example.com")
-	if _, ok := s2.(*ConsoleSender); !ok {
-		t.Fatal("expected ConsoleSender for empty key")
-	}
-
-	s3 := NewSender("any-key", "noreply@example.com")
-	if _, ok := s3.(*SendGridSender); !ok {
-		t.Fatal("expected SendGridSender for any non-empty key")
+	s3 := NewSender("", "", "noreply@example.com")
+	if _, ok := s3.(*ConsoleSender); !ok {
+		t.Fatal("expected ConsoleSender when no provider keys are present")
 	}
 }
 
@@ -121,6 +165,19 @@ type errorTransport struct{}
 
 func (t *errorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return nil, http.ErrHandlerTimeout
+}
+
+type fakeResendEmails struct {
+	request *resend.SendEmailRequest
+	err     error
+}
+
+func (f *fakeResendEmails) Send(params *resend.SendEmailRequest) (*resend.SendEmailResponse, error) {
+	f.request = params
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &resend.SendEmailResponse{Id: "email-id"}, nil
 }
 
 func TestSendGridSender_MarshalAndRequestErrors(t *testing.T) {
