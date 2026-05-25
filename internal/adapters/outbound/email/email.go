@@ -17,6 +17,7 @@ import (
 type Sender interface {
 	SendMagicLink(toEmail, magicLink string) error
 	SendSubRequestCreated(bccEmails []string, message SubRequestCreatedMessage) error
+	SendSubRequestTaken(toEmail string, ccEmails []string, message SubRequestTakenMessage) error
 }
 
 type ConsoleSender struct{}
@@ -28,6 +29,11 @@ func (c *ConsoleSender) SendMagicLink(toEmail, magicLink string) error {
 
 func (c *ConsoleSender) SendSubRequestCreated(bccEmails []string, message SubRequestCreatedMessage) error {
 	slog.Info("Simulating sub request notification email send", "bcc_count", len(bccEmails), "detailURL", message.DetailURL)
+	return nil
+}
+
+func (c *ConsoleSender) SendSubRequestTaken(toEmail string, ccEmails []string, message SubRequestTakenMessage) error {
+	slog.Info("Simulating sub request taken confirmation email send", "to", toEmail, "cc_count", len(ccEmails), "detailURL", message.DetailURL)
 	return nil
 }
 
@@ -56,6 +62,14 @@ type SubRequestCreatedMessage struct {
 	EndTime        time.Time
 	Notes          string
 	DetailURL      string
+}
+
+type SubRequestTakenMessage struct {
+	ShowTitle  string
+	TakerEmail string
+	StartTime  time.Time
+	EndTime    time.Time
+	DetailURL  string
 }
 
 type renderedEmail struct {
@@ -191,6 +205,23 @@ func subRequestCreatedMessage(message SubRequestCreatedMessage) emailMessage {
 	}
 }
 
+func subRequestTakenMessage(message SubRequestTakenMessage) emailMessage {
+	return emailMessage{
+		Subject: "Sub request taken: " + message.ShowTitle,
+		Preview: "Your sub request has been taken in Air Cover.",
+		Heading: "Sub request taken",
+		Body: []string{
+			fmt.Sprintf("%s took your sub request for %s.", message.TakerEmail, message.ShowTitle),
+			fmt.Sprintf("When: %s to %s", formatEmailTime(message.StartTime), formatEmailTime(message.EndTime)),
+		},
+		CTA: emailCTA{
+			Label: "View sub request",
+			URL:   message.DetailURL,
+		},
+		Footer: "You are receiving this because you posted this sub request in Air Cover.",
+	}
+}
+
 func formatEmailTime(value time.Time) string {
 	return value.Format("Jan 2, 2006 3:04 PM")
 }
@@ -216,10 +247,36 @@ func (s *ResendSender) SendSubRequestCreated(bccEmails []string, subRequestMessa
 	return nil
 }
 
+func (s *ResendSender) SendSubRequestTaken(toEmail string, ccEmails []string, subRequestMessage SubRequestTakenMessage) error {
+	if toEmail == "" {
+		return nil
+	}
+	if err := s.sendCC(toEmail, ccEmails, renderEmail(subRequestTakenMessage(subRequestMessage))); err != nil {
+		return fmt.Errorf("failed to send sub request taken email via resend: %w", err)
+	}
+
+	slog.Info("Successfully sent sub request taken notification via Resend", "to", toEmail, "cc_count", len(ccEmails))
+	return nil
+}
+
 func (s *ResendSender) send(toEmail string, message renderedEmail) error {
 	if _, err := s.Emails.Send(&resend.SendEmailRequest{
 		From:    s.FromEmail,
 		To:      []string{toEmail},
+		Subject: message.Subject,
+		Html:    message.HTML,
+		Text:    message.Text,
+	}); err != nil {
+		return fmt.Errorf("failed to send email via resend: %w", err)
+	}
+	return nil
+}
+
+func (s *ResendSender) sendCC(toEmail string, ccEmails []string, message renderedEmail) error {
+	if _, err := s.Emails.Send(&resend.SendEmailRequest{
+		From:    s.FromEmail,
+		To:      []string{toEmail},
+		Cc:      ccEmails,
 		Subject: message.Subject,
 		Html:    message.HTML,
 		Text:    message.Text,
@@ -264,6 +321,18 @@ func (s *SendGridSender) SendSubRequestCreated(bccEmails []string, subRequestMes
 	return nil
 }
 
+func (s *SendGridSender) SendSubRequestTaken(toEmail string, ccEmails []string, subRequestMessage SubRequestTakenMessage) error {
+	if toEmail == "" {
+		return nil
+	}
+	if err := s.sendCC(toEmail, ccEmails, renderEmail(subRequestTakenMessage(subRequestMessage))); err != nil {
+		return fmt.Errorf("failed to send sub request taken email via sendgrid: %w", err)
+	}
+
+	slog.Info("Successfully sent sub request taken notification via SendGrid", "to", toEmail, "cc_count", len(ccEmails))
+	return nil
+}
+
 func (s *SendGridSender) send(toEmail string, message renderedEmail) error {
 	payload := map[string]interface{}{
 		"personalizations": []map[string]interface{}{
@@ -273,6 +342,63 @@ func (s *SendGridSender) send(toEmail string, message renderedEmail) error {
 				},
 			},
 		},
+		"from": map[string]string{
+			"email": s.FromEmail,
+			"name":  "Air Cover",
+		},
+		"subject": message.Subject,
+		"content": []map[string]string{
+			{
+				"type":  "text/plain",
+				"value": message.Text,
+			},
+			{
+				"type":  "text/html",
+				"value": message.HTML,
+			},
+		},
+	}
+
+	body, err := jsonMarshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal sendgrid payload: %w", err)
+	}
+
+	req, err := newHTTPRequest("POST", "https://api.sendgrid.com/v3/mail/send", bytes.NewBuffer(body))
+	if err != nil {
+		return fmt.Errorf("failed to create sendgrid request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+s.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.HTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send email via sendgrid: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("sendgrid api returned error status: %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (s *SendGridSender) sendCC(toEmail string, ccEmails []string, message renderedEmail) error {
+	personalization := map[string]interface{}{
+		"to": []map[string]string{
+			{"email": toEmail},
+		},
+	}
+	if len(ccEmails) > 0 {
+		cc := make([]map[string]string, 0, len(ccEmails))
+		for _, email := range ccEmails {
+			cc = append(cc, map[string]string{"email": email})
+		}
+		personalization["cc"] = cc
+	}
+
+	payload := map[string]interface{}{
+		"personalizations": []map[string]interface{}{personalization},
 		"from": map[string]string{
 			"email": s.FromEmail,
 			"name":  "Air Cover",

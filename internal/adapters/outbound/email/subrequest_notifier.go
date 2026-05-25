@@ -51,6 +51,31 @@ func (n *SubRequestNotifier) SubRequestCreated(ctx context.Context, event subreq
 	return nil
 }
 
+func (n *SubRequestNotifier) SubRequestTaken(ctx context.Context, event subrequestsapp.SubRequestTakenEvent) error {
+	if n.Sender == nil {
+		return fmt.Errorf("email sender is not configured")
+	}
+	if event.RequesterEmail == "" {
+		return nil
+	}
+
+	message := SubRequestTakenMessage{
+		ShowTitle:  event.ShowTitle,
+		TakerEmail: event.TakerEmail,
+		StartTime:  event.Request.StartTime,
+		EndTime:    event.Request.EndTime,
+		DetailURL:  n.detailURL(event.DetailPath),
+	}
+	ccEmails := []string(nil)
+	if event.TakerEmail != "" {
+		ccEmails = []string{event.TakerEmail}
+	}
+	if err := n.Sender.SendSubRequestTaken(event.RequesterEmail, ccEmails, message); err != nil {
+		slog.Error("Failed to send sub request taken confirmation email", "to", event.RequesterEmail, "cc_count", len(ccEmails), "sub_request_id", event.Request.ID, "error", err)
+	}
+	return nil
+}
+
 func (n *SubRequestNotifier) detailURL(path string) string {
 	base := strings.TrimRight(n.BaseURL, "/")
 	if base == "" {
@@ -69,9 +94,18 @@ type AsyncNotifier struct {
 }
 
 type asyncNotification struct {
-	ctx   context.Context
-	event subrequestsapp.SubRequestCreatedEvent
+	ctx          context.Context
+	createdEvent subrequestsapp.SubRequestCreatedEvent
+	takenEvent   subrequestsapp.SubRequestTakenEvent
+	kind         asyncNotificationKind
 }
+
+type asyncNotificationKind string
+
+const (
+	asyncNotificationCreated asyncNotificationKind = "created"
+	asyncNotificationTaken   asyncNotificationKind = "taken"
+)
 
 func NewAsyncNotifier(next subrequestsapp.Notifier, buffer int) *AsyncNotifier {
 	if buffer <= 0 {
@@ -92,12 +126,37 @@ func (n *AsyncNotifier) Start() {
 	go func() {
 		defer n.wg.Done()
 		for job := range n.jobs {
-			if err := n.next.SubRequestCreated(job.ctx, job.event); err != nil {
-				slog.Error("Failed to process sub request notification", "sub_request_id", job.event.Request.ID, "error", err)
+			if err := n.process(job); err != nil {
+				slog.Error("Failed to process sub request notification", "sub_request_id", job.subRequestID(), "error", err)
 			}
 		}
 		close(n.done)
 	}()
+}
+
+func (n *AsyncNotifier) process(job asyncNotification) error {
+	switch job.kind {
+	case asyncNotificationCreated:
+		return n.next.SubRequestCreated(job.ctx, job.createdEvent)
+	case asyncNotificationTaken:
+		return n.next.SubRequestTaken(job.ctx, job.takenEvent)
+	default:
+		return nil
+	}
+}
+
+func (j asyncNotification) subRequestID() int {
+	switch j.kind {
+	case asyncNotificationCreated:
+		if j.createdEvent.Request != nil {
+			return j.createdEvent.Request.ID
+		}
+	case asyncNotificationTaken:
+		if j.takenEvent.Request != nil {
+			return j.takenEvent.Request.ID
+		}
+	}
+	return 0
 }
 
 func (n *AsyncNotifier) Stop() {
@@ -124,7 +183,19 @@ func (n *AsyncNotifier) SubRequestCreated(ctx context.Context, event subrequests
 		return nil
 	}
 	select {
-	case n.jobs <- asyncNotification{ctx: contextWithoutCancel(ctx), event: event}:
+	case n.jobs <- asyncNotification{ctx: contextWithoutCancel(ctx), createdEvent: event, kind: asyncNotificationCreated}:
+		return nil
+	default:
+		return fmt.Errorf("sub request notification queue is full")
+	}
+}
+
+func (n *AsyncNotifier) SubRequestTaken(ctx context.Context, event subrequestsapp.SubRequestTakenEvent) error {
+	if n == nil || n.next == nil {
+		return nil
+	}
+	select {
+	case n.jobs <- asyncNotification{ctx: contextWithoutCancel(ctx), takenEvent: event, kind: asyncNotificationTaken}:
 		return nil
 	default:
 		return fmt.Errorf("sub request notification queue is full")

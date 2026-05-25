@@ -90,14 +90,22 @@ func (f *fakeCatalog) ListShows(ctx context.Context) ([]appcatalog.Show, error) 
 }
 
 type fakeNotifier struct {
-	event SubRequestCreatedEvent
-	err   error
-	calls int
+	event      SubRequestCreatedEvent
+	takenEvent SubRequestTakenEvent
+	err        error
+	calls      int
+	takenCalls int
 }
 
 func (f *fakeNotifier) SubRequestCreated(ctx context.Context, event SubRequestCreatedEvent) error {
 	f.calls++
 	f.event = event
+	return f.err
+}
+
+func (f *fakeNotifier) SubRequestTaken(ctx context.Context, event SubRequestTakenEvent) error {
+	f.takenCalls++
+	f.takenEvent = event
 	return f.err
 }
 
@@ -415,6 +423,111 @@ func TestApplyAction(t *testing.T) {
 	repo.subRequest = &domain.SubRequest{ID: 1, PostedByUserID: 1, TakenByUserID: &takerID}
 	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionUntake); !errors.Is(err, apperrors.ErrNotFound) {
 		t.Errorf("untake error = %v, want not found", err)
+	}
+}
+
+func TestApplyActionTakeNotifiesRequesterAndTaker(t *testing.T) {
+	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
+	takerID := 2
+	repo := &fakeRepository{
+		subRequest: &domain.SubRequest{ID: 1, PostedByUserID: 1},
+		detail: DetailReadModel{
+			Request: &domain.SubRequest{
+				ID:             1,
+				ShowID:         2,
+				PostedByUserID: 1,
+				TakenByUserID:  &takerID,
+				StartTime:      now.Add(time.Hour),
+				EndTime:        now.Add(2 * time.Hour),
+			},
+			RequesterEmail: "requester@example.com",
+			TakerEmail:     "taker@example.com",
+		},
+	}
+	svc := NewService(repo, &fakeCatalog{shows: []appcatalog.Show{{ID: "2", Title: "Test Show"}}})
+	notifier := &fakeNotifier{}
+	svc.SetNotifier(notifier)
+	svc.nowFunc = func() time.Time { return now }
+
+	if err := svc.ApplyAction(context.Background(), domain.CurrentUser{ID: takerID, Role: domain.RoleMember}, 1, ActionTake); err != nil {
+		t.Fatalf("take returned error: %v", err)
+	}
+	if notifier.takenCalls != 1 {
+		t.Fatalf("expected taken notifier to be called once, got %d", notifier.takenCalls)
+	}
+	if notifier.takenEvent.RequesterEmail != "requester@example.com" || notifier.takenEvent.TakerEmail != "taker@example.com" {
+		t.Fatalf("unexpected taken notification emails: %+v", notifier.takenEvent)
+	}
+	if notifier.takenEvent.ShowTitle != "Test Show" {
+		t.Fatalf("show title = %q, want Test Show", notifier.takenEvent.ShowTitle)
+	}
+	if notifier.takenEvent.DetailPath != "/sub-requests/1" {
+		t.Fatalf("detail path = %q, want /sub-requests/1", notifier.takenEvent.DetailPath)
+	}
+}
+
+func TestApplyActionTakeNotificationErrorsDoNotFailTake(t *testing.T) {
+	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
+	takerID := 2
+	repo := &fakeRepository{
+		subRequest: &domain.SubRequest{ID: 1, PostedByUserID: 1},
+		detail: DetailReadModel{
+			Request: &domain.SubRequest{
+				ID:             1,
+				ShowID:         2,
+				PostedByUserID: 1,
+				TakenByUserID:  &takerID,
+				StartTime:      now.Add(time.Hour),
+				EndTime:        now.Add(2 * time.Hour),
+			},
+			RequesterEmail: "requester@example.com",
+			TakerEmail:     "taker@example.com",
+		},
+	}
+	svc := NewService(repo, &fakeCatalog{err: errors.New("catalog down")})
+	notifier := &fakeNotifier{err: errors.New("queue failed")}
+	svc.SetNotifier(notifier)
+	svc.nowFunc = func() time.Time { return now }
+
+	if err := svc.ApplyAction(context.Background(), domain.CurrentUser{ID: takerID, Role: domain.RoleMember}, 1, ActionTake); err != nil {
+		t.Fatalf("take with notification errors returned error: %v", err)
+	}
+	if notifier.takenCalls != 1 {
+		t.Fatalf("expected taken notifier to be called once, got %d", notifier.takenCalls)
+	}
+	if notifier.takenEvent.ShowTitle != "Unknown Show" {
+		t.Fatalf("show title = %q, want Unknown Show", notifier.takenEvent.ShowTitle)
+	}
+
+	repo.detailErr = errors.New("detail reload failed")
+	if err := svc.ApplyAction(context.Background(), domain.CurrentUser{ID: takerID, Role: domain.RoleMember}, 1, ActionTake); err != nil {
+		t.Fatalf("take with detail reload error returned error: %v", err)
+	}
+}
+
+func TestApplyActionDoesNotNotifyWhenTakeFailsOrUntakes(t *testing.T) {
+	takerID := 2
+	repo := &fakeRepository{subRequest: &domain.SubRequest{ID: 1, PostedByUserID: 1}}
+	svc := NewService(repo, nil)
+	notifier := &fakeNotifier{}
+	svc.SetNotifier(notifier)
+	viewer := domain.CurrentUser{ID: takerID, Role: domain.RoleMember}
+
+	repo.takeErr = apperrors.ErrConflict
+	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionTake); !errors.Is(err, apperrors.ErrConflict) {
+		t.Fatalf("take conflict error = %v, want conflict", err)
+	}
+	if notifier.takenCalls != 0 {
+		t.Fatalf("expected no notification for failed take, got %d", notifier.takenCalls)
+	}
+
+	repo.takeErr = nil
+	repo.subRequest = &domain.SubRequest{ID: 1, PostedByUserID: 1, TakenByUserID: &takerID}
+	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionUntake); err != nil {
+		t.Fatalf("untake returned error: %v", err)
+	}
+	if notifier.takenCalls != 0 {
+		t.Fatalf("expected no notification for untake, got %d", notifier.takenCalls)
 	}
 }
 

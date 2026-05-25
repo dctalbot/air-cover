@@ -84,6 +84,10 @@ func (m *mockSender) SendSubRequestCreated(bccEmails []string, message adapterem
 	return nil
 }
 
+func (m *mockSender) SendSubRequestTaken(toEmail string, ccEmails []string, message adapteremail.SubRequestTakenMessage) error {
+	return nil
+}
+
 type fakeAsyncNotifier struct {
 	started bool
 	stopped bool
@@ -91,6 +95,10 @@ type fakeAsyncNotifier struct {
 }
 
 func (f *fakeAsyncNotifier) SubRequestCreated(ctx context.Context, event subrequestsapp.SubRequestCreatedEvent) error {
+	return nil
+}
+
+func (f *fakeAsyncNotifier) SubRequestTaken(ctx context.Context, event subrequestsapp.SubRequestTakenEvent) error {
 	return nil
 }
 

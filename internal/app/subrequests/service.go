@@ -92,6 +92,14 @@ type SubRequestCreatedEvent struct {
 	DetailPath     string
 }
 
+type SubRequestTakenEvent struct {
+	Request        *domain.SubRequest
+	RequesterEmail string
+	TakerEmail     string
+	ShowTitle      string
+	DetailPath     string
+}
+
 type Action string
 
 const (
@@ -276,6 +284,7 @@ func (s *Service) ApplyAction(ctx context.Context, viewer domain.CurrentUser, id
 		if err := s.repo.TakeSubRequest(ctx, id, viewer.ID, s.now()); err != nil {
 			return mapRepositoryError(err)
 		}
+		s.notifySubRequestTaken(ctx, id)
 	case ActionUntake:
 		if !sr.CanBeUntakenBy(viewer) {
 			return apperrors.ErrForbidden
@@ -285,6 +294,31 @@ func (s *Service) ApplyAction(ctx context.Context, viewer domain.CurrentUser, id
 		}
 	}
 	return nil
+}
+
+func (s *Service) notifySubRequestTaken(ctx context.Context, id int) {
+	if s.notifier == nil {
+		return
+	}
+	record, err := s.repo.GetSubRequestDetailByID(ctx, id)
+	if err != nil {
+		slog.Error("Failed to load sub request detail for taken notification", "sub_request_id", id, "error", err)
+		return
+	}
+	showTitleValue, err := s.showTitleFor(ctx, record.Request.ShowID)
+	if err != nil {
+		slog.Error("Failed to load show title for sub request taken notification", "sub_request_id", id, "error", err)
+		showTitleValue = "Unknown Show"
+	}
+	if err := s.notifier.SubRequestTaken(ctx, SubRequestTakenEvent{
+		Request:        record.Request,
+		RequesterEmail: record.RequesterEmail,
+		TakerEmail:     record.TakerEmail,
+		ShowTitle:      showTitleValue,
+		DetailPath:     fmt.Sprintf("/sub-requests/%d", record.Request.ID),
+	}); err != nil {
+		slog.Error("Failed to queue sub request taken notification", "sub_request_id", record.Request.ID, "error", err)
+	}
 }
 
 func mapRepositoryError(err error) error {

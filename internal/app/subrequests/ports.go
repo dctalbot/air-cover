@@ -30,6 +30,7 @@ type RequestReader interface {
 
 type Notifier interface {
 	SubRequestCreated(ctx context.Context, event SubRequestCreatedEvent) error
+	SubRequestTaken(ctx context.Context, event SubRequestTakenEvent) error
 }
 
 type ActiveUserLister interface {
