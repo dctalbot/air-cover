@@ -10,6 +10,9 @@ SELECT id, email, role, is_enabled, created_at FROM users WHERE email = ?;
 -- name: ListUsers :many
 SELECT id, email, role, is_enabled, created_at FROM users ORDER BY created_at DESC;
 
+-- name: ListActiveUsers :many
+SELECT id, email, role, is_enabled, created_at FROM users WHERE is_enabled = true ORDER BY email ASC;
+
 -- name: UpdateUserRole :execresult
 UPDATE users SET role = ? WHERE id = ?;
 

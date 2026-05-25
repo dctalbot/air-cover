@@ -44,6 +44,7 @@ func (f *fakeRepository) GetSubRequestDetailByID(ctx context.Context, id int) (D
 }
 
 func (f *fakeRepository) CreateSubRequest(ctx context.Context, sr *domain.SubRequest) error {
+	sr.ID = 42
 	f.created = sr
 	return f.createErr
 }
@@ -74,12 +75,30 @@ func (f *fakeRepository) UntakeSubRequest(ctx context.Context, id int, updatedAt
 }
 
 type fakeCatalog struct {
-	shows []appcatalog.Show
-	err   error
+	shows     []appcatalog.Show
+	err       error
+	calls     int
+	errOnCall int
 }
 
 func (f *fakeCatalog) ListShows(ctx context.Context) ([]appcatalog.Show, error) {
-	return f.shows, f.err
+	f.calls++
+	if f.err != nil && (f.errOnCall == 0 || f.calls == f.errOnCall) {
+		return nil, f.err
+	}
+	return f.shows, nil
+}
+
+type fakeNotifier struct {
+	event SubRequestCreatedEvent
+	err   error
+	calls int
+}
+
+func (f *fakeNotifier) SubRequestCreated(ctx context.Context, event SubRequestCreatedEvent) error {
+	f.calls++
+	f.event = event
+	return f.err
 }
 
 func TestListDashboard(t *testing.T) {
@@ -200,6 +219,8 @@ func TestCreate(t *testing.T) {
 	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
 	repo := &fakeRepository{}
 	svc := NewService(repo, &fakeCatalog{shows: []appcatalog.Show{{ID: "1", Title: "Test Show"}}})
+	notifier := &fakeNotifier{}
+	svc.SetNotifier(notifier)
 	svc.nowFunc = func() time.Time { return now }
 	input := CreateInput{
 		ShowID:    1,
@@ -208,11 +229,20 @@ func TestCreate(t *testing.T) {
 		Notes:     "please help",
 	}
 
-	if err := svc.Create(context.Background(), domain.CurrentUser{ID: 7}, input); err != nil {
+	if err := svc.Create(context.Background(), domain.CurrentUser{ID: 7, Email: "requester@example.com"}, input); err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
 	if repo.created.PostedByUserID != 7 || repo.created.CreatedAt != now {
 		t.Errorf("unexpected created request: %+v", repo.created)
+	}
+	if notifier.calls != 1 {
+		t.Fatalf("expected notifier to be called once, got %d", notifier.calls)
+	}
+	if notifier.event.ShowTitle != "Test Show" || notifier.event.RequesterEmail != "requester@example.com" {
+		t.Fatalf("unexpected notification event: %+v", notifier.event)
+	}
+	if notifier.event.DetailPath != "/sub-requests/42" {
+		t.Fatalf("detail path = %q, want /sub-requests/42", notifier.event.DetailPath)
 	}
 
 	catalogErrSvc := NewService(&fakeRepository{}, &fakeCatalog{err: errors.New("catalog down")})
@@ -226,6 +256,48 @@ func TestCreate(t *testing.T) {
 	createErrSvc.nowFunc = func() time.Time { return now }
 	if err := createErrSvc.Create(context.Background(), domain.CurrentUser{ID: 7}, input); !errors.Is(err, wantErr) {
 		t.Errorf("create error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestCreateNotificationErrorsDoNotFailCreate(t *testing.T) {
+	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
+	input := CreateInput{
+		ShowID:    1,
+		StartTime: now.Add(time.Hour),
+		EndTime:   now.Add(2 * time.Hour),
+	}
+
+	notifyErrSvc := NewService(&fakeRepository{}, &fakeCatalog{shows: []appcatalog.Show{{ID: "1", Title: "Test Show"}}})
+	notifyErrSvc.SetNotifier(&fakeNotifier{err: errors.New("queue failed")})
+	notifyErrSvc.nowFunc = func() time.Time { return now }
+	if err := notifyErrSvc.Create(context.Background(), domain.CurrentUser{ID: 7, Email: "requester@example.com"}, input); err != nil {
+		t.Fatalf("Create with notification error returned error: %v", err)
+	}
+
+	postPersistCatalogErrSvc := NewService(&fakeRepository{}, &fakeCatalog{
+		shows:     []appcatalog.Show{{ID: "1", Title: "Test Show"}},
+		err:       errors.New("catalog down"),
+		errOnCall: 2,
+	})
+	postPersistCatalogErrSvc.SetNotifier(&fakeNotifier{})
+	postPersistCatalogErrSvc.nowFunc = func() time.Time { return now }
+	if err := postPersistCatalogErrSvc.Create(context.Background(), domain.CurrentUser{ID: 7}, input); err != nil {
+		t.Fatalf("Create with post-persist catalog fallback returned error: %v", err)
+	}
+}
+
+func TestCreateWithoutNotifier(t *testing.T) {
+	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
+	svc := NewService(&fakeRepository{}, &fakeCatalog{shows: []appcatalog.Show{{ID: "1", Title: "Test Show"}}})
+	svc.nowFunc = func() time.Time { return now }
+
+	err := svc.Create(context.Background(), domain.CurrentUser{ID: 7}, CreateInput{
+		ShowID:    1,
+		StartTime: now.Add(time.Hour),
+		EndTime:   now.Add(2 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("Create without notifier returned error: %v", err)
 	}
 }
 

@@ -381,6 +381,18 @@ func TestRepository(t *testing.T) {
 	if !users[0].IsEnabled {
 		t.Error("expected users[0].IsEnabled to be true")
 	}
+	activeUsers, err := repo.ListActiveUsers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(activeUsers) == 0 {
+		t.Fatal("expected active users")
+	}
+	for _, activeUser := range activeUsers {
+		if !activeUser.IsEnabled {
+			t.Fatalf("expected only enabled users, got %+v", activeUser)
+		}
+	}
 
 	// UpdateUser
 	newRole := "admin"
@@ -398,6 +410,15 @@ func TestRepository(t *testing.T) {
 	}
 	if uUpdated.IsEnabled {
 		t.Error("expected IsEnabled to be false")
+	}
+	activeUsers, err = repo.ListActiveUsers(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, activeUser := range activeUsers {
+		if activeUser.ID == u.ID {
+			t.Fatal("disabled user should not be returned by ListActiveUsers")
+		}
 	}
 
 	// UpdateUser with nil args
@@ -493,6 +514,10 @@ func TestRepositoryErrors(t *testing.T) {
 	_, err = repo.ListUsers(ctx)
 	if err == nil {
 		t.Error("expected error with cancelled context in ListUsers")
+	}
+	_, err = repo.ListActiveUsers(ctx)
+	if err == nil {
+		t.Error("expected error with cancelled context in ListActiveUsers")
 	}
 
 	err = repo.UpdateUser(ctx, 1, nil, nil)
@@ -606,6 +631,10 @@ func TestListDashboardSubRequestsErrors(t *testing.T) {
 	if err == nil {
 		t.Error("expected error with closed db in ListUsers")
 	}
+	_, err = repo.ListActiveUsers(ctx)
+	if err == nil {
+		t.Error("expected error with closed db in ListActiveUsers")
+	}
 }
 
 func TestScanErrors(t *testing.T) {
@@ -663,10 +692,14 @@ func TestScanErrors(t *testing.T) {
 	// ListUsers scan error
 	_, _ = dbConn.Exec("DROP TABLE users")
 	_, _ = dbConn.Exec("CREATE TABLE users (id TEXT, email TEXT, role TEXT, is_enabled TEXT, created_at TEXT)")
-	_, _ = dbConn.Exec("INSERT INTO users (id, email, role, is_enabled, created_at) VALUES ('bad', 'bad', 'bad', 'bad', 'bad')")
+	_, _ = dbConn.Exec("INSERT INTO users (id, email, role, is_enabled, created_at) VALUES ('bad', 'bad', 'bad', 1, 'bad')")
 	_, err = repo.ListUsers(ctx)
 	if err == nil {
 		t.Error("expected scan error in ListUsers")
+	}
+	_, err = repo.ListActiveUsers(ctx)
+	if err == nil {
+		t.Error("expected scan error in ListActiveUsers")
 	}
 }
 
@@ -1048,6 +1081,22 @@ func TestRepositoryRowsErrors(t *testing.T) {
 			WillReturnRows(rows)
 
 		_, err := repo.ListUsers(context.Background())
+		if err == nil {
+			t.Fatal("expected rows error")
+		}
+	})
+
+	t.Run("list active users rows err", func(t *testing.T) {
+		dbConn, mock, repo := newMockRepository(t)
+		defer dbConn.Close()
+
+		rows := sqlmock.NewRows([]string{"id", "email", "role", "is_enabled", "created_at"}).
+			AddRow(1, "user@example.com", "member", true, time.Now()).
+			RowError(0, errors.New("rows failed"))
+		mock.ExpectQuery(regexp.QuoteMeta("SELECT id, email, role, is_enabled, created_at FROM users WHERE is_enabled = true ORDER BY email ASC")).
+			WillReturnRows(rows)
+
+		_, err := repo.ListActiveUsers(context.Background())
 		if err == nil {
 			t.Fatal("expected rows error")
 		}

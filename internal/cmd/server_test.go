@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"air-cover/internal/adapters/inbound/http/api"
+	adapteremail "air-cover/internal/adapters/outbound/email"
 	adapterspinitron "air-cover/internal/adapters/outbound/spinitron"
 	"air-cover/internal/adapters/outbound/sqlite"
 	adminapp "air-cover/internal/app/admin"
@@ -79,6 +80,28 @@ func (m *mockSender) SendMagicLink(toEmail, magicLink string) error {
 	return nil
 }
 
+func (m *mockSender) SendSubRequestCreated(toEmail string, message adapteremail.SubRequestCreatedMessage) error {
+	return nil
+}
+
+type fakeAsyncNotifier struct {
+	started bool
+	stopped bool
+	next    subrequestsapp.Notifier
+}
+
+func (f *fakeAsyncNotifier) SubRequestCreated(ctx context.Context, event subrequestsapp.SubRequestCreatedEvent) error {
+	return nil
+}
+
+func (f *fakeAsyncNotifier) Start() {
+	f.started = true
+}
+
+func (f *fakeAsyncNotifier) Stop() {
+	f.stopped = true
+}
+
 type fakeStartupRepo struct {
 	getUserErr    error
 	createUserErr error
@@ -140,6 +163,10 @@ func (f *fakeSubRequestsRepo) UntakeSubRequest(ctx context.Context, id int, upda
 	return nil
 }
 
+func (f *fakeSubRequestsRepo) ListActiveUsers(ctx context.Context) ([]*domain.User, error) {
+	return []*domain.User{{ID: 1, Email: "active@example.com", Role: domain.RoleMember, IsEnabled: true}}, nil
+}
+
 type fakeAdminRepo struct{}
 
 func (f *fakeAdminRepo) ListUsers(ctx context.Context) ([]*domain.User, error) {
@@ -188,7 +215,7 @@ func testServerDeps(cfg *config.Config, repo bootstrapapp.Repository) serverDeps
 		initDB: func(uri string) (*sql.DB, error) {
 			return nil, nil
 		},
-		newSender: func(resendAPIKey, sendGridAPIKey, fromEmail string) authapp.Sender {
+		newSender: func(resendAPIKey, sendGridAPIKey, fromEmail string) adapteremail.Sender {
 			return &mockSender{}
 		},
 		newSpinitron: func(apiKey, baseURL string) adapterspinitron.PageClient {
@@ -211,7 +238,11 @@ func testServerDeps(cfg *config.Config, repo bootstrapapp.Repository) serverDeps
 			return api.NewServer(authHandler, subRequests, admin)
 		},
 		newDBRepository: func(database *sql.DB) repositories {
-			return repositories{startup: repo}
+			subRequestsRepo := &fakeSubRequestsRepo{}
+			return repositories{startup: repo, auth: &fakeAuthRepo{}, subRequests: subRequestsRepo, activeUsers: subRequestsRepo, admin: &fakeAdminRepo{}}
+		},
+		newAsyncNotifier: func(notifier subrequestsapp.Notifier) asyncNotifier {
+			return &fakeAsyncNotifier{next: notifier}
 		},
 		setDefaultLogger: func(cfg *config.Config) {},
 		signalContext: func(parent context.Context) (context.Context, context.CancelFunc) {
@@ -426,6 +457,7 @@ func TestRunServer_ClosesDatabase(t *testing.T) {
 		SendGridAPIKey:  "sendgrid-key",
 		FromEmail:       "noreply@example.com",
 		SpinitronAPIURL: "https://proxy.example.test/api",
+		AppBaseURL:      "https://aircover.example.com",
 	}
 
 	t.Run("normal exit", func(t *testing.T) {
@@ -467,6 +499,7 @@ func TestRunServer_DependencyFailures(t *testing.T) {
 		SendGridAPIKey:  "sendgrid-key",
 		FromEmail:       "noreply@example.com",
 		SpinitronAPIURL: "https://proxy.example.test/api",
+		AppBaseURL:      "https://aircover.example.com",
 	}
 
 	t.Run("config load error", func(t *testing.T) {
@@ -682,6 +715,7 @@ func TestRunServer_WiresIndependentRepositoryPorts(t *testing.T) {
 		SendGridAPIKey:  "sendgrid-key",
 		FromEmail:       "noreply@example.com",
 		SpinitronAPIURL: "https://proxy.example.test/api",
+		AppBaseURL:      "https://aircover.example.com",
 	}
 	startupRepo := &fakeStartupRepo{}
 	authRepo := &fakeAuthRepo{}
@@ -691,6 +725,7 @@ func TestRunServer_WiresIndependentRepositoryPorts(t *testing.T) {
 		startup:     startupRepo,
 		auth:        authRepo,
 		subRequests: subRequestsRepo,
+		activeUsers: subRequestsRepo,
 		admin:       adminRepo,
 	}
 	deps := testServerDeps(cfg, startupRepo)
@@ -700,11 +735,16 @@ func TestRunServer_WiresIndependentRepositoryPorts(t *testing.T) {
 	var gotResendAPIKey string
 	var gotSendGridAPIKey string
 	var gotFromEmail string
-	deps.newSender = func(resendAPIKey, sendGridAPIKey, fromEmail string) authapp.Sender {
+	deps.newSender = func(resendAPIKey, sendGridAPIKey, fromEmail string) adapteremail.Sender {
 		gotResendAPIKey = resendAPIKey
 		gotSendGridAPIKey = sendGridAPIKey
 		gotFromEmail = fromEmail
 		return &mockSender{}
+	}
+	var gotNotifier *fakeAsyncNotifier
+	deps.newAsyncNotifier = func(notifier subrequestsapp.Notifier) asyncNotifier {
+		gotNotifier = &fakeAsyncNotifier{next: notifier}
+		return gotNotifier
 	}
 	var gotAuthService *authapp.Service
 	deps.newAuthHandler = func(service *authapp.Service) *api.AuthHandler {
@@ -740,6 +780,16 @@ func TestRunServer_WiresIndependentRepositoryPorts(t *testing.T) {
 	if gotFromEmail != "noreply@example.com" {
 		t.Fatalf("expected from email to be wired, got %q", gotFromEmail)
 	}
+	if gotNotifier == nil || !gotNotifier.started || !gotNotifier.stopped {
+		t.Fatalf("expected async notifier to start and stop, got %+v", gotNotifier)
+	}
+	emailNotifier, ok := gotNotifier.next.(*adapteremail.SubRequestNotifier)
+	if !ok {
+		t.Fatalf("expected sub request email notifier, got %T", gotNotifier.next)
+	}
+	if emailNotifier.BaseURL != "https://aircover.example.com" {
+		t.Fatalf("expected app base URL to be wired, got %q", emailNotifier.BaseURL)
+	}
 }
 
 func TestStartCatalogPrefetchWithoutPrefetcher(t *testing.T) {
@@ -773,6 +823,7 @@ func TestServerCmd_DBInitError(t *testing.T) {
 	t.Setenv("DB_URI", "invalid-dsn")
 	t.Setenv("FROM_EMAIL", "noreply@example.com")
 	t.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
+	t.Setenv("MASTER_EMAIL", "admin@example.com")
 	originalOsExit := osExit
 	defer func() { osExit = originalOsExit }()
 

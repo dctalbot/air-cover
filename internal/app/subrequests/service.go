@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,9 +20,10 @@ var ErrCatalog = errors.New("show catalog error")
 const maxCreateNotesLength = 1000
 
 type Service struct {
-	repo    Repository
-	catalog Catalog
-	nowFunc func() time.Time
+	repo     Repository
+	catalog  Catalog
+	notifier Notifier
+	nowFunc  func() time.Time
 }
 
 func NewService(repo Repository, catalog Catalog) *Service {
@@ -30,6 +32,10 @@ func NewService(repo Repository, catalog Catalog) *Service {
 		catalog: catalog,
 		nowFunc: time.Now,
 	}
+}
+
+func (s *Service) SetNotifier(notifier Notifier) {
+	s.notifier = notifier
 }
 
 type Dashboard struct {
@@ -77,6 +83,13 @@ type CreateInput struct {
 	StartTime time.Time
 	EndTime   time.Time
 	Notes     string
+}
+
+type SubRequestCreatedEvent struct {
+	Request        *domain.SubRequest
+	RequesterEmail string
+	ShowTitle      string
+	DetailPath     string
 }
 
 type Action string
@@ -173,7 +186,7 @@ func (s *Service) Create(ctx context.Context, viewer domain.CurrentUser, input C
 	}
 
 	now := s.now()
-	if err := s.repo.CreateSubRequest(ctx, &domain.SubRequest{
+	sr := &domain.SubRequest{
 		ShowID:         input.ShowID,
 		PostedByUserID: viewer.ID,
 		StartTime:      input.StartTime,
@@ -181,10 +194,31 @@ func (s *Service) Create(ctx context.Context, viewer domain.CurrentUser, input C
 		Notes:          input.Notes,
 		CreatedAt:      now,
 		UpdatedAt:      now,
-	}); err != nil {
+	}
+	if err := s.repo.CreateSubRequest(ctx, sr); err != nil {
 		return mapRepositoryError(err)
 	}
+	s.notifySubRequestCreated(ctx, viewer, sr)
 	return nil
+}
+
+func (s *Service) notifySubRequestCreated(ctx context.Context, viewer domain.CurrentUser, sr *domain.SubRequest) {
+	if s.notifier == nil {
+		return
+	}
+	showTitleValue, err := s.showTitleFor(ctx, sr.ShowID)
+	if err != nil {
+		slog.Error("Failed to load show title for sub request notification", "sub_request_id", sr.ID, "error", err)
+		showTitleValue = "Unknown Show"
+	}
+	if err := s.notifier.SubRequestCreated(ctx, SubRequestCreatedEvent{
+		Request:        sr,
+		RequesterEmail: viewer.Email,
+		ShowTitle:      showTitleValue,
+		DetailPath:     fmt.Sprintf("/sub-requests/%d", sr.ID),
+	}); err != nil {
+		slog.Error("Failed to queue sub request notification", "sub_request_id", sr.ID, "error", err)
+	}
 }
 
 func (s *Service) validateCreateInput(ctx context.Context, input CreateInput) error {

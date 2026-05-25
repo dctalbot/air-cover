@@ -47,6 +47,9 @@ func TestLoad_Success(t *testing.T) {
 	if cfg.SpinitronAPIURL != "https://proxy.example.test/api" {
 		t.Errorf("expected SPINITRON_API_URL to be loaded, got %s", cfg.SpinitronAPIURL)
 	}
+	if cfg.AppBaseURL != "http://localhost:8080" {
+		t.Errorf("expected APP_BASE_URL to default to localhost, got %s", cfg.AppBaseURL)
+	}
 }
 
 func TestLoad_InvalidPort(t *testing.T) {
@@ -88,6 +91,31 @@ func TestLoad_PortFromEnv(t *testing.T) {
 
 	if cfg.Port != 9090 {
 		t.Errorf("expected port to be 9090, got %d", cfg.Port)
+	}
+	if cfg.AppBaseURL != "http://localhost:9090" {
+		t.Errorf("expected app base URL to use configured port, got %s", cfg.AppBaseURL)
+	}
+}
+
+func TestLoad_AppBaseURLFromEnv(t *testing.T) {
+	viper.Reset()
+	os.Setenv("DB_URI", "postgres://localhost/db")
+	defer os.Unsetenv("DB_URI")
+	os.Setenv("SPINITRON_API_URL", "https://proxy.example.test/api")
+	defer os.Unsetenv("SPINITRON_API_URL")
+	os.Setenv("MASTER_EMAIL", "admin@example.com")
+	defer os.Unsetenv("MASTER_EMAIL")
+	os.Setenv("FROM_EMAIL", "noreply@example.com")
+	defer os.Unsetenv("FROM_EMAIL")
+	os.Setenv("APP_BASE_URL", "https://aircover.example.com")
+	defer os.Unsetenv("APP_BASE_URL")
+
+	cfg, err := Load(nil)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if cfg.AppBaseURL != "https://aircover.example.com" {
+		t.Errorf("expected configured app base URL, got %s", cfg.AppBaseURL)
 	}
 }
 

@@ -21,6 +21,7 @@ type Config struct {
 	ResendAPIKey    string `validate:"omitempty"`
 	SendGridAPIKey  string `validate:"omitempty"`
 	FromEmail       string `mapstructure:"from_email" validate:"required,email"`
+	AppBaseURL      string `mapstructure:"app_base_url" validate:"required,url"`
 	SpinitronAPIURL string `mapstructure:"spinitron_api_url" validate:"required,url"`
 }
 
@@ -42,6 +43,7 @@ func Load(cmd *cobra.Command) (*Config, error) {
 	cfg.ResendAPIKey = os.Getenv("RESEND_API_KEY")       // nolint:forbidigo
 	cfg.SendGridAPIKey = os.Getenv("SENDGRID_API_KEY")   // nolint:forbidigo
 	cfg.FromEmail = os.Getenv("FROM_EMAIL")              // nolint:forbidigo
+	cfg.AppBaseURL = os.Getenv("APP_BASE_URL")           // nolint:forbidigo
 	cfg.SpinitronAPIURL = os.Getenv("SPINITRON_API_URL") // nolint:forbidigo
 
 	if osEnvPort != "" {
@@ -59,6 +61,9 @@ func Load(cmd *cobra.Command) (*Config, error) {
 
 	if cfg.Port == 0 {
 		cfg.Port = 8080
+	}
+	if cfg.AppBaseURL == "" {
+		cfg.AppBaseURL = fmt.Sprintf("http://localhost:%d", cfg.Port)
 	}
 
 	if cmd != nil {

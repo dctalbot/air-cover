@@ -47,7 +47,7 @@ const (
 type serverDeps struct {
 	loadConfig       func(*cobra.Command) (*config.Config, error)
 	initDB           func(string) (*sql.DB, error)
-	newSender        func(resendAPIKey, sendGridAPIKey, fromEmail string) authapp.Sender
+	newSender        func(resendAPIKey, sendGridAPIKey, fromEmail string) adapteremail.Sender
 	newSpinitron     func(apiKey, baseURL string) adapterspinitron.PageClient
 	newCatalog       func(adapterspinitron.PageClient) catalog
 	newRouter        func(*api.Server, *api.AuthHandler) chi.Router
@@ -56,6 +56,7 @@ type serverDeps struct {
 	newAuthHandler   func(*authapp.Service) *api.AuthHandler
 	newAPIServer     func(*subrequestsapp.Service, *adminapp.Service, *api.AuthHandler) *api.Server
 	newDBRepository  func(*sql.DB) repositories
+	newAsyncNotifier func(subrequestsapp.Notifier) asyncNotifier
 	setDefaultLogger func(*config.Config)
 	signalContext    func(context.Context) (context.Context, context.CancelFunc)
 	shutdownServer   func(*http.Server, context.Context) error
@@ -66,6 +67,7 @@ type repositories struct {
 	startup     bootstrapapp.Repository
 	auth        authapp.Repository
 	subRequests subrequestsapp.Repository
+	activeUsers subrequestsapp.ActiveUserLister
 	admin       adminapp.Repository
 }
 
@@ -73,7 +75,8 @@ type infrastructure struct {
 	database     *sql.DB
 	repositories repositories
 	catalog      catalog
-	sender       authapp.Sender
+	sender       adapteremail.Sender
+	notifier     asyncNotifier
 }
 
 type applicationServices struct {
@@ -87,11 +90,17 @@ type catalog interface {
 	subrequestsapp.Catalog
 }
 
+type asyncNotifier interface {
+	subrequestsapp.Notifier
+	Start()
+	Stop()
+}
+
 func defaultServerDeps() serverDeps {
 	return serverDeps{
 		loadConfig: config.Load,
 		initDB:     sqlite.InitDB,
-		newSender: func(resendAPIKey, sendGridAPIKey, fromEmail string) authapp.Sender {
+		newSender: func(resendAPIKey, sendGridAPIKey, fromEmail string) adapteremail.Sender {
 			return adapteremail.NewSender(resendAPIKey, sendGridAPIKey, fromEmail)
 		},
 		newSpinitron: func(apiKey, baseURL string) adapterspinitron.PageClient {
@@ -113,8 +122,12 @@ func defaultServerDeps() serverDeps {
 				startup:     repo,
 				auth:        repo,
 				subRequests: repo,
+				activeUsers: repo,
 				admin:       repo,
 			}
+		},
+		newAsyncNotifier: func(notifier subrequestsapp.Notifier) asyncNotifier {
+			return adapteremail.NewAsyncNotifier(notifier, 0)
 		},
 		setDefaultLogger: func(cfg *config.Config) {
 			slog.SetDefault(logger.NewLogger(cfg))
@@ -156,6 +169,10 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 	if infra.database != nil {
 		defer infra.database.Close()
 	}
+	if infra.notifier != nil {
+		infra.notifier.Start()
+		defer infra.notifier.Stop()
+	}
 
 	if err := bootstrapapp.NewService(infra.repositories.startup).EnsureMasterUser(deps.backgroundCtx(), cfg.MasterEmail); err != nil {
 		return err
@@ -177,19 +194,28 @@ func buildInfrastructure(cfg *config.Config, deps serverDeps) (infrastructure, e
 		return infrastructure{}, fmt.Errorf("failed to initialize database: %w", err)
 	}
 	repo := deps.newDBRepository(database)
+	sender := deps.newSender(cfg.ResendAPIKey, cfg.SendGridAPIKey, cfg.FromEmail)
 	spinitronClient := deps.newSpinitron("", cfg.SpinitronAPIURL)
+	notifier := deps.newAsyncNotifier(&adapteremail.SubRequestNotifier{
+		Users:   repo.activeUsers,
+		Sender:  sender,
+		BaseURL: cfg.AppBaseURL,
+	})
 	return infrastructure{
 		database:     database,
 		repositories: repo,
 		catalog:      deps.newCatalog(spinitronClient),
-		sender:       deps.newSender(cfg.ResendAPIKey, cfg.SendGridAPIKey, cfg.FromEmail),
+		sender:       sender,
+		notifier:     notifier,
 	}, nil
 }
 
 func buildApplicationServices(infra infrastructure) applicationServices {
+	subRequests := subrequestsapp.NewService(infra.repositories.subRequests, infra.catalog)
+	subRequests.SetNotifier(infra.notifier)
 	return applicationServices{
 		auth:        authapp.NewService(infra.repositories.auth, infra.sender),
-		subRequests: subrequestsapp.NewService(infra.repositories.subRequests, infra.catalog),
+		subRequests: subRequests,
 		admin:       adminapp.NewService(infra.repositories.admin, infra.catalog),
 	}
 }

@@ -32,6 +32,18 @@ func (r *Repository) GetUserByID(ctx context.Context, id int) (*domain.User, err
 	return userFromSQL(user), nil
 }
 
+func (r *Repository) ListActiveUsers(ctx context.Context) ([]*domain.User, error) {
+	rows, err := r.queries.ListActiveUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	users := make([]*domain.User, 0, len(rows))
+	for _, row := range rows {
+		users = append(users, userFromSQL(row))
+	}
+	return users, nil
+}
+
 func (r *Repository) CreateMagicLink(ctx context.Context, userID int, tokenHash string, expiresAt time.Time) error {
 	return r.queries.CreateMagicLink(ctx, dbgen.CreateMagicLinkParams{
 		UserID:    int64(userID),

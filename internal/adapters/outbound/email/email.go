@@ -16,12 +16,18 @@ import (
 
 type Sender interface {
 	SendMagicLink(toEmail, magicLink string) error
+	SendSubRequestCreated(toEmail string, message SubRequestCreatedMessage) error
 }
 
 type ConsoleSender struct{}
 
 func (c *ConsoleSender) SendMagicLink(toEmail, magicLink string) error {
 	slog.Info("Simulating email send", "to", toEmail, "magicLink", magicLink)
+	return nil
+}
+
+func (c *ConsoleSender) SendSubRequestCreated(toEmail string, message SubRequestCreatedMessage) error {
+	slog.Info("Simulating sub request notification email send", "to", toEmail, "detailURL", message.DetailURL)
 	return nil
 }
 
@@ -41,6 +47,15 @@ type emailMessage struct {
 type emailCTA struct {
 	Label string
 	URL   string
+}
+
+type SubRequestCreatedMessage struct {
+	ShowTitle      string
+	RequesterEmail string
+	StartTime      time.Time
+	EndTime        time.Time
+	Notes          string
+	DetailURL      string
 }
 
 type renderedEmail struct {
@@ -154,8 +169,51 @@ func magicLinkMessage(magicLink string) emailMessage {
 	}
 }
 
+func subRequestCreatedMessage(message SubRequestCreatedMessage) emailMessage {
+	body := []string{
+		fmt.Sprintf("%s posted a new sub request for %s.", message.RequesterEmail, message.ShowTitle),
+		fmt.Sprintf("When: %s to %s", formatEmailTime(message.StartTime), formatEmailTime(message.EndTime)),
+	}
+	if strings.TrimSpace(message.Notes) != "" {
+		body = append(body, "Notes: "+strings.TrimSpace(message.Notes))
+	}
+
+	return emailMessage{
+		Subject: "New sub request: " + message.ShowTitle,
+		Preview: "A new sub request is available in Air Cover.",
+		Heading: "New sub request",
+		Body:    body,
+		CTA: emailCTA{
+			Label: "View sub request",
+			URL:   message.DetailURL,
+		},
+		Footer: "You are receiving this because you are an active Air Cover user.",
+	}
+}
+
+func formatEmailTime(value time.Time) string {
+	return value.Format("Jan 2, 2006 3:04 PM")
+}
+
 func (s *ResendSender) SendMagicLink(toEmail, magicLink string) error {
-	message := renderEmail(magicLinkMessage(magicLink))
+	if err := s.send(toEmail, renderEmail(magicLinkMessage(magicLink))); err != nil {
+		return err
+	}
+
+	slog.Info("Successfully sent magic link via Resend", "to", toEmail)
+	return nil
+}
+
+func (s *ResendSender) SendSubRequestCreated(toEmail string, subRequestMessage SubRequestCreatedMessage) error {
+	if err := s.send(toEmail, renderEmail(subRequestCreatedMessage(subRequestMessage))); err != nil {
+		return fmt.Errorf("failed to send sub request email via resend: %w", err)
+	}
+
+	slog.Info("Successfully sent sub request notification via Resend", "to", toEmail)
+	return nil
+}
+
+func (s *ResendSender) send(toEmail string, message renderedEmail) error {
 	if _, err := s.Emails.Send(&resend.SendEmailRequest{
 		From:    s.FromEmail,
 		To:      []string{toEmail},
@@ -165,14 +223,28 @@ func (s *ResendSender) SendMagicLink(toEmail, magicLink string) error {
 	}); err != nil {
 		return fmt.Errorf("failed to send email via resend: %w", err)
 	}
-
-	slog.Info("Successfully sent magic link via Resend", "to", toEmail)
 	return nil
 }
 
 func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
-	message := renderEmail(magicLinkMessage(magicLink))
+	if err := s.send(toEmail, renderEmail(magicLinkMessage(magicLink))); err != nil {
+		return err
+	}
 
+	slog.Info("Successfully sent magic link via SendGrid", "to", toEmail)
+	return nil
+}
+
+func (s *SendGridSender) SendSubRequestCreated(toEmail string, subRequestMessage SubRequestCreatedMessage) error {
+	if err := s.send(toEmail, renderEmail(subRequestCreatedMessage(subRequestMessage))); err != nil {
+		return fmt.Errorf("failed to send sub request email via sendgrid: %w", err)
+	}
+
+	slog.Info("Successfully sent sub request notification via SendGrid", "to", toEmail)
+	return nil
+}
+
+func (s *SendGridSender) send(toEmail string, message renderedEmail) error {
 	// SendGrid v3 API minimal payload
 	payload := map[string]interface{}{
 		"personalizations": []map[string]interface{}{
@@ -220,8 +292,6 @@ func (s *SendGridSender) SendMagicLink(toEmail, magicLink string) error {
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("sendgrid api returned error status: %d", resp.StatusCode)
 	}
-
-	slog.Info("Successfully sent magic link via SendGrid", "to", toEmail)
 	return nil
 }
 

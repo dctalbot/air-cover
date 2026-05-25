@@ -28,6 +28,14 @@ type RequestReader interface {
 	GetSubRequestByID(ctx context.Context, id int) (*domain.SubRequest, error)
 }
 
+type Notifier interface {
+	SubRequestCreated(ctx context.Context, event SubRequestCreatedEvent) error
+}
+
+type ActiveUserLister interface {
+	ListActiveUsers(ctx context.Context) ([]*domain.User, error)
+}
+
 type Repository interface {
 	CommandRepository
 	DashboardQuery
