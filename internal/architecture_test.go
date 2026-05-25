@@ -17,7 +17,7 @@ const (
 	adaptersRoot         = "air-cover/internal/adapters"
 	inboundAdaptersRoot  = "air-cover/internal/adapters/inbound"
 	outboundAdaptersRoot = "air-cover/internal/adapters/outbound"
-	httpAdapterRoot      = "air-cover/internal/adapters/inbound/http"
+	httpAdapterRoot      = "air-cover/internal/adapters/inbound"
 	sqliteAdapterRoot    = "air-cover/internal/adapters/outbound/sqlite"
 	platformRoot         = "air-cover/internal/platform"
 )
@@ -150,7 +150,7 @@ func TestLegacyDeliveryPackagesStayRemoved(t *testing.T) {
 	for _, pkg := range packages {
 		for _, legacy := range []string{"air-cover/internal/api", "air-cover/internal/ui", "air-cover/internal/presenter"} {
 			if pkg.ImportPath == legacy || strings.HasPrefix(pkg.ImportPath, legacy+"/") {
-				t.Errorf("legacy delivery package %s should live under internal/adapters/inbound/http", pkg.ImportPath)
+				t.Errorf("legacy delivery package %s should live under internal/adapters/inbound", pkg.ImportPath)
 			}
 		}
 	}

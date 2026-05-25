@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"air-cover/internal/adapters/inbound/http/api"
+	"air-cover/internal/adapters/inbound/api"
 	adapteremail "air-cover/internal/adapters/outbound/email"
 	adapterspinitron "air-cover/internal/adapters/outbound/spinitron"
 	"air-cover/internal/adapters/outbound/sqlite"

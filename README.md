@@ -13,8 +13,8 @@ external protocols or services.
 
 ```mermaid
 flowchart LR
-    user["DJs and admins"] --> api["HTTP API router and OpenAPI validation<br/>internal/adapters/inbound/http/api"]
-    api --> http["Inbound HTTP adapter presentation<br/>internal/adapters/inbound/http"]
+    user["DJs and admins"] --> api["HTTP API router and OpenAPI validation<br/>internal/adapters/inbound/api"]
+    api --> http["Inbound HTTP adapter presentation<br/>internal/adapters/inbound"]
 
     subgraph core["Application core"]
         direction TB
@@ -45,9 +45,9 @@ with directories named by architectural role and dependency direction:
 - `internal/cmd/`: Composition root for commands, configuration, adapter wiring, and process lifecycle.
 - `internal/domain/`: Domain entities and behavior, free of transport, persistence, config, and logging concerns.
 - `internal/app/`: Application services, read models, and app-owned ports. Ports stay near the use case that needs them.
-- `internal/adapters/inbound/http/api/`: Inbound HTTP API implementation, including the OpenAPI spec, generated API types, handlers, middleware, and router.
-- `internal/adapters/inbound/http/presenter/`: HTTP-owned view models and presentation mapping.
-- `internal/adapters/inbound/http/ui/`: templ UI for the inbound HTTP adapter.
+- `internal/adapters/inbound/api/`: Inbound HTTP API implementation, including the OpenAPI spec, generated API types, handlers, middleware, and router.
+- `internal/adapters/inbound/presenter/`: HTTP-owned view models and presentation mapping.
+- `internal/adapters/inbound/ui/`: templ UI for the inbound HTTP adapter.
 - `internal/adapters/outbound/sqlite/`: SQLite/libSQL repository adapter, including migrations, sqlc queries, and generated sqlc code.
 - `internal/adapters/outbound/email/`: Email sender adapter.
 - `internal/adapters/outbound/spinitron/`: Spinitron API and catalog adapter.

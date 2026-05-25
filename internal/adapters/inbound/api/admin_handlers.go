@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"air-cover/internal/adapters/inbound/http/presenter"
-	"air-cover/internal/adapters/inbound/http/ui"
+	"air-cover/internal/adapters/inbound/presenter"
+	"air-cover/internal/adapters/inbound/ui"
 	adminapp "air-cover/internal/app/admin"
 	"air-cover/internal/apperrors"
 )
