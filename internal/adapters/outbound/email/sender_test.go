@@ -28,6 +28,9 @@ func TestConsoleSender(t *testing.T) {
 	if err := s.SendSubRequestTaken("requester@example.com", []string{"taker@example.com"}, testSubRequestTakenMessage()); err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
+	if err := s.SendSubRequestUntaken("requester@example.com", []string{"untaker@example.com"}, testSubRequestUntakenMessage()); err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
 }
 
 func TestResendSender_Success(t *testing.T) {
@@ -171,6 +174,54 @@ func TestResendSender_SubRequestTakenNoRequester(t *testing.T) {
 	emails := &fakeResendEmails{}
 	s := &ResendSender{FromEmail: "noreply@example.com", Emails: emails}
 	if err := s.SendSubRequestTaken("", []string{"taker@example.com"}, testSubRequestTakenMessage()); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if emails.request != nil {
+		t.Fatal("expected no email request")
+	}
+}
+
+func TestResendSender_SubRequestUntaken(t *testing.T) {
+	emails := &fakeResendEmails{}
+	s := &ResendSender{FromEmail: "noreply@example.com", Emails: emails}
+
+	if err := s.SendSubRequestUntaken("requester@example.com", []string{"untaker@example.com"}, testSubRequestUntakenMessage()); err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if emails.request == nil {
+		t.Fatal("expected email request")
+	}
+	if !sameStrings(emails.request.To, []string{"requester@example.com"}) {
+		t.Fatalf("expected requester recipient, got %v", emails.request.To)
+	}
+	if !sameStrings(emails.request.Cc, []string{"untaker@example.com"}) {
+		t.Fatalf("expected untaker cc, got %v", emails.request.Cc)
+	}
+	if emails.request.Subject != "Sub request no longer covered: Test Show" {
+		t.Fatalf("unexpected subject: %s", emails.request.Subject)
+	}
+	if !strings.Contains(emails.request.Text, "untaker@example.com is no longer covering your sub request for Test Show.") {
+		t.Fatalf("expected summary in text content: %s", emails.request.Text)
+	}
+	if !strings.Contains(emails.request.Text, "View sub request: https://aircover.example.com/sub-requests/42") {
+		t.Fatalf("expected details link in text content: %s", emails.request.Text)
+	}
+}
+
+func TestResendSender_SubRequestUntakenError(t *testing.T) {
+	s := &ResendSender{
+		FromEmail: "noreply@example.com",
+		Emails:    &fakeResendEmails{err: errors.New("resend down")},
+	}
+	if err := s.SendSubRequestUntaken("requester@example.com", []string{"untaker@example.com"}, testSubRequestUntakenMessage()); err == nil {
+		t.Fatal("expected resend error")
+	}
+}
+
+func TestResendSender_SubRequestUntakenNoRequester(t *testing.T) {
+	emails := &fakeResendEmails{}
+	s := &ResendSender{FromEmail: "noreply@example.com", Emails: emails}
+	if err := s.SendSubRequestUntaken("", []string{"untaker@example.com"}, testSubRequestUntakenMessage()); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 	if emails.request != nil {
@@ -331,6 +382,113 @@ func TestSendGridSender_SubRequestTakenNoCC(t *testing.T) {
 	}
 	if len(payload.Personalizations[0].CC) != 0 {
 		t.Fatalf("expected no cc recipients, got %v", payload.Personalizations[0].CC)
+	}
+}
+
+func TestSendGridSender_SubRequestUntaken(t *testing.T) {
+	var payload sendGridPayload
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("failed to decode request body: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer srv.Close()
+
+	s := &SendGridSender{
+		APIKey:    "test-key",
+		FromEmail: "noreply@example.com",
+		HTTPClient: &http.Client{
+			Transport: &proxyTransport{target: srv.URL},
+		},
+	}
+
+	if err := s.SendSubRequestUntaken("requester@example.com", []string{"untaker@example.com"}, testSubRequestUntakenMessage()); err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if len(payload.Personalizations) != 1 {
+		t.Fatalf("expected one personalization, got %d", len(payload.Personalizations))
+	}
+	if !sameAddresses(payload.Personalizations[0].To, []string{"requester@example.com"}) {
+		t.Fatalf("expected requester recipient, got %v", payload.Personalizations[0].To)
+	}
+	if !sameAddresses(payload.Personalizations[0].CC, []string{"untaker@example.com"}) {
+		t.Fatalf("expected untaker cc, got %v", payload.Personalizations[0].CC)
+	}
+	if payload.Subject != "Sub request no longer covered: Test Show" {
+		t.Fatalf("unexpected subject: %s", payload.Subject)
+	}
+	if !strings.Contains(payload.Content[0].Value, "untaker@example.com is no longer covering your sub request for Test Show.") {
+		t.Fatalf("expected summary in text content: %s", payload.Content[0].Value)
+	}
+	if !strings.Contains(payload.Content[1].Value, "https://aircover.example.com/sub-requests/42") {
+		t.Fatalf("expected detail link in HTML content: %s", payload.Content[1].Value)
+	}
+}
+
+func TestSendGridSender_SubRequestUntakenNoCC(t *testing.T) {
+	var payload sendGridPayload
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Errorf("failed to decode request body: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer srv.Close()
+
+	s := &SendGridSender{
+		APIKey:    "test-key",
+		FromEmail: "noreply@example.com",
+		HTTPClient: &http.Client{
+			Transport: &proxyTransport{target: srv.URL},
+		},
+	}
+
+	if err := s.SendSubRequestUntaken("requester@example.com", nil, testSubRequestUntakenMessage()); err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	if len(payload.Personalizations) != 1 {
+		t.Fatalf("expected one personalization, got %d", len(payload.Personalizations))
+	}
+	if len(payload.Personalizations[0].CC) != 0 {
+		t.Fatalf("expected no cc recipients, got %v", payload.Personalizations[0].CC)
+	}
+}
+
+func TestSendGridSender_SubRequestUntakenError(t *testing.T) {
+	s := &SendGridSender{
+		APIKey: "test-key",
+		HTTPClient: &http.Client{
+			Transport: &errorTransport{},
+		},
+	}
+	if err := s.SendSubRequestUntaken("requester@example.com", []string{"untaker@example.com"}, testSubRequestUntakenMessage()); err == nil {
+		t.Fatal("expected sendgrid error")
+	}
+}
+
+func TestSendGridSender_SubRequestUntakenHTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	s := &SendGridSender{
+		APIKey: "test-key",
+		HTTPClient: &http.Client{
+			Transport: &proxyTransport{target: srv.URL},
+		},
+	}
+
+	if err := s.SendSubRequestUntaken("requester@example.com", []string{"untaker@example.com"}, testSubRequestUntakenMessage()); err == nil {
+		t.Fatal("expected sendgrid HTTP error")
+	}
+}
+
+func TestSendGridSender_SubRequestUntakenNoRequester(t *testing.T) {
+	s := &SendGridSender{APIKey: "test-key", HTTPClient: &http.Client{}}
+	if err := s.SendSubRequestUntaken("", []string{"untaker@example.com"}, testSubRequestUntakenMessage()); err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
 }
 
@@ -629,6 +787,34 @@ func TestSendGridSender_SubRequestTakenMarshalAndRequestErrors(t *testing.T) {
 	})
 }
 
+func TestSendGridSender_SubRequestUntakenMarshalAndRequestErrors(t *testing.T) {
+	t.Run("marshal error", func(t *testing.T) {
+		originalJSONMarshal := jsonMarshal
+		t.Cleanup(func() { jsonMarshal = originalJSONMarshal })
+		jsonMarshal = func(v any) ([]byte, error) {
+			return nil, errors.New("marshal failed")
+		}
+
+		s := &SendGridSender{APIKey: "test-key", HTTPClient: &http.Client{}}
+		if err := s.SendSubRequestUntaken("requester@example.com", []string{"untaker@example.com"}, testSubRequestUntakenMessage()); err == nil {
+			t.Fatal("expected marshal error")
+		}
+	})
+
+	t.Run("request creation error", func(t *testing.T) {
+		originalNewHTTPRequest := newHTTPRequest
+		t.Cleanup(func() { newHTTPRequest = originalNewHTTPRequest })
+		newHTTPRequest = func(method, url string, body io.Reader) (*http.Request, error) {
+			return nil, errors.New("request failed")
+		}
+
+		s := &SendGridSender{APIKey: "test-key", HTTPClient: &http.Client{}}
+		if err := s.SendSubRequestUntaken("requester@example.com", []string{"untaker@example.com"}, testSubRequestUntakenMessage()); err == nil {
+			t.Fatal("expected request creation error")
+		}
+	})
+}
+
 func TestSubRequestNotifier(t *testing.T) {
 	users := &fakeActiveUsers{users: []*domain.User{
 		{Email: "one@example.com", IsEnabled: true},
@@ -703,6 +889,63 @@ func TestSubRequestNotifierSubRequestTakenNoRequester(t *testing.T) {
 	}
 	if len(sender.takenMessages) != 0 {
 		t.Fatalf("expected no sends, got %d", len(sender.takenMessages))
+	}
+}
+
+func TestSubRequestNotifierSubRequestUntaken(t *testing.T) {
+	sender := &fakeSubRequestSender{}
+	notifier := &SubRequestNotifier{
+		Sender:  sender,
+		BaseURL: "https://aircover.example.com/",
+	}
+
+	err := notifier.SubRequestUntaken(context.Background(), subrequestsapp.SubRequestUntakenEvent{
+		Request:        &domain.SubRequest{ID: 42, StartTime: time.Date(2026, 5, 24, 10, 0, 0, 0, time.UTC), EndTime: time.Date(2026, 5, 24, 12, 0, 0, 0, time.UTC)},
+		RequesterEmail: "requester@example.com",
+		UntakerEmail:   "untaker@example.com",
+		ShowTitle:      "Test Show",
+		DetailPath:     "/sub-requests/42",
+	})
+	if err != nil {
+		t.Fatalf("expected send failures to be logged but not returned, got %v", err)
+	}
+	if len(sender.untakenMessages) != 1 {
+		t.Fatalf("expected one send attempt, got %d", len(sender.untakenMessages))
+	}
+	if sender.untakenTo[0] != "requester@example.com" {
+		t.Fatalf("expected requester recipient, got %q", sender.untakenTo[0])
+	}
+	if !sameStrings(sender.untakenCC[0], []string{"untaker@example.com"}) {
+		t.Fatalf("expected untaker cc, got %v", sender.untakenCC[0])
+	}
+	if sender.untakenMessages[0].DetailURL != "https://aircover.example.com/sub-requests/42" {
+		t.Fatalf("detail URL = %q", sender.untakenMessages[0].DetailURL)
+	}
+}
+
+func TestSubRequestNotifierSubRequestUntakenNoRequester(t *testing.T) {
+	sender := &fakeSubRequestSender{}
+	notifier := &SubRequestNotifier{Sender: sender}
+	if err := notifier.SubRequestUntaken(context.Background(), subrequestsapp.SubRequestUntakenEvent{
+		Request:      &domain.SubRequest{ID: 42},
+		UntakerEmail: "untaker@example.com",
+	}); err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(sender.untakenMessages) != 0 {
+		t.Fatalf("expected no sends, got %d", len(sender.untakenMessages))
+	}
+}
+
+func TestSubRequestNotifierSubRequestUntakenLogsSendError(t *testing.T) {
+	notifier := &SubRequestNotifier{
+		Sender: &fakeSubRequestSender{untakenErr: errors.New("send failed")},
+	}
+	if err := notifier.SubRequestUntaken(context.Background(), subrequestsapp.SubRequestUntakenEvent{
+		Request:        &domain.SubRequest{ID: 42},
+		RequesterEmail: "requester@example.com",
+	}); err != nil {
+		t.Fatalf("expected send failures to be logged but not returned, got %v", err)
 	}
 }
 
@@ -784,6 +1027,10 @@ func TestSubRequestNotifierConfigurationErrors(t *testing.T) {
 	if err := notifier.SubRequestTaken(context.Background(), subrequestsapp.SubRequestTakenEvent{}); err == nil {
 		t.Fatal("expected missing sender error")
 	}
+
+	if err := notifier.SubRequestUntaken(context.Background(), subrequestsapp.SubRequestUntakenEvent{}); err == nil {
+		t.Fatal("expected missing sender error")
+	}
 }
 
 func TestAsyncNotifier(t *testing.T) {
@@ -826,6 +1073,26 @@ func TestAsyncNotifierSubRequestTaken(t *testing.T) {
 	}
 }
 
+func TestAsyncNotifierSubRequestUntaken(t *testing.T) {
+	next := &fakeNotifier{done: make(chan struct{}, 1)}
+	notifier := NewAsyncNotifier(next, 1)
+	notifier.Start()
+	defer notifier.Stop()
+
+	event := subrequestsapp.SubRequestUntakenEvent{Request: &domain.SubRequest{ID: 42}, RequesterEmail: "requester@example.com"}
+	if err := notifier.SubRequestUntaken(context.Background(), event); err != nil {
+		t.Fatalf("expected enqueue success, got %v", err)
+	}
+	select {
+	case <-next.done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for async notification")
+	}
+	if next.untakenEvent.Request.ID != 42 {
+		t.Fatalf("unexpected event: %+v", next.untakenEvent)
+	}
+}
+
 func TestAsyncNotifierDefaultBufferAndErrors(t *testing.T) {
 	next := &fakeNotifier{err: errors.New("send failed"), done: make(chan struct{}, 1)}
 	notifier := NewAsyncNotifier(next, 0)
@@ -858,6 +1125,9 @@ func TestAsyncNotifierWithoutNext(t *testing.T) {
 	if err := notifier.SubRequestTaken(context.Background(), subrequestsapp.SubRequestTakenEvent{}); err != nil {
 		t.Fatalf("expected no-op without next notifier, got %v", err)
 	}
+	if err := notifier.SubRequestUntaken(context.Background(), subrequestsapp.SubRequestUntakenEvent{}); err != nil {
+		t.Fatalf("expected no-op without next notifier, got %v", err)
+	}
 	if notifier.Done() == nil {
 		t.Fatal("expected done channel")
 	}
@@ -887,6 +1157,18 @@ func TestAsyncNotifierSubRequestTakenQueueFull(t *testing.T) {
 	notifier.Stop()
 }
 
+func TestAsyncNotifierSubRequestUntakenQueueFull(t *testing.T) {
+	notifier := NewAsyncNotifier(&fakeNotifier{}, 1)
+	event := subrequestsapp.SubRequestUntakenEvent{Request: &domain.SubRequest{ID: 42}}
+	if err := notifier.SubRequestUntaken(context.Background(), event); err != nil {
+		t.Fatalf("expected first enqueue success, got %v", err)
+	}
+	if err := notifier.SubRequestUntaken(context.Background(), event); err == nil {
+		t.Fatal("expected queue full error")
+	}
+	notifier.Stop()
+}
+
 func TestAsyncNotificationHelpers(t *testing.T) {
 	notifier := &AsyncNotifier{}
 	if err := notifier.process(asyncNotification{kind: asyncNotificationKind("unknown")}); err != nil {
@@ -902,6 +1184,8 @@ func TestAsyncNotificationHelpers(t *testing.T) {
 		{name: "created nil request", job: asyncNotification{kind: asyncNotificationCreated}, want: 0},
 		{name: "taken", job: asyncNotification{kind: asyncNotificationTaken, takenEvent: subrequestsapp.SubRequestTakenEvent{Request: &domain.SubRequest{ID: 2}}}, want: 2},
 		{name: "taken nil request", job: asyncNotification{kind: asyncNotificationTaken}, want: 0},
+		{name: "untaken", job: asyncNotification{kind: asyncNotificationUntaken, untakenEvent: subrequestsapp.SubRequestUntakenEvent{Request: &domain.SubRequest{ID: 3}}}, want: 3},
+		{name: "untaken nil request", job: asyncNotification{kind: asyncNotificationUntaken}, want: 0},
 		{name: "unknown", job: asyncNotification{kind: asyncNotificationKind("unknown")}, want: 0},
 	}
 	for _, tt := range tests {
@@ -918,6 +1202,9 @@ func TestAsyncNotifierNil(t *testing.T) {
 		t.Fatalf("expected nil notifier no-op, got %v", err)
 	}
 	if err := (*AsyncNotifier)(nil).SubRequestTaken(context.Background(), subrequestsapp.SubRequestTakenEvent{}); err != nil {
+		t.Fatalf("expected nil notifier no-op, got %v", err)
+	}
+	if err := (*AsyncNotifier)(nil).SubRequestUntaken(context.Background(), subrequestsapp.SubRequestUntakenEvent{}); err != nil {
 		t.Fatalf("expected nil notifier no-op, got %v", err)
 	}
 	(*AsyncNotifier)(nil).Start()
@@ -950,6 +1237,16 @@ func testSubRequestTakenMessage() SubRequestTakenMessage {
 	}
 }
 
+func testSubRequestUntakenMessage() SubRequestUntakenMessage {
+	return SubRequestUntakenMessage{
+		ShowTitle:    "Test Show",
+		UntakerEmail: "untaker@example.com",
+		StartTime:    time.Date(2026, 5, 24, 10, 0, 0, 0, time.UTC),
+		EndTime:      time.Date(2026, 5, 24, 12, 0, 0, 0, time.UTC),
+		DetailURL:    "https://aircover.example.com/sub-requests/42",
+	}
+}
+
 type fakeActiveUsers struct {
 	users []*domain.User
 	err   error
@@ -960,13 +1257,17 @@ func (f *fakeActiveUsers) ListActiveUsers(ctx context.Context) ([]*domain.User, 
 }
 
 type fakeSubRequestSender struct {
-	recipients    [][]string
-	messages      []SubRequestCreatedMessage
-	takenTo       []string
-	takenCC       [][]string
-	takenMessages []SubRequestTakenMessage
-	err           error
-	takenErr      error
+	recipients      [][]string
+	messages        []SubRequestCreatedMessage
+	takenTo         []string
+	takenCC         [][]string
+	takenMessages   []SubRequestTakenMessage
+	untakenTo       []string
+	untakenCC       [][]string
+	untakenMessages []SubRequestUntakenMessage
+	err             error
+	takenErr        error
+	untakenErr      error
 }
 
 func (f *fakeSubRequestSender) SendMagicLink(toEmail, magicLink string) error {
@@ -986,11 +1287,19 @@ func (f *fakeSubRequestSender) SendSubRequestTaken(toEmail string, ccEmails []st
 	return f.takenErr
 }
 
+func (f *fakeSubRequestSender) SendSubRequestUntaken(toEmail string, ccEmails []string, message SubRequestUntakenMessage) error {
+	f.untakenTo = append(f.untakenTo, toEmail)
+	f.untakenCC = append(f.untakenCC, append([]string(nil), ccEmails...))
+	f.untakenMessages = append(f.untakenMessages, message)
+	return f.untakenErr
+}
+
 type fakeNotifier struct {
-	event      subrequestsapp.SubRequestCreatedEvent
-	takenEvent subrequestsapp.SubRequestTakenEvent
-	err        error
-	done       chan struct{}
+	event        subrequestsapp.SubRequestCreatedEvent
+	takenEvent   subrequestsapp.SubRequestTakenEvent
+	untakenEvent subrequestsapp.SubRequestUntakenEvent
+	err          error
+	done         chan struct{}
 }
 
 func (f *fakeNotifier) SubRequestCreated(ctx context.Context, event subrequestsapp.SubRequestCreatedEvent) error {
@@ -1003,6 +1312,14 @@ func (f *fakeNotifier) SubRequestCreated(ctx context.Context, event subrequestsa
 
 func (f *fakeNotifier) SubRequestTaken(ctx context.Context, event subrequestsapp.SubRequestTakenEvent) error {
 	f.takenEvent = event
+	if f.done != nil {
+		f.done <- struct{}{}
+	}
+	return f.err
+}
+
+func (f *fakeNotifier) SubRequestUntaken(ctx context.Context, event subrequestsapp.SubRequestUntakenEvent) error {
+	f.untakenEvent = event
 	if f.done != nil {
 		f.done <- struct{}{}
 	}

@@ -100,6 +100,14 @@ type SubRequestTakenEvent struct {
 	DetailPath     string
 }
 
+type SubRequestUntakenEvent struct {
+	Request        *domain.SubRequest
+	RequesterEmail string
+	UntakerEmail   string
+	ShowTitle      string
+	DetailPath     string
+}
+
 type Action string
 
 const (
@@ -289,9 +297,14 @@ func (s *Service) ApplyAction(ctx context.Context, viewer domain.CurrentUser, id
 		if !sr.CanBeUntakenBy(viewer) {
 			return apperrors.ErrForbidden
 		}
+		var event SubRequestUntakenEvent
+		if s.notifier != nil {
+			event = s.subRequestUntakenEvent(ctx, id, viewer.Email)
+		}
 		if err := s.repo.UntakeSubRequest(ctx, id, s.now()); err != nil {
 			return mapRepositoryError(err)
 		}
+		s.notifySubRequestUntaken(ctx, event)
 	}
 	return nil
 }
@@ -318,6 +331,39 @@ func (s *Service) notifySubRequestTaken(ctx context.Context, id int) {
 		DetailPath:     fmt.Sprintf("/sub-requests/%d", record.Request.ID),
 	}); err != nil {
 		slog.Error("Failed to queue sub request taken notification", "sub_request_id", record.Request.ID, "error", err)
+	}
+}
+
+func (s *Service) subRequestUntakenEvent(ctx context.Context, id int, untakerEmail string) SubRequestUntakenEvent {
+	record, err := s.repo.GetSubRequestDetailByID(ctx, id)
+	if err != nil {
+		slog.Error("Failed to load sub request detail for untaken notification", "sub_request_id", id, "error", err)
+		return SubRequestUntakenEvent{}
+	}
+	if record.Request == nil {
+		slog.Error("Sub request detail missing request for untaken notification", "sub_request_id", id)
+		return SubRequestUntakenEvent{}
+	}
+	showTitleValue, err := s.showTitleFor(ctx, record.Request.ShowID)
+	if err != nil {
+		slog.Error("Failed to load show title for sub request untaken notification", "sub_request_id", id, "error", err)
+		showTitleValue = "Unknown Show"
+	}
+	return SubRequestUntakenEvent{
+		Request:        record.Request,
+		RequesterEmail: record.RequesterEmail,
+		UntakerEmail:   untakerEmail,
+		ShowTitle:      showTitleValue,
+		DetailPath:     fmt.Sprintf("/sub-requests/%d", record.Request.ID),
+	}
+}
+
+func (s *Service) notifySubRequestUntaken(ctx context.Context, event SubRequestUntakenEvent) {
+	if s.notifier == nil || event.Request == nil {
+		return
+	}
+	if err := s.notifier.SubRequestUntaken(ctx, event); err != nil {
+		slog.Error("Failed to queue sub request untaken notification", "sub_request_id", event.Request.ID, "error", err)
 	}
 }
 

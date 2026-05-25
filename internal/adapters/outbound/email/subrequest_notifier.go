@@ -76,6 +76,31 @@ func (n *SubRequestNotifier) SubRequestTaken(ctx context.Context, event subreque
 	return nil
 }
 
+func (n *SubRequestNotifier) SubRequestUntaken(ctx context.Context, event subrequestsapp.SubRequestUntakenEvent) error {
+	if n.Sender == nil {
+		return fmt.Errorf("email sender is not configured")
+	}
+	if event.RequesterEmail == "" {
+		return nil
+	}
+
+	message := SubRequestUntakenMessage{
+		ShowTitle:    event.ShowTitle,
+		UntakerEmail: event.UntakerEmail,
+		StartTime:    event.Request.StartTime,
+		EndTime:      event.Request.EndTime,
+		DetailURL:    n.detailURL(event.DetailPath),
+	}
+	ccEmails := []string(nil)
+	if event.UntakerEmail != "" {
+		ccEmails = []string{event.UntakerEmail}
+	}
+	if err := n.Sender.SendSubRequestUntaken(event.RequesterEmail, ccEmails, message); err != nil {
+		slog.Error("Failed to send sub request untaken confirmation email", "to", event.RequesterEmail, "cc_count", len(ccEmails), "sub_request_id", event.Request.ID, "error", err)
+	}
+	return nil
+}
+
 func (n *SubRequestNotifier) detailURL(path string) string {
 	base := strings.TrimRight(n.BaseURL, "/")
 	if base == "" {
@@ -97,6 +122,7 @@ type asyncNotification struct {
 	ctx          context.Context
 	createdEvent subrequestsapp.SubRequestCreatedEvent
 	takenEvent   subrequestsapp.SubRequestTakenEvent
+	untakenEvent subrequestsapp.SubRequestUntakenEvent
 	kind         asyncNotificationKind
 }
 
@@ -105,6 +131,7 @@ type asyncNotificationKind string
 const (
 	asyncNotificationCreated asyncNotificationKind = "created"
 	asyncNotificationTaken   asyncNotificationKind = "taken"
+	asyncNotificationUntaken asyncNotificationKind = "untaken"
 )
 
 func NewAsyncNotifier(next subrequestsapp.Notifier, buffer int) *AsyncNotifier {
@@ -140,6 +167,8 @@ func (n *AsyncNotifier) process(job asyncNotification) error {
 		return n.next.SubRequestCreated(job.ctx, job.createdEvent)
 	case asyncNotificationTaken:
 		return n.next.SubRequestTaken(job.ctx, job.takenEvent)
+	case asyncNotificationUntaken:
+		return n.next.SubRequestUntaken(job.ctx, job.untakenEvent)
 	default:
 		return nil
 	}
@@ -154,6 +183,10 @@ func (j asyncNotification) subRequestID() int {
 	case asyncNotificationTaken:
 		if j.takenEvent.Request != nil {
 			return j.takenEvent.Request.ID
+		}
+	case asyncNotificationUntaken:
+		if j.untakenEvent.Request != nil {
+			return j.untakenEvent.Request.ID
 		}
 	}
 	return 0
@@ -196,6 +229,18 @@ func (n *AsyncNotifier) SubRequestTaken(ctx context.Context, event subrequestsap
 	}
 	select {
 	case n.jobs <- asyncNotification{ctx: contextWithoutCancel(ctx), takenEvent: event, kind: asyncNotificationTaken}:
+		return nil
+	default:
+		return fmt.Errorf("sub request notification queue is full")
+	}
+}
+
+func (n *AsyncNotifier) SubRequestUntaken(ctx context.Context, event subrequestsapp.SubRequestUntakenEvent) error {
+	if n == nil || n.next == nil {
+		return nil
+	}
+	select {
+	case n.jobs <- asyncNotification{ctx: contextWithoutCancel(ctx), untakenEvent: event, kind: asyncNotificationUntaken}:
 		return nil
 	default:
 		return fmt.Errorf("sub request notification queue is full")

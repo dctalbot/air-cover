@@ -18,6 +18,7 @@ type Sender interface {
 	SendMagicLink(toEmail, magicLink string) error
 	SendSubRequestCreated(bccEmails []string, message SubRequestCreatedMessage) error
 	SendSubRequestTaken(toEmail string, ccEmails []string, message SubRequestTakenMessage) error
+	SendSubRequestUntaken(toEmail string, ccEmails []string, message SubRequestUntakenMessage) error
 }
 
 type ConsoleSender struct{}
@@ -34,6 +35,11 @@ func (c *ConsoleSender) SendSubRequestCreated(bccEmails []string, message SubReq
 
 func (c *ConsoleSender) SendSubRequestTaken(toEmail string, ccEmails []string, message SubRequestTakenMessage) error {
 	slog.Info("Simulating sub request taken confirmation email send", "to", toEmail, "cc_count", len(ccEmails), "detailURL", message.DetailURL)
+	return nil
+}
+
+func (c *ConsoleSender) SendSubRequestUntaken(toEmail string, ccEmails []string, message SubRequestUntakenMessage) error {
+	slog.Info("Simulating sub request untaken confirmation email send", "to", toEmail, "cc_count", len(ccEmails), "detailURL", message.DetailURL)
 	return nil
 }
 
@@ -70,6 +76,14 @@ type SubRequestTakenMessage struct {
 	StartTime  time.Time
 	EndTime    time.Time
 	DetailURL  string
+}
+
+type SubRequestUntakenMessage struct {
+	ShowTitle    string
+	UntakerEmail string
+	StartTime    time.Time
+	EndTime      time.Time
+	DetailURL    string
 }
 
 type renderedEmail struct {
@@ -222,6 +236,23 @@ func subRequestTakenMessage(message SubRequestTakenMessage) emailMessage {
 	}
 }
 
+func subRequestUntakenMessage(message SubRequestUntakenMessage) emailMessage {
+	return emailMessage{
+		Subject: "Sub request no longer covered: " + message.ShowTitle,
+		Preview: "Your sub request is no longer covered in Air Cover.",
+		Heading: "Sub request no longer covered",
+		Body: []string{
+			fmt.Sprintf("%s is no longer covering your sub request for %s.", message.UntakerEmail, message.ShowTitle),
+			fmt.Sprintf("When: %s to %s", formatEmailTime(message.StartTime), formatEmailTime(message.EndTime)),
+		},
+		CTA: emailCTA{
+			Label: "View sub request",
+			URL:   message.DetailURL,
+		},
+		Footer: "You are receiving this because you posted this sub request in Air Cover.",
+	}
+}
+
 func formatEmailTime(value time.Time) string {
 	return value.Format("Jan 2, 2006 3:04 PM")
 }
@@ -256,6 +287,18 @@ func (s *ResendSender) SendSubRequestTaken(toEmail string, ccEmails []string, su
 	}
 
 	slog.Info("Successfully sent sub request taken notification via Resend", "to", toEmail, "cc_count", len(ccEmails))
+	return nil
+}
+
+func (s *ResendSender) SendSubRequestUntaken(toEmail string, ccEmails []string, subRequestMessage SubRequestUntakenMessage) error {
+	if toEmail == "" {
+		return nil
+	}
+	if err := s.sendCC(toEmail, ccEmails, renderEmail(subRequestUntakenMessage(subRequestMessage))); err != nil {
+		return fmt.Errorf("failed to send sub request untaken email via resend: %w", err)
+	}
+
+	slog.Info("Successfully sent sub request untaken notification via Resend", "to", toEmail, "cc_count", len(ccEmails))
 	return nil
 }
 
@@ -330,6 +373,18 @@ func (s *SendGridSender) SendSubRequestTaken(toEmail string, ccEmails []string, 
 	}
 
 	slog.Info("Successfully sent sub request taken notification via SendGrid", "to", toEmail, "cc_count", len(ccEmails))
+	return nil
+}
+
+func (s *SendGridSender) SendSubRequestUntaken(toEmail string, ccEmails []string, subRequestMessage SubRequestUntakenMessage) error {
+	if toEmail == "" {
+		return nil
+	}
+	if err := s.sendCC(toEmail, ccEmails, renderEmail(subRequestUntakenMessage(subRequestMessage))); err != nil {
+		return fmt.Errorf("failed to send sub request untaken email via sendgrid: %w", err)
+	}
+
+	slog.Info("Successfully sent sub request untaken notification via SendGrid", "to", toEmail, "cc_count", len(ccEmails))
 	return nil
 }
 
