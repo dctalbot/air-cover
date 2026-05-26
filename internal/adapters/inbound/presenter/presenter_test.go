@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	adminapp "air-cover/internal/app/admin"
 	"air-cover/internal/app/subrequests"
 	"air-cover/internal/domain"
 )
@@ -79,21 +80,24 @@ func TestSubRequestDetail(t *testing.T) {
 
 func TestAdminUsers(t *testing.T) {
 	created := time.Date(2026, 5, 23, 15, 4, 0, 0, time.UTC)
-	views := AdminUsers([]*domain.User{{
-		ID:        1,
-		Email:     "admin@example.com",
-		Role:      "admin",
-		CreatedAt: created,
-		IsEnabled: true,
-	}}, 1)
+	views := AdminUsers([]adminapp.UserReadModel{{
+		User: &domain.User{
+			ID:        1,
+			Email:     "admin@example.com",
+			Role:      "admin",
+			CreatedAt: created,
+			IsEnabled: true,
+		},
+		CanDeactivate: true,
+	}})
 	if len(views) != 1 {
 		t.Fatalf("expected one view, got %d", len(views))
 	}
 	if views[0].CreatedAt != "May 23, 2026 at 3:04 PM" {
 		t.Errorf("unexpected created-at format: %q", views[0].CreatedAt)
 	}
-	if views[0].CanDeactivate {
-		t.Error("expected current user's deactivate action to be hidden")
+	if !views[0].CanDeactivate {
+		t.Error("expected deactivate capability to be preserved")
 	}
 }
 

@@ -31,7 +31,7 @@ type subRequestService interface {
 }
 
 type adminService interface {
-	ListUsers(context.Context, domain.CurrentUser) ([]*domain.User, error)
+	ListUsers(context.Context, domain.CurrentUser) ([]adminapp.UserReadModel, error)
 	CreateUser(context.Context, domain.CurrentUser, adminapp.CreateUserInput) error
 	UpdateUser(context.Context, domain.CurrentUser, adminapp.UpdateUserInput) error
 	ImportCatalogUsers(context.Context, domain.CurrentUser) error

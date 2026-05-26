@@ -216,7 +216,7 @@ func (f *fakeSubRequestService) ApplyAction(ctx context.Context, viewer domain.C
 }
 
 type fakeAdminService struct {
-	users        []*domain.User
+	users        []adminapp.UserReadModel
 	err          error
 	createInput  adminapp.CreateUserInput
 	updateInput  adminapp.UpdateUserInput
@@ -225,7 +225,7 @@ type fakeAdminService struct {
 	importCalled bool
 }
 
-func (f *fakeAdminService) ListUsers(ctx context.Context, viewer domain.CurrentUser) ([]*domain.User, error) {
+func (f *fakeAdminService) ListUsers(ctx context.Context, viewer domain.CurrentUser) ([]adminapp.UserReadModel, error) {
 	return f.users, f.err
 }
 

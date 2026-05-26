@@ -87,6 +87,12 @@ type Detail struct {
 	IsPast         bool
 }
 
+type subRequestCapabilities struct {
+	CanDelete bool
+	CanTake   bool
+	CanUntake bool
+}
+
 type CreateInput struct {
 	ShowID    int
 	StartTime time.Time
@@ -153,14 +159,18 @@ func (s *Service) ListDashboard(ctx context.Context, viewer domain.CurrentUser) 
 
 	for _, record := range subRequests {
 		sr := record.Request
+		capabilities, err := s.capabilitiesFor(ctx, viewer, sr)
+		if err != nil {
+			return Dashboard{}, err
+		}
 		item := DashboardSubRequest{
 			Request:        sr,
 			RequesterEmail: record.RequesterEmail,
 			TakerEmail:     record.TakerEmail,
 			ShowTitle:      showTitle(showMap, sr.ShowID),
-			CanDelete:      sr.CanBeDeletedBy(viewer),
-			CanTake:        sr.CanBeTakenBy(viewer),
-			CanUntake:      sr.CanBeUntakenBy(viewer),
+			CanDelete:      capabilities.CanDelete,
+			CanTake:        capabilities.CanTake,
+			CanUntake:      capabilities.CanUntake,
 			IsPast:         sr.StartTime.Before(now),
 		}
 		if item.IsPast {
@@ -193,14 +203,18 @@ func (s *Service) Get(ctx context.Context, viewer domain.CurrentUser, id int) (D
 	}
 
 	sr := record.Request
+	capabilities, err := s.capabilitiesFor(ctx, viewer, sr)
+	if err != nil {
+		return Detail{}, err
+	}
 	return Detail{
 		Request:        sr,
 		RequesterEmail: record.RequesterEmail,
 		TakerEmail:     record.TakerEmail,
 		ShowTitle:      showTitleValue,
-		CanDelete:      sr.CanBeDeletedBy(viewer),
-		CanTake:        sr.CanBeTakenBy(viewer),
-		CanUntake:      sr.CanBeUntakenBy(viewer),
+		CanDelete:      capabilities.CanDelete,
+		CanTake:        capabilities.CanTake,
+		CanUntake:      capabilities.CanUntake,
 		IsPast:         sr.StartTime.Before(s.now()),
 	}, nil
 }
@@ -323,6 +337,41 @@ func (s *Service) ApplyAction(ctx context.Context, viewer domain.CurrentUser, id
 
 func (s *Service) authorize(ctx context.Context, viewer domain.CurrentUser, action authorization.Action, resource authorization.Resource) error {
 	return s.authorizer.Authorize(ctx, authorization.SubjectFromCurrentUser(viewer), action, resource)
+}
+
+func (s *Service) capabilitiesFor(ctx context.Context, viewer domain.CurrentUser, sr *domain.SubRequest) (subRequestCapabilities, error) {
+	subject := authorization.SubjectFromCurrentUser(viewer)
+	resource := authorization.SubRequestResource(sr)
+
+	canDelete, err := s.can(ctx, subject, authorization.ActionSubRequestDelete, resource)
+	if err != nil {
+		return subRequestCapabilities{}, err
+	}
+	canTake, err := s.can(ctx, subject, authorization.ActionSubRequestTake, resource)
+	if err != nil {
+		return subRequestCapabilities{}, err
+	}
+	canUntake, err := s.can(ctx, subject, authorization.ActionSubRequestUntake, resource)
+	if err != nil {
+		return subRequestCapabilities{}, err
+	}
+
+	return subRequestCapabilities{
+		CanDelete: canDelete,
+		CanTake:   canTake,
+		CanUntake: canUntake,
+	}, nil
+}
+
+func (s *Service) can(ctx context.Context, subject authorization.Subject, action authorization.Action, resource authorization.Resource) (bool, error) {
+	err := s.authorizer.Authorize(ctx, subject, action, resource)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, apperrors.ErrForbidden) {
+		return false, nil
+	}
+	return false, fmt.Errorf("check sub request capability %s: %w", action, err)
 }
 
 func (s *Service) notifySubRequestTaken(ctx context.Context, id int) {

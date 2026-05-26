@@ -41,7 +41,12 @@ type UpdateUserInput struct {
 	IsEnabled *bool
 }
 
-func (s *Service) ListUsers(ctx context.Context, viewer domain.CurrentUser) ([]*domain.User, error) {
+type UserReadModel struct {
+	User          *domain.User
+	CanDeactivate bool
+}
+
+func (s *Service) ListUsers(ctx context.Context, viewer domain.CurrentUser) ([]UserReadModel, error) {
 	if err := s.authorize(ctx, viewer, authorization.ActionUserList, authorization.AdminResource()); err != nil {
 		return nil, err
 	}
@@ -50,7 +55,18 @@ func (s *Service) ListUsers(ctx context.Context, viewer domain.CurrentUser) ([]*
 		return nil, err
 	}
 	sortUsers(users)
-	return users, nil
+	readModels := make([]UserReadModel, 0, len(users))
+	for _, user := range users {
+		canDeactivate, err := s.canDeactivate(ctx, viewer, user)
+		if err != nil {
+			return nil, err
+		}
+		readModels = append(readModels, UserReadModel{
+			User:          user,
+			CanDeactivate: canDeactivate,
+		})
+	}
+	return readModels, nil
 }
 
 func (s *Service) CreateUser(ctx context.Context, viewer domain.CurrentUser, input CreateUserInput) error {
@@ -93,6 +109,18 @@ func (s *Service) UpdateUser(ctx context.Context, viewer domain.CurrentUser, inp
 
 func (s *Service) authorize(ctx context.Context, viewer domain.CurrentUser, action authorization.Action, resource authorization.Resource) error {
 	return s.authorizer.Authorize(ctx, authorization.SubjectFromCurrentUser(viewer), action, resource)
+}
+
+func (s *Service) canDeactivate(ctx context.Context, viewer domain.CurrentUser, user *domain.User) (bool, error) {
+	disableTarget := user.IsEnabled
+	err := s.authorize(ctx, viewer, authorization.ActionUserUpdate, authorization.UserResource(user.ID, disableTarget))
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, apperrors.ErrForbidden) {
+		return false, nil
+	}
+	return false, err
 }
 
 func (s *Service) ImportCatalogUsers(ctx context.Context, viewer domain.CurrentUser) error {

@@ -28,7 +28,7 @@ func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	views := presenter.AdminUsers(users, viewer.ID)
+	views := presenter.AdminUsers(users)
 
 	if err := ui.Admin(views, viewer.Email).Render(r.Context(), w); err != nil {
 		slog.Error("Failed to write response", "error", err)

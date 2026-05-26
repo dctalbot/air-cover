@@ -34,7 +34,3 @@ type CurrentUser struct {
 func (u CurrentUser) IsAdmin() bool {
 	return u.Role == RoleAdmin
 }
-
-func (u CurrentUser) CanDeactivateUser(targetUserID int) bool {
-	return u.ID != targetUserID
-}

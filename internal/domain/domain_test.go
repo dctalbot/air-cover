@@ -36,25 +36,14 @@ func TestCurrentUserIsAdmin(t *testing.T) {
 	}
 }
 
-func TestSubRequestStatusAndPolicy(t *testing.T) {
-	viewer := CurrentUser{ID: 1, Role: RoleMember}
-	admin := CurrentUser{ID: 2, Role: RoleAdmin}
-	request := &SubRequest{PostedByUserID: 1}
+func TestSubRequestStatus(t *testing.T) {
+	request := &SubRequest{}
 
 	if request.GetStatus() != string(SubRequestStatusOpen) {
 		t.Fatalf("expected open status, got %q", request.GetStatus())
 	}
 	if request.Status() != SubRequestStatusOpen {
 		t.Fatalf("expected open status value, got %q", request.Status())
-	}
-	if !request.CanBeDeletedBy(viewer) || !request.CanBeDeletedBy(admin) {
-		t.Fatal("expected requester and admin to delete")
-	}
-	if request.CanBeTakenBy(viewer) {
-		t.Fatal("expected requester member not to take own request")
-	}
-	if !request.CanBeTakenBy(admin) {
-		t.Fatal("expected admin to take own request")
 	}
 
 	takerID := 3
@@ -64,12 +53,6 @@ func TestSubRequestStatusAndPolicy(t *testing.T) {
 	}
 	if request.Status() != SubRequestStatusFilled {
 		t.Fatalf("expected filled status value, got %q", request.Status())
-	}
-	if !request.CanBeUntakenBy(CurrentUser{ID: takerID}) {
-		t.Fatal("expected taker to untake")
-	}
-	if request.CanBeUntakenBy(viewer) {
-		t.Fatal("expected non-taker not to untake")
 	}
 }
 
@@ -83,15 +66,5 @@ func TestSubRequestHasValidTimeRange(t *testing.T) {
 	}
 	if (&SubRequest{StartTime: start, EndTime: start.Add(-time.Minute)}).HasValidTimeRange() {
 		t.Fatal("expected end before start to be invalid")
-	}
-}
-
-func TestCurrentUserCanDeactivateUser(t *testing.T) {
-	viewer := CurrentUser{ID: 1}
-	if viewer.CanDeactivateUser(1) {
-		t.Fatal("expected current user not to deactivate themselves")
-	}
-	if !viewer.CanDeactivateUser(2) {
-		t.Fatal("expected current user to deactivate another user")
 	}
 }

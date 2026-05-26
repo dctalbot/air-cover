@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
+	adminapp "air-cover/internal/app/admin"
 	"air-cover/internal/app/subrequests"
-	"air-cover/internal/domain"
 )
 
 type UserView struct {
@@ -42,16 +42,17 @@ func SubRequestDetail(detail subrequests.Detail) SubRequestView {
 	return subRequestView(subrequests.DashboardSubRequest(detail))
 }
 
-func AdminUsers(users []*domain.User, currentUserID int) []UserView {
+func AdminUsers(users []adminapp.UserReadModel) []UserView {
 	views := make([]UserView, 0, len(users))
-	for _, u := range users {
+	for _, item := range users {
+		u := item.User
 		views = append(views, UserView{
 			ID:            u.ID,
 			Email:         u.Email,
 			Role:          string(u.Role),
 			CreatedAt:     u.CreatedAt.Format("Jan 02, 2006 at 3:04 PM"),
 			IsEnabled:     u.IsEnabled,
-			CanDeactivate: u.ID != currentUserID,
+			CanDeactivate: item.CanDeactivate,
 		})
 	}
 	return views

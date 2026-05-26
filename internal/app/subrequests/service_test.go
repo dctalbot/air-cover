@@ -124,6 +124,21 @@ func (allowAllAuthorizer) Authorize(ctx context.Context, subject authorization.S
 	return nil
 }
 
+type actionAuthorizer struct {
+	allowed map[authorization.Action]bool
+	errs    map[authorization.Action]error
+}
+
+func (a actionAuthorizer) Authorize(ctx context.Context, subject authorization.Subject, action authorization.Action, resource authorization.Resource) error {
+	if err := a.errs[action]; err != nil {
+		return err
+	}
+	if a.allowed[action] {
+		return nil
+	}
+	return apperrors.ErrForbidden
+}
+
 func TestListDashboard(t *testing.T) {
 	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
 	takerID := 2
@@ -157,6 +172,30 @@ func TestListDashboard(t *testing.T) {
 	}
 }
 
+func TestListDashboardUsesAuthorizerCapabilities(t *testing.T) {
+	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
+	repo := &fakeRepository{subRequests: []DashboardReadModel{
+		{Request: &domain.SubRequest{ID: 1, ShowID: 1, PostedByUserID: 7, StartTime: now.Add(time.Hour), EndTime: now.Add(2 * time.Hour)}},
+	}}
+	svc := NewService(repo, &fakeCatalog{shows: []appcatalog.Show{{ID: "1", Title: "Test Show"}}})
+	svc.SetAuthorizer(actionAuthorizer{allowed: map[authorization.Action]bool{
+		authorization.ActionSubRequestTake: true,
+	}})
+	svc.nowFunc = func() time.Time { return now }
+
+	dashboard, err := svc.ListDashboard(context.Background(), domain.CurrentUser{ID: 7, Role: domain.RoleMember})
+	if err != nil {
+		t.Fatalf("ListDashboard returned error: %v", err)
+	}
+	if len(dashboard.Upcoming) != 1 {
+		t.Fatalf("unexpected dashboard: %+v", dashboard)
+	}
+	item := dashboard.Upcoming[0]
+	if item.CanDelete || !item.CanTake || item.CanUntake {
+		t.Fatalf("capabilities should follow authorizer, got %+v", item)
+	}
+}
+
 func TestListDashboardErrors(t *testing.T) {
 	if _, err := NewService(&fakeRepository{}, nil).
 		ListDashboard(context.Background(), domain.CurrentUser{}); !errors.Is(err, ErrCatalog) {
@@ -171,6 +210,17 @@ func TestListDashboardErrors(t *testing.T) {
 	if _, err := NewService(&fakeRepository{listErr: wantErr}, &fakeCatalog{}).
 		ListDashboard(context.Background(), domain.CurrentUser{}); !errors.Is(err, wantErr) {
 		t.Errorf("list error = %v, want %v", err, wantErr)
+	}
+
+	authzErr := errors.New("authorizer down")
+	svc := NewService(&fakeRepository{subRequests: []DashboardReadModel{
+		{Request: &domain.SubRequest{ID: 1, ShowID: 1, StartTime: time.Now(), EndTime: time.Now().Add(time.Hour)}},
+	}}, &fakeCatalog{shows: []appcatalog.Show{{ID: "1", Title: "Test Show"}}})
+	svc.SetAuthorizer(actionAuthorizer{errs: map[authorization.Action]error{
+		authorization.ActionSubRequestDelete: authzErr,
+	}})
+	if _, err := svc.ListDashboard(context.Background(), domain.CurrentUser{}); !errors.Is(err, authzErr) {
+		t.Errorf("authorizer error = %v, want %v", err, authzErr)
 	}
 }
 
@@ -208,6 +258,61 @@ func TestGet(t *testing.T) {
 	}
 }
 
+func TestGetUsesAuthorizerCapabilities(t *testing.T) {
+	now := time.Date(2026, 5, 23, 12, 0, 0, 0, time.UTC)
+	takerID := 2
+	repo := &fakeRepository{detail: DetailReadModel{
+		Request: &domain.SubRequest{
+			ID:             7,
+			ShowID:         1,
+			PostedByUserID: 1,
+			TakenByUserID:  &takerID,
+			StartTime:      now.Add(time.Hour),
+			EndTime:        now.Add(2 * time.Hour),
+		},
+	}}
+	svc := NewService(repo, &fakeCatalog{shows: []appcatalog.Show{{ID: "1", Title: "Test Show"}}})
+	svc.SetAuthorizer(actionAuthorizer{allowed: map[authorization.Action]bool{
+		authorization.ActionSubRequestDelete: true,
+		authorization.ActionSubRequestTake:   true,
+	}})
+	svc.nowFunc = func() time.Time { return now }
+
+	detail, err := svc.Get(context.Background(), domain.CurrentUser{ID: takerID, Role: domain.RoleMember}, 7)
+	if err != nil {
+		t.Fatalf("Get returned error: %v", err)
+	}
+	if !detail.CanDelete || !detail.CanTake || detail.CanUntake {
+		t.Fatalf("capabilities should follow authorizer, got %+v", detail)
+	}
+}
+
+func TestCapabilitiesForReturnsUnexpectedAuthorizerErrors(t *testing.T) {
+	tests := []struct {
+		name   string
+		action authorization.Action
+	}{
+		{"delete", authorization.ActionSubRequestDelete},
+		{"take", authorization.ActionSubRequestTake},
+		{"untake", authorization.ActionSubRequestUntake},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			authzErr := errors.New("authorizer down")
+			svc := NewService(&fakeRepository{}, nil)
+			svc.SetAuthorizer(actionAuthorizer{errs: map[authorization.Action]error{
+				tt.action: authzErr,
+			}})
+
+			_, err := svc.capabilitiesFor(context.Background(), domain.CurrentUser{}, &domain.SubRequest{})
+			if !errors.Is(err, authzErr) {
+				t.Fatalf("capabilitiesFor error = %v, want %v", err, authzErr)
+			}
+		})
+	}
+}
+
 func TestGetErrors(t *testing.T) {
 	if _, err := NewService(&fakeRepository{detailErr: apperrors.ErrNotFound}, nil).
 		Get(context.Background(), domain.CurrentUser{}, 99); !errors.Is(err, apperrors.ErrNotFound) {
@@ -235,6 +340,15 @@ func TestGetErrors(t *testing.T) {
 	}
 	if detail.ShowTitle != "Unknown Show" {
 		t.Fatalf("nil catalog show title = %q, want Unknown Show", detail.ShowTitle)
+	}
+
+	authzErr := errors.New("authorizer down")
+	svc = NewService(&fakeRepository{detail: DetailReadModel{Request: &domain.SubRequest{ShowID: 1}}}, &fakeCatalog{shows: []appcatalog.Show{{ID: "1", Title: "Test Show"}}})
+	svc.SetAuthorizer(actionAuthorizer{errs: map[authorization.Action]error{
+		authorization.ActionSubRequestDelete: authzErr,
+	}})
+	if _, err := svc.Get(context.Background(), domain.CurrentUser{}, 1); !errors.Is(err, authzErr) {
+		t.Errorf("authorizer error = %v, want %v", err, authzErr)
 	}
 }
 

@@ -77,6 +77,21 @@ func (allowAllAuthorizer) Authorize(ctx context.Context, subject authorization.S
 	return nil
 }
 
+type actionAuthorizer struct {
+	allowed map[authorization.Action]bool
+	errs    map[authorization.Action]error
+}
+
+func (a actionAuthorizer) Authorize(ctx context.Context, subject authorization.Subject, action authorization.Action, resource authorization.Resource) error {
+	if err := a.errs[action]; err != nil {
+		return err
+	}
+	if a.allowed[action] {
+		return nil
+	}
+	return apperrors.ErrForbidden
+}
+
 func TestListUsersSortsForAdminView(t *testing.T) {
 	created := time.Now()
 	users := []*domain.User{
@@ -94,9 +109,43 @@ func TestListUsersSortsForAdminView(t *testing.T) {
 	}
 	wantEmails := []string{"a@example.com", "b@example.com", "c@example.com", "a-disabled@example.com", "z@example.com"}
 	for i, want := range wantEmails {
-		if got[i].Email != want {
-			t.Fatalf("user %d = %q, want %q", i, got[i].Email, want)
+		if got[i].User.Email != want {
+			t.Fatalf("user %d = %q, want %q", i, got[i].User.Email, want)
 		}
+	}
+}
+
+func TestListUsersUsesAuthorizerCapabilities(t *testing.T) {
+	users := []*domain.User{
+		{ID: 1, Email: "self@example.com", Role: domain.RoleAdmin, IsEnabled: true},
+		{ID: 2, Email: "other@example.com", Role: domain.RoleMember, IsEnabled: true},
+	}
+	svc := NewService(&fakeRepository{users: users}, nil)
+	svc.SetAuthorizer(actionAuthorizer{allowed: map[authorization.Action]bool{
+		authorization.ActionUserList:   true,
+		authorization.ActionUserUpdate: true,
+	}})
+
+	got, err := svc.ListUsers(context.Background(), domain.CurrentUser{ID: 1, Role: domain.RoleAdmin})
+	if err != nil {
+		t.Fatalf("ListUsers returned error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d users, want 2", len(got))
+	}
+	if !got[0].CanDeactivate || !got[1].CanDeactivate {
+		t.Fatalf("deactivate capabilities should follow authorizer: %+v", got)
+	}
+
+	svc.SetAuthorizer(actionAuthorizer{allowed: map[authorization.Action]bool{
+		authorization.ActionUserList: true,
+	}})
+	got, err = svc.ListUsers(context.Background(), domain.CurrentUser{ID: 1, Role: domain.RoleAdmin})
+	if err != nil {
+		t.Fatalf("ListUsers with denied update returned error: %v", err)
+	}
+	if got[0].CanDeactivate || got[1].CanDeactivate {
+		t.Fatalf("forbidden update should hide deactivate capabilities: %+v", got)
 	}
 }
 
@@ -105,6 +154,16 @@ func TestListUsersReturnsRepositoryError(t *testing.T) {
 	svc := NewService(&fakeRepository{listErr: wantErr}, nil)
 	if _, err := svc.ListUsers(context.Background(), domain.CurrentUser{ID: 99, Role: domain.RoleAdmin}); !errors.Is(err, wantErr) {
 		t.Fatalf("ListUsers error = %v, want %v", err, wantErr)
+	}
+
+	authzErr := errors.New("authorizer down")
+	svc = NewService(&fakeRepository{users: []*domain.User{{ID: 1, Email: "user@example.com"}}}, nil)
+	svc.SetAuthorizer(actionAuthorizer{
+		allowed: map[authorization.Action]bool{authorization.ActionUserList: true},
+		errs:    map[authorization.Action]error{authorization.ActionUserUpdate: authzErr},
+	})
+	if _, err := svc.ListUsers(context.Background(), domain.CurrentUser{ID: 99}); !errors.Is(err, authzErr) {
+		t.Fatalf("ListUsers authorizer error = %v, want %v", err, authzErr)
 	}
 }
 

@@ -37,15 +37,3 @@ func (s *SubRequest) Status() SubRequestStatus {
 func (s *SubRequest) HasValidTimeRange() bool {
 	return s.EndTime.After(s.StartTime)
 }
-
-func (s *SubRequest) CanBeDeletedBy(viewer CurrentUser) bool {
-	return s.PostedByUserID == viewer.ID || viewer.IsAdmin()
-}
-
-func (s *SubRequest) CanBeTakenBy(viewer CurrentUser) bool {
-	return s.TakenByUserID == nil && (s.PostedByUserID != viewer.ID || viewer.IsAdmin())
-}
-
-func (s *SubRequest) CanBeUntakenBy(viewer CurrentUser) bool {
-	return s.TakenByUserID != nil && *s.TakenByUserID == viewer.ID
-}
