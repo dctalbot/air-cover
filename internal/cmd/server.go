@@ -202,6 +202,13 @@ func buildInfrastructure(cfg *config.Config, deps serverDeps) (infrastructure, e
 	if err != nil {
 		return infrastructure{}, fmt.Errorf("failed to initialize database: %w", err)
 	}
+	databaseOwned := true
+	defer func() {
+		if databaseOwned {
+			_ = database.Close()
+		}
+	}()
+
 	repo := deps.newDBRepository(database)
 	sender := deps.newSender(cfg.ResendAPIKey, cfg.SendGridAPIKey, cfg.FromEmail)
 	spinitronClient := deps.newSpinitron("", cfg.SpinitronAPIURL)
@@ -214,6 +221,7 @@ func buildInfrastructure(cfg *config.Config, deps serverDeps) (infrastructure, e
 		Sender:  sender,
 		BaseURL: cfg.AppBaseURL,
 	})
+	databaseOwned = false
 	return infrastructure{
 		database:     database,
 		repositories: repo,

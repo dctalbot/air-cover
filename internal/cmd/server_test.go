@@ -547,7 +547,11 @@ func TestRunServer_DependencyFailures(t *testing.T) {
 	})
 
 	t.Run("authorization init error", func(t *testing.T) {
+		database := newClosableTestDB(t)
 		deps := testServerDeps(cfg, &fakeStartupRepo{})
+		deps.initDB = func(uri string) (*sql.DB, error) {
+			return database, nil
+		}
 		deps.newAuthorizer = func(ctx context.Context, database *sql.DB) (authorization.Authorizer, error) {
 			return nil, errors.New("authz failed")
 		}
@@ -556,6 +560,7 @@ func TestRunServer_DependencyFailures(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "failed to initialize authorization") {
 			t.Fatalf("expected authorization init error, got %v", err)
 		}
+		assertDBClosed(t, database)
 	})
 
 	t.Run("listen error", func(t *testing.T) {
