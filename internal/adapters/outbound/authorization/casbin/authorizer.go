@@ -20,7 +20,7 @@ const (
 	ruleAdmin                     = "admin"
 	ruleAdminExceptSelfDeactivate = "admin_except_self_deactivate"
 	ruleOwnerOrAdmin              = "owner_or_admin"
-	ruleOpenNonOwnerOrAdmin       = "open_non_owner_or_admin"
+	ruleOpenNonOwner              = "open_non_owner"
 	ruleTaker                     = "taker"
 
 	matchesRuleFunction = "matchesRule"
@@ -89,7 +89,7 @@ var baselinePolicies = [][]string{
 	{string(appauthz.ActionUserCreate), string(appauthz.ResourceAdmin), ruleAdmin},
 	{string(appauthz.ActionUserUpdate), string(appauthz.ResourceUser), ruleAdminExceptSelfDeactivate},
 	{string(appauthz.ActionSubRequestDelete), string(appauthz.ResourceSubRequest), ruleOwnerOrAdmin},
-	{string(appauthz.ActionSubRequestTake), string(appauthz.ResourceSubRequest), ruleOpenNonOwnerOrAdmin},
+	{string(appauthz.ActionSubRequestTake), string(appauthz.ResourceSubRequest), ruleOpenNonOwner},
 	{string(appauthz.ActionSubRequestUntake), string(appauthz.ResourceSubRequest), ruleTaker},
 }
 
@@ -138,8 +138,8 @@ func matchesRule(rule string, subject enforcementSubject, resource enforcementRe
 		return adminExceptSelfDeactivate(subject, resource)
 	case ruleOwnerOrAdmin:
 		return ownerOrAdmin(subject, resource)
-	case ruleOpenNonOwnerOrAdmin:
-		return openNonOwnerOrAdmin(subject, resource)
+	case ruleOpenNonOwner:
+		return openNonOwner(subject, resource)
 	case ruleTaker:
 		return taker(subject, resource)
 	default:
@@ -159,8 +159,8 @@ func ownerOrAdmin(subject enforcementSubject, resource enforcementResource) bool
 	return resource.OwnerUserID == subject.UserID || subject.IsAdmin
 }
 
-func openNonOwnerOrAdmin(subject enforcementSubject, resource enforcementResource) bool {
-	return resource.SubRequestOpen && (resource.OwnerUserID != subject.UserID || subject.IsAdmin)
+func openNonOwner(subject enforcementSubject, resource enforcementResource) bool {
+	return resource.SubRequestOpen && resource.OwnerUserID != subject.UserID
 }
 
 func taker(subject enforcementSubject, resource enforcementResource) bool {

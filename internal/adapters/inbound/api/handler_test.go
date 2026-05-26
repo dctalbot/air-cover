@@ -2119,7 +2119,7 @@ func TestAppHandler_UnknownShowTitle(t *testing.T) {
 	}
 }
 
-func TestAppHandler_AdminCanTakeOwnRequest(t *testing.T) {
+func TestAppHandler_AdminCannotTakeOwnRequest(t *testing.T) {
 	repo := setupTestDB(t)
 	server := newTestServer(repo, nil, &MockShowsService{})
 
@@ -2140,12 +2140,8 @@ func TestAppHandler_AdminCanTakeOwnRequest(t *testing.T) {
 
 	server.GetApp(rr, req)
 
-	// Check if "Take" button is present in the actions column
-	if !strings.Contains(rr.Body.String(), "takeRequest") {
-		t.Errorf("expected body to contain 'takeRequest' script for admin on their own request")
-	}
-	if !strings.Contains(rr.Body.String(), "Take") {
-		t.Errorf("expected body to contain 'Take' button text")
+	if strings.Contains(rr.Body.String(), "btn-action btn-action-primary") {
+		t.Errorf("expected body not to contain a take button for admin on their own request")
 	}
 }
 
@@ -2462,7 +2458,7 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 		}
 	})
 
-	t.Run("admin can take their own request", func(t *testing.T) {
+	t.Run("admin cannot take their own request", func(t *testing.T) {
 		admin, _ := repo.CreateUser(context.Background(), "admin-poster@example.com", "admin")
 		srAdmin := &domain.SubRequest{
 			ShowID:         1,
@@ -2480,8 +2476,8 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 		rr := httptest.NewRecorder()
 		s.PatchSubRequestsId(rr, req, srAdmin.ID)
 
-		if rr.Code != http.StatusNoContent {
-			t.Errorf("expected 204 for admin taking own request, got %d", rr.Code)
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("expected 403 for admin taking own request, got %d", rr.Code)
 		}
 	})
 

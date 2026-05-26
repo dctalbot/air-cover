@@ -1073,13 +1073,13 @@ air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:133.94,1
 air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:135.17,136.26 1 1
 air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:137.37,138.54 1 1
 air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:139.24,140.41 1 1
-air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:141.31,142.48 1 1
+air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:141.24,142.41 1 1
 air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:143.17,144.34 1 1
 air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:145.10,146.15 1 1
 air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:150.47,152.2 1 1
 air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:154.95,156.2 1 1
 air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:158.82,160.2 1 1
-air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:162.89,164.2 1 1
+air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:162.82,164.2 1 1
 air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:166.75,168.2 1 1
 air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:175.74,180.2 1 1
 air-cover/internal/adapters/outbound/authorization/casbin/authorizer.go:192.78,202.2 1 1
@@ -1810,7 +1810,7 @@ air-cover/internal/app/auth/service.go:93.2,94.16 2 1
 air-cover/internal/app/auth/service.go:94.16,96.3 1 1
 air-cover/internal/app/auth/service.go:98.109,100.3 1 1
 air-cover/internal/app/auth/service.go:98.2,98.109 1 1
-air-cover/internal/app/authorization/authorization.go:100.28,101.88 1 1
+air-cover/internal/app/authorization/authorization.go:100.28,101.68 1 1
 air-cover/internal/app/authorization/authorization.go:102.30,103.62 1 1
 air-cover/internal/app/authorization/authorization.go:104.10,105.15 1 1
 air-cover/internal/app/authorization/authorization.go:48.62,50.2 1 1

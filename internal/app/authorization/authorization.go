@@ -98,7 +98,7 @@ func allowed(subject Subject, action Action, resource Resource) bool {
 	case ActionSubRequestDelete:
 		return resource.OwnerUserID == user.ID || user.IsAdmin()
 	case ActionSubRequestTake:
-		return resource.SubRequestOpen && (resource.OwnerUserID != user.ID || user.IsAdmin())
+		return resource.SubRequestOpen && resource.OwnerUserID != user.ID
 	case ActionSubRequestUntake:
 		return resource.HasTaker && resource.TakerUserID == user.ID
 	default:

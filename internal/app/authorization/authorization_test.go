@@ -30,6 +30,7 @@ func TestParityAuthorizer(t *testing.T) {
 		{"non owner delete denied", member, ActionSubRequestDelete, SubRequestResource(&domain.SubRequest{PostedByUserID: 1}), apperrors.ErrForbidden},
 		{"take open request allowed", member, ActionSubRequestTake, SubRequestResource(&domain.SubRequest{PostedByUserID: 1}), nil},
 		{"take own request denied", member, ActionSubRequestTake, SubRequestResource(&domain.SubRequest{PostedByUserID: 2}), apperrors.ErrForbidden},
+		{"admin take own request denied", admin, ActionSubRequestTake, SubRequestResource(&domain.SubRequest{PostedByUserID: 1}), apperrors.ErrForbidden},
 		{"untake by taker allowed", SubjectFromCurrentUser(domain.CurrentUser{ID: takerID}), ActionSubRequestUntake, SubRequestResource(&domain.SubRequest{TakenByUserID: &takerID}), nil},
 		{"unknown action denied", admin, Action("unknown"), AdminResource(), apperrors.ErrForbidden},
 	}

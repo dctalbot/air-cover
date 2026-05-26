@@ -84,10 +84,11 @@ func TestAuthorizerPolicyDecisions(t *testing.T) {
 			wantError: apperrors.ErrForbidden,
 		},
 		{
-			name:     "admin can take own open request",
-			subject:  admin,
-			action:   appauthz.ActionSubRequestTake,
-			resource: appauthz.SubRequestResource(&domain.SubRequest{PostedByUserID: 1}),
+			name:      "admin cannot take own open request",
+			subject:   admin,
+			action:    appauthz.ActionSubRequestTake,
+			resource:  appauthz.SubRequestResource(&domain.SubRequest{PostedByUserID: 1}),
+			wantError: apperrors.ErrForbidden,
 		},
 		{
 			name:     "taker can untake",
@@ -197,7 +198,7 @@ func TestMatchesRule(t *testing.T) {
 		},
 		{
 			name:    "open non owner",
-			rule:    ruleOpenNonOwnerOrAdmin,
+			rule:    ruleOpenNonOwner,
 			subject: member,
 			resource: enforcementResource{
 				OwnerUserID:    1,
@@ -206,18 +207,17 @@ func TestMatchesRule(t *testing.T) {
 			want: true,
 		},
 		{
-			name:    "open owner admin",
-			rule:    ruleOpenNonOwnerOrAdmin,
+			name:    "open owner admin denied",
+			rule:    ruleOpenNonOwner,
 			subject: admin,
 			resource: enforcementResource{
 				OwnerUserID:    1,
 				SubRequestOpen: true,
 			},
-			want: true,
 		},
 		{
 			name:    "closed non owner denied",
-			rule:    ruleOpenNonOwnerOrAdmin,
+			rule:    ruleOpenNonOwner,
 			subject: member,
 			resource: enforcementResource{
 				OwnerUserID:    1,
