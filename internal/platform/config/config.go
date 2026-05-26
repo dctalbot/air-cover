@@ -31,10 +31,10 @@ type Config struct {
 var viperBindPFlags = viper.BindPFlags
 
 // Load reads environment variables and validates the configuration.
+// CLI flags take precedence over environment variables.
+// Sensible defaults are applied for missing values.
 func Load(cmd *cobra.Command) (*Config, error) {
-	// Load .env file if exists
 	if err := godotenv.Load(); err != nil {
-		// No .env in prod
 		slog.Warn("No .env file found")
 	}
 
@@ -58,17 +58,6 @@ func Load(cmd *cobra.Command) (*Config, error) {
 		cfg.Port = p
 	}
 
-	// Default values
-	if cfg.ENV == "" {
-		cfg.ENV = "production"
-	}
-
-	if cfg.Port == 0 {
-		cfg.Port = 8080
-	}
-	if cfg.AppBaseURL == "" {
-		cfg.AppBaseURL = fmt.Sprintf("http://localhost:%d", cfg.Port)
-	}
 	if trustedProxies != "" {
 		var err error
 		cfg.TrustedProxies, err = parseTrustedProxies(trustedProxies)
@@ -90,6 +79,17 @@ func Load(cmd *cobra.Command) (*Config, error) {
 		if cmd.Flags().Changed("db-uri") {
 			cfg.DBURI = viper.GetString("db-uri")
 		}
+	}
+
+	if cfg.ENV == "" {
+		cfg.ENV = "production"
+	}
+
+	if cfg.Port == 0 {
+		cfg.Port = 8080
+	}
+	if cfg.AppBaseURL == "" {
+		cfg.AppBaseURL = fmt.Sprintf("http://localhost:%d", cfg.Port)
 	}
 
 	validate := validator.New()
