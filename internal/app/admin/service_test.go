@@ -133,7 +133,7 @@ func TestListUsersUsesAuthorizerCapabilities(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("got %d users, want 2", len(got))
 	}
-	if !got[0].CanDeactivate || !got[1].CanDeactivate {
+	if got[0].CanDeactivate || !got[1].CanDeactivate {
 		t.Fatalf("deactivate capabilities should follow authorizer: %+v", got)
 	}
 
@@ -271,6 +271,11 @@ func TestUpdateUser(t *testing.T) {
 	}
 	if err := svc.UpdateUser(context.Background(), viewer, UpdateUserInput{ID: 1, IsEnabled: &disabled}); !errors.Is(err, apperrors.ErrForbidden) {
 		t.Errorf("self deactivation error = %v, want forbidden", err)
+	}
+
+	svc.SetAuthorizer(allowAllAuthorizer{})
+	if err := svc.UpdateUser(context.Background(), viewer, UpdateUserInput{ID: 1, IsEnabled: &disabled}); !errors.Is(err, apperrors.ErrForbidden) {
+		t.Errorf("self deactivation with allow-all authorizer error = %v, want forbidden", err)
 	}
 
 	repo.updateErr = apperrors.ErrNotFound

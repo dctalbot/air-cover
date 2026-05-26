@@ -95,6 +95,9 @@ func (s *Service) UpdateUser(ctx context.Context, viewer domain.CurrentUser, inp
 		return apperrors.ErrInvalid
 	}
 	disableTarget := input.IsEnabled != nil && !*input.IsEnabled
+	if disableTarget && input.ID == viewer.ID {
+		return apperrors.ErrForbidden
+	}
 	if err := s.authorize(ctx, viewer, authorization.ActionUserUpdate, authorization.UserResource(input.ID, disableTarget)); err != nil {
 		return err
 	}
@@ -113,6 +116,9 @@ func (s *Service) authorize(ctx context.Context, viewer domain.CurrentUser, acti
 
 func (s *Service) canDeactivate(ctx context.Context, viewer domain.CurrentUser, user *domain.User) (bool, error) {
 	disableTarget := user.IsEnabled
+	if disableTarget && user.ID == viewer.ID {
+		return false, nil
+	}
 	err := s.authorize(ctx, viewer, authorization.ActionUserUpdate, authorization.UserResource(user.ID, disableTarget))
 	if err == nil {
 		return true, nil
