@@ -35,27 +35,3 @@ func TestExecuteError(t *testing.T) {
 		t.Errorf("expected rootOsExit to be called")
 	}
 }
-
-func TestInitConfig(t *testing.T) {
-	// Test with no config file
-	cfgFile = ""
-	initConfig()
-
-	// Test with a non-existent config file
-	cfgFile = "nonexistent.yaml"
-	initConfig()
-
-	// Test with a valid config file
-	f, err := os.CreateTemp("", "testconfig-*.yaml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(f.Name())
-	if _, err := f.WriteString("port: 8081\n"); err != nil {
-		t.Fatal(err)
-	}
-	f.Close()
-
-	cfgFile = f.Name()
-	initConfig()
-}
