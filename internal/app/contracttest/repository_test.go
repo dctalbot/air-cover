@@ -193,10 +193,13 @@ func (r *memoryRepository) TakeSubRequest(ctx context.Context, id int, userID in
 	return nil
 }
 
-func (r *memoryRepository) UntakeSubRequest(ctx context.Context, id int, updatedAt time.Time) error {
+func (r *memoryRepository) UntakeSubRequest(ctx context.Context, id int, userID int, updatedAt time.Time) error {
 	request, err := r.GetSubRequestByID(ctx, id)
 	if err != nil {
 		return err
+	}
+	if request.TakenByUserID == nil || *request.TakenByUserID != userID {
+		return apperrors.ErrConflict
 	}
 	request.TakenByUserID = nil
 	request.UpdatedAt = updatedAt

@@ -14,23 +14,24 @@ import (
 )
 
 type fakeRepository struct {
-	subRequests []DashboardReadModel
-	detail      DetailReadModel
-	subRequest  *domain.SubRequest
-	listErr     error
-	detailErr   error
-	createErr   error
-	getErr      error
-	deleteErr   error
-	takeErr     error
-	untakeErr   error
-	created     *domain.SubRequest
-	deletedID   int
-	takenID     int
-	takenUserID int
-	takenAt     time.Time
-	untakenID   int
-	untakenAt   time.Time
+	subRequests   []DashboardReadModel
+	detail        DetailReadModel
+	subRequest    *domain.SubRequest
+	listErr       error
+	detailErr     error
+	createErr     error
+	getErr        error
+	deleteErr     error
+	takeErr       error
+	untakeErr     error
+	created       *domain.SubRequest
+	deletedID     int
+	takenID       int
+	takenUserID   int
+	takenAt       time.Time
+	untakenID     int
+	untakenUserID int
+	untakenAt     time.Time
 }
 
 func (f *fakeRepository) ListDashboardSubRequests(ctx context.Context) ([]DashboardReadModel, error) {
@@ -69,8 +70,9 @@ func (f *fakeRepository) TakeSubRequest(ctx context.Context, id int, userID int,
 	return f.takeErr
 }
 
-func (f *fakeRepository) UntakeSubRequest(ctx context.Context, id int, updatedAt time.Time) error {
+func (f *fakeRepository) UntakeSubRequest(ctx context.Context, id int, userID int, updatedAt time.Time) error {
 	f.untakenID = id
+	f.untakenUserID = userID
 	f.untakenAt = updatedAt
 	return f.untakeErr
 }
@@ -274,7 +276,6 @@ func TestGetUsesAuthorizerCapabilities(t *testing.T) {
 	svc := NewService(repo, &fakeCatalog{shows: []appcatalog.Show{{ID: "1", Title: "Test Show"}}})
 	svc.SetAuthorizer(actionAuthorizer{allowed: map[authorization.Action]bool{
 		authorization.ActionSubRequestDelete: true,
-		authorization.ActionSubRequestTake:   true,
 	}})
 	svc.nowFunc = func() time.Time { return now }
 
@@ -282,7 +283,7 @@ func TestGetUsesAuthorizerCapabilities(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get returned error: %v", err)
 	}
-	if !detail.CanDelete || !detail.CanTake || detail.CanUntake {
+	if !detail.CanDelete || detail.CanTake || detail.CanUntake {
 		t.Fatalf("capabilities should follow authorizer, got %+v", detail)
 	}
 }
@@ -541,8 +542,8 @@ func TestApplyAction(t *testing.T) {
 	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionUntake); err != nil {
 		t.Fatalf("untake returned error: %v", err)
 	}
-	if repo.untakenID != 1 || repo.untakenAt.IsZero() {
-		t.Errorf("untaken ID = %d, want 1", repo.untakenID)
+	if repo.untakenID != 1 || repo.untakenUserID != takerID || repo.untakenAt.IsZero() {
+		t.Errorf("unexpected untake call: %+v", repo)
 	}
 
 	if err := svc.ApplyAction(context.Background(), viewer, 1, Action("bad")); !errors.Is(err, apperrors.ErrInvalid) {
@@ -557,6 +558,11 @@ func TestApplyAction(t *testing.T) {
 	repo.subRequest = &domain.SubRequest{ID: 1, PostedByUserID: takerID}
 	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionTake); !errors.Is(err, apperrors.ErrForbidden) {
 		t.Errorf("self take forbidden error = %v, want forbidden", err)
+	}
+
+	repo.subRequest = &domain.SubRequest{ID: 1, PostedByUserID: 1, TakenByUserID: &takerID}
+	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionTake); !errors.Is(err, apperrors.ErrConflict) {
+		t.Errorf("already taken error = %v, want conflict", err)
 	}
 
 	repo.subRequest = &domain.SubRequest{ID: 1, PostedByUserID: 1}

@@ -312,6 +312,9 @@ func (s *Service) ApplyAction(ctx context.Context, viewer domain.CurrentUser, id
 
 	switch action {
 	case ActionTake:
+		if sr.TakenByUserID != nil {
+			return apperrors.ErrConflict
+		}
 		if err := s.authorize(ctx, viewer, authorization.ActionSubRequestTake, authorization.SubRequestResource(sr)); err != nil {
 			return err
 		}
@@ -327,7 +330,7 @@ func (s *Service) ApplyAction(ctx context.Context, viewer domain.CurrentUser, id
 		if s.notifier != nil {
 			event = s.subRequestUntakenEvent(ctx, id, viewer.Email)
 		}
-		if err := s.repo.UntakeSubRequest(ctx, id, s.now()); err != nil {
+		if err := s.repo.UntakeSubRequest(ctx, id, viewer.ID, s.now()); err != nil {
 			return mapRepositoryError(err)
 		}
 		s.notifySubRequestUntaken(ctx, event)
@@ -347,9 +350,12 @@ func (s *Service) capabilitiesFor(ctx context.Context, viewer domain.CurrentUser
 	if err != nil {
 		return subRequestCapabilities{}, err
 	}
-	canTake, err := s.can(ctx, subject, authorization.ActionSubRequestTake, resource)
-	if err != nil {
-		return subRequestCapabilities{}, err
+	canTake := false
+	if sr.TakenByUserID == nil {
+		canTake, err = s.can(ctx, subject, authorization.ActionSubRequestTake, resource)
+		if err != nil {
+			return subRequestCapabilities{}, err
+		}
 	}
 	canUntake, err := s.can(ctx, subject, authorization.ActionSubRequestUntake, resource)
 	if err != nil {

@@ -163,7 +163,7 @@ func (f *fakeServerRepo) TakeSubRequest(ctx context.Context, id int, userID int,
 	return f.takeErr
 }
 
-func (f *fakeServerRepo) UntakeSubRequest(ctx context.Context, id int, updatedAt time.Time) error {
+func (f *fakeServerRepo) UntakeSubRequest(ctx context.Context, id int, userID int, updatedAt time.Time) error {
 	return f.untakeErr
 }
 
@@ -2354,8 +2354,8 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 		s.PatchSubRequestsId(rr, req, sr.ID)
-		if rr.Code != http.StatusForbidden {
-			t.Errorf("expected 403, got %d", rr.Code)
+		if rr.Code != http.StatusConflict {
+			t.Errorf("expected 409, got %d", rr.Code)
 		}
 	})
 
@@ -2506,8 +2506,8 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 		rr := httptest.NewRecorder()
 		s.PatchSubRequestsId(rr, req, srTaken.ID)
 
-		if rr.Code != http.StatusForbidden {
-			t.Errorf("expected 403 for admin taking taken request, got %d", rr.Code)
+		if rr.Code != http.StatusConflict {
+			t.Errorf("expected 409 for admin taking taken request, got %d", rr.Code)
 		}
 	})
 }

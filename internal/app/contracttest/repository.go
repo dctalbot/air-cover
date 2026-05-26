@@ -296,9 +296,11 @@ func checkSubRequestCommandRepository(ctx context.Context, repo SubRequestComman
 	must(err == nil && taken.TakenByUserID != nil && *taken.TakenByUserID == taker.ID && taken.UpdatedAt.Equal(takenAt), "taken request = %+v, %v; want taker %d at %v", taken, err, taker.ID, takenAt)
 
 	untakenAt := now.Add(45 * time.Minute)
-	err = repo.UntakeSubRequest(ctx, early.ID, untakenAt)
+	err = repo.UntakeSubRequest(ctx, early.ID, requester.ID, untakenAt)
+	must(errors.Is(err, apperrors.ErrConflict), "wrong taker untake error = %v, want conflict", err)
+	err = repo.UntakeSubRequest(ctx, early.ID, taker.ID, untakenAt)
 	mustNoErr(err, "UntakeSubRequest returned error")
-	err = repo.UntakeSubRequest(ctx, -1, untakenAt)
+	err = repo.UntakeSubRequest(ctx, -1, taker.ID, untakenAt)
 	must(errors.Is(err, apperrors.ErrNotFound), "missing untake error = %v, want not found", err)
 	untaken, err := repo.GetSubRequestByID(ctx, early.ID)
 	must(err == nil && untaken.TakenByUserID == nil && untaken.UpdatedAt.Equal(untakenAt), "untaken request = %+v, %v; want no taker at %v", untaken, err, untakenAt)

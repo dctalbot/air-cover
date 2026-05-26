@@ -352,7 +352,12 @@ func TestRepository(t *testing.T) {
 	}
 
 	// UntakeSubRequest
-	err = repo.UntakeSubRequest(ctx, sr3.ID, time.Now())
+	err = repo.UntakeSubRequest(ctx, sr3.ID, u3.ID, time.Now())
+	if err != ErrConflict {
+		t.Fatalf("expected ErrConflict for wrong user UntakeSubRequest, got %v", err)
+	}
+
+	err = repo.UntakeSubRequest(ctx, sr3.ID, u4.ID, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,7 +370,7 @@ func TestRepository(t *testing.T) {
 		t.Fatal("expected TakenByUserID to be nil after untake")
 	}
 
-	err = repo.UntakeSubRequest(ctx, 99999, time.Now())
+	err = repo.UntakeSubRequest(ctx, 99999, u4.ID, time.Now())
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound for UntakeSubRequest, got %v", err)
 	}
@@ -537,7 +542,7 @@ func TestRepositoryErrors(t *testing.T) {
 		t.Error("expected error with cancelled context in TakeSubRequest")
 	}
 
-	err = repo.UntakeSubRequest(ctx, 1, time.Now())
+	err = repo.UntakeSubRequest(ctx, 1, 1, time.Now())
 	if err == nil {
 		t.Error("expected error with cancelled context in UntakeSubRequest")
 	}
@@ -1027,11 +1032,11 @@ func TestRepositoryDriverLevelErrors(t *testing.T) {
 		dbConn, mock, repo := newMockRepository(t)
 		defer dbConn.Close()
 
-		mock.ExpectExec(regexp.QuoteMeta("UPDATE sub_requests SET taken_by_user_id = NULL, updated_at = ? WHERE id = ?")).
-			WithArgs(sqlmock.AnyArg(), 9).
+		mock.ExpectExec(regexp.QuoteMeta("UPDATE sub_requests SET taken_by_user_id = NULL, updated_at = ? WHERE id = ? AND taken_by_user_id = ?")).
+			WithArgs(sqlmock.AnyArg(), 9, int64(2)).
 			WillReturnResult(sqlmock.NewErrorResult(errors.New("rows affected failed")))
 
-		err := repo.UntakeSubRequest(context.Background(), 9, time.Now())
+		err := repo.UntakeSubRequest(context.Background(), 9, 2, time.Now())
 		if err == nil {
 			t.Fatal("expected RowsAffected error")
 		}

@@ -105,10 +105,11 @@ func (r *Repository) TakeSubRequest(ctx context.Context, id int, userID int, upd
 	return nil
 }
 
-func (r *Repository) UntakeSubRequest(ctx context.Context, id int, updatedAt time.Time) error {
+func (r *Repository) UntakeSubRequest(ctx context.Context, id int, userID int, updatedAt time.Time) error {
 	res, err := r.queries.UntakeSubRequest(ctx, dbgen.UntakeSubRequestParams{
-		UpdatedAt: sqlNullTime(updatedAt),
-		ID:        int64(id),
+		UpdatedAt:     sqlNullTime(updatedAt),
+		ID:            int64(id),
+		TakenByUserID: sql.NullInt64{Int64: int64(userID), Valid: true},
 	})
 	if err != nil {
 		return err
@@ -118,7 +119,10 @@ func (r *Repository) UntakeSubRequest(ctx context.Context, id int, updatedAt tim
 		return err
 	}
 	if rows == 0 {
-		return ErrNotFound
+		if _, err := r.GetSubRequestByID(ctx, id); err != nil {
+			return err
+		}
+		return ErrConflict
 	}
 	return nil
 }

@@ -184,14 +184,15 @@ func (q *Queries) TakeSubRequest(ctx context.Context, arg TakeSubRequestParams) 
 }
 
 const untakeSubRequest = `-- name: UntakeSubRequest :execresult
-UPDATE sub_requests SET taken_by_user_id = NULL, updated_at = ? WHERE id = ?
+UPDATE sub_requests SET taken_by_user_id = NULL, updated_at = ? WHERE id = ? AND taken_by_user_id = ?
 `
 
 type UntakeSubRequestParams struct {
-	UpdatedAt sql.NullTime `json:"updated_at"`
-	ID        int64        `json:"id"`
+	UpdatedAt     sql.NullTime  `json:"updated_at"`
+	ID            int64         `json:"id"`
+	TakenByUserID sql.NullInt64 `json:"taken_by_user_id"`
 }
 
 func (q *Queries) UntakeSubRequest(ctx context.Context, arg UntakeSubRequestParams) (sql.Result, error) {
-	return q.db.ExecContext(ctx, untakeSubRequest, arg.UpdatedAt, arg.ID)
+	return q.db.ExecContext(ctx, untakeSubRequest, arg.UpdatedAt, arg.ID, arg.TakenByUserID)
 }

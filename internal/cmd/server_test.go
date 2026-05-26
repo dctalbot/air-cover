@@ -184,7 +184,7 @@ func (f *fakeSubRequestsRepo) TakeSubRequest(ctx context.Context, id int, userID
 	return nil
 }
 
-func (f *fakeSubRequestsRepo) UntakeSubRequest(ctx context.Context, id int, updatedAt time.Time) error {
+func (f *fakeSubRequestsRepo) UntakeSubRequest(ctx context.Context, id int, userID int, updatedAt time.Time) error {
 	return nil
 }
 

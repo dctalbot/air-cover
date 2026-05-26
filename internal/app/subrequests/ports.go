@@ -13,7 +13,7 @@ type CommandRepository interface {
 	GetSubRequestByID(ctx context.Context, id int) (*domain.SubRequest, error)
 	DeleteSubRequest(ctx context.Context, id int) error
 	TakeSubRequest(ctx context.Context, id int, userID int, updatedAt time.Time) error
-	UntakeSubRequest(ctx context.Context, id int, updatedAt time.Time) error
+	UntakeSubRequest(ctx context.Context, id int, userID int, updatedAt time.Time) error
 }
 
 type DashboardQuery interface {

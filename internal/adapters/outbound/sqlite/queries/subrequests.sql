@@ -28,4 +28,4 @@ DELETE FROM sub_requests WHERE id = ?;
 UPDATE sub_requests SET taken_by_user_id = ?, updated_at = ? WHERE id = ? AND taken_by_user_id IS NULL;
 
 -- name: UntakeSubRequest :execresult
-UPDATE sub_requests SET taken_by_user_id = NULL, updated_at = ? WHERE id = ?;
+UPDATE sub_requests SET taken_by_user_id = NULL, updated_at = ? WHERE id = ? AND taken_by_user_id = ?;
