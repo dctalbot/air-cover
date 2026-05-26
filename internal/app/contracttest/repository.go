@@ -18,6 +18,7 @@ type Repository interface {
 	adminapp.Repository
 	subrequestsapp.CommandRepository
 	subrequestsapp.DashboardQuery
+	subrequestsapp.DetailQuery
 }
 
 type AuthRepository interface {
@@ -58,6 +59,12 @@ type SubRequestDashboardQuery interface {
 	adminapp.Repository
 	subrequestsapp.CommandRepository
 	subrequestsapp.DashboardQuery
+}
+
+type SubRequestDetailQuery interface {
+	adminapp.Repository
+	subrequestsapp.CommandRepository
+	subrequestsapp.DetailQuery
 }
 
 func CheckAuthRepository(ctx context.Context, repo AuthRepository) (err error) {
@@ -105,6 +112,12 @@ func CheckSubRequestCommandRepository(ctx context.Context, repo SubRequestComman
 func CheckSubRequestDashboardQuery(ctx context.Context, repo SubRequestDashboardQuery) (err error) {
 	return check(ctx, func(ctx context.Context) {
 		checkSubRequestDashboardQuery(ctx, repo)
+	})
+}
+
+func CheckSubRequestDetailQuery(ctx context.Context, repo SubRequestDetailQuery) (err error) {
+	return check(ctx, func(ctx context.Context) {
+		checkSubRequestDetailQuery(ctx, repo)
 	})
 }
 
@@ -246,6 +259,7 @@ func checkAdminRepository(ctx context.Context, repo AdminRepository) {
 func checkSubRequestRepository(ctx context.Context, repo Repository) {
 	checkSubRequestCommandRepository(ctx, repo)
 	checkSubRequestDashboardQuery(ctx, repo)
+	checkSubRequestDetailQuery(ctx, repo)
 }
 
 func checkSubRequestCommandRepository(ctx context.Context, repo SubRequestCommandRepository) {
@@ -354,6 +368,40 @@ func checkSubRequestDashboardQuery(ctx context.Context, repo SubRequestDashboard
 	mustNoErr(err, "ListDashboardSubRequests after take returned error")
 	summaries = summariesByID(requests)
 	must(summaries[early.ID] != nil && summaries[early.ID].TakerEmail == taker.Email, "taken summary = %+v; want taker email %s", summaries[early.ID], taker.Email)
+}
+
+func checkSubRequestDetailQuery(ctx context.Context, repo SubRequestDetailQuery) {
+	requester, err := repo.CreateUser(ctx, "contract-detail-requester@example.com", "member")
+	mustNoErr(err, "CreateUser detail requester returned error")
+	taker, err := repo.CreateUser(ctx, "contract-detail-taker@example.com", "member")
+	mustNoErr(err, "CreateUser detail taker returned error")
+
+	now := time.Now().Truncate(time.Second)
+	request := &domain.SubRequest{
+		ShowID:         27,
+		PostedByUserID: requester.ID,
+		StartTime:      now.Add(time.Hour),
+		EndTime:        now.Add(2 * time.Hour),
+		Notes:          "detail contract",
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	mustNoErr(repo.CreateSubRequest(ctx, request), "CreateSubRequest detail returned error")
+
+	detail, err := repo.GetSubRequestDetailByID(ctx, request.ID)
+	mustNoErr(err, "GetSubRequestDetailByID returned error")
+	must(detail.Request != nil && detail.Request.ID == request.ID, "detail request = %+v; want request %d", detail.Request, request.ID)
+	must(detail.RequesterEmail == requester.Email, "detail requester email = %q, want %q", detail.RequesterEmail, requester.Email)
+	must(detail.TakerEmail == "", "untaken detail taker email = %q, want empty", detail.TakerEmail)
+
+	takenAt := now.Add(30 * time.Minute)
+	mustNoErr(repo.TakeSubRequest(ctx, request.ID, taker.ID, takenAt), "TakeSubRequest detail returned error")
+	detail, err = repo.GetSubRequestDetailByID(ctx, request.ID)
+	mustNoErr(err, "GetSubRequestDetailByID taken returned error")
+	must(detail.TakerEmail == taker.Email, "taken detail taker email = %q, want %q", detail.TakerEmail, taker.Email)
+
+	_, err = repo.GetSubRequestDetailByID(ctx, -1)
+	must(errors.Is(err, apperrors.ErrNotFound), "missing detail error = %v, want not found", err)
 }
 
 func mustNoErr(err error, message string) {

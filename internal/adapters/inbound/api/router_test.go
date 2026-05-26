@@ -8,46 +8,93 @@ import (
 	"net/netip"
 	"strings"
 	"testing"
-	"time"
 
 	"air-cover/internal/adapters/outbound/sqlite"
 	adminapp "air-cover/internal/app/admin"
 	authapp "air-cover/internal/app/auth"
 	appcatalog "air-cover/internal/app/catalog"
 	subrequestsapp "air-cover/internal/app/subrequests"
+	"air-cover/internal/apperrors"
+	"air-cover/internal/domain"
 
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
-type routerTestCatalog interface {
-	adminapp.Catalog
-	subrequestsapp.Catalog
+type routerAuthService struct {
+	users map[string]routerAuthResult
 }
 
-type routerTestShowsService struct {
-	shows []appcatalog.Show
-	err   error
+func (f routerAuthService) RequestLogin(ctx context.Context, input authapp.LoginInput) (authapp.LoginResult, error) {
+	return authapp.LoginResult{}, nil
 }
 
-func (f *routerTestShowsService) ListShows(ctx context.Context) ([]appcatalog.Show, error) {
-	if f.err != nil {
-		return nil, f.err
+func (f routerAuthService) VerifyMagicLink(ctx context.Context, rawToken string) (authapp.VerifiedSession, error) {
+	return authapp.VerifiedSession{}, nil
+}
+
+func (f routerAuthService) Logout(ctx context.Context, userID int) error {
+	return nil
+}
+
+func (f routerAuthService) AuthenticateSession(ctx context.Context, sessionToken string) (domain.CurrentUser, error) {
+	result, ok := f.users[sessionToken]
+	if !ok {
+		return domain.CurrentUser{}, apperrors.ErrNotFound
 	}
-	return f.shows, nil
-}
-
-func (f *routerTestShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Persona, error) {
-	return nil, f.err
-}
-
-func newRouterTestServer(repo *sqlite.Repository, authHandler *AuthHandler, catalog routerTestCatalog) *Server {
-	var subRequests *subrequestsapp.Service
-	var admin *adminapp.Service
-	if repo != nil {
-		subRequests = subrequestsapp.NewService(repo, catalog)
-		admin = adminapp.NewService(repo, catalog)
+	if result.err != nil {
+		return domain.CurrentUser{}, result.err
 	}
-	return NewServer(authHandler, subRequests, admin)
+	return result.user, nil
+}
+
+type routerAuthResult struct {
+	user domain.CurrentUser
+	err  error
+}
+
+type routerSubRequestService struct {
+	dashboard subrequestsapp.Dashboard
+	detailErr error
+}
+
+func (f routerSubRequestService) ListDashboard(ctx context.Context, viewer domain.CurrentUser) (subrequestsapp.Dashboard, error) {
+	return f.dashboard, nil
+}
+
+func (f routerSubRequestService) Get(ctx context.Context, viewer domain.CurrentUser, id int) (subrequestsapp.Detail, error) {
+	return subrequestsapp.Detail{}, f.detailErr
+}
+
+func (f routerSubRequestService) Create(ctx context.Context, viewer domain.CurrentUser, input subrequestsapp.CreateInput) error {
+	return nil
+}
+
+func (f routerSubRequestService) Delete(ctx context.Context, viewer domain.CurrentUser, id int) error {
+	return nil
+}
+
+func (f routerSubRequestService) ApplyAction(ctx context.Context, viewer domain.CurrentUser, id int, action subrequestsapp.Action) error {
+	return nil
+}
+
+type routerAdminService struct {
+	users []adminapp.UserReadModel
+}
+
+func (f routerAdminService) ListUsers(ctx context.Context, viewer domain.CurrentUser) ([]adminapp.UserReadModel, error) {
+	return f.users, nil
+}
+
+func (f routerAdminService) CreateUser(ctx context.Context, viewer domain.CurrentUser, input adminapp.CreateUserInput) error {
+	return nil
+}
+
+func (f routerAdminService) UpdateUser(ctx context.Context, viewer domain.CurrentUser, input adminapp.UpdateUserInput) error {
+	return apperrors.ErrNotFound
+}
+
+func (f routerAdminService) ImportCatalogUsers(ctx context.Context, viewer domain.CurrentUser) error {
+	return nil
 }
 
 func markSameOrigin(req *http.Request) {
@@ -55,42 +102,28 @@ func markSameOrigin(req *http.Request) {
 }
 
 func TestNewRouter(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
-	if err != nil {
-		t.Fatalf("failed to init db: %v", err)
-	}
-	defer dbConn.Close()
-
-	repo := sqlite.NewRepository(dbConn)
-	auth := NewAuthHandler(authapp.NewService(repo, nil))
-	server := newRouterTestServer(repo, auth, nil)
-
+	// Arrange
+	auth := NewAuthHandler(routerAuthService{users: map[string]routerAuthResult{
+		"stoken_admin": {user: domain.CurrentUser{ID: 1, Email: "admin_cmd_test@example.com", Role: domain.RoleAdmin}},
+	}})
+	server := NewServer(auth, routerSubRequestService{}, routerAdminService{})
 	r := NewRouter(server, auth, nil)
 	if r == nil {
 		t.Fatal("expected non-nil router")
 	}
 
-	// Create admin user/session for authenticated tests
-	admin, err := repo.CreateUser(context.Background(), "admin_cmd_test@example.com", "admin")
-	if err != nil {
-		t.Fatalf("failed to create admin user: %v", err)
-	}
-	err = repo.CreateSession(context.Background(), "sid_admin", authapp.HashToken("stoken_admin"), admin.ID, time.Now().Add(1*time.Hour))
-	if err != nil {
-		t.Fatalf("failed to create session: %v", err)
-	}
-
-	// Test invalid ID in sub-requests Delete route (now handled by generated wrapper)
+	// Act
 	req := httptest.NewRequest(http.MethodDelete, "/sub-requests/abc", nil)
 	markSameOrigin(req)
 	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
+
+	// Assert
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400 for invalid ID, got %d", rr.Code)
 	}
 
-	// Test invalid ID in users Post route (now handled by generated wrapper)
 	req = httptest.NewRequest(http.MethodPost, "/users/abc", strings.NewReader(`{"is_enabled":false}`))
 	req.Header.Set("Content-Type", "application/json")
 	markSameOrigin(req)
@@ -101,19 +134,16 @@ func TestNewRouter(t *testing.T) {
 		t.Errorf("expected status 400 for invalid user ID, got %d", rr.Code)
 	}
 
-	// Test valid wiring for POST /users/{id}
 	req = httptest.NewRequest(http.MethodPost, "/users/123", strings.NewReader(`{"is_enabled":false}`))
 	req.Header.Set("Content-Type", "application/json")
 	markSameOrigin(req)
 	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
 	rr = httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
-	// Should be 404 because user 123 doesn't exist
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected status 404 for non-existent user, got %d", rr.Code)
 	}
 
-	// Test valid wiring for POST /users
 	form := "email=newuser@example.com&role=member"
 	req = httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(form))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -125,7 +155,6 @@ func TestNewRouter(t *testing.T) {
 		t.Errorf("expected status 303 for user creation, got %d", rr.Code)
 	}
 
-	// Test invalid ID in sub-requests Get route (handled by generated wrapper)
 	req = httptest.NewRequest(http.MethodGet, "/sub-requests/abc", nil)
 	req.AddCookie(&http.Cookie{Name: "session_id", Value: "stoken_admin"})
 	rr = httptest.NewRecorder()
@@ -136,73 +165,39 @@ func TestNewRouter(t *testing.T) {
 }
 
 func TestNewRouter_RouteAuthorization(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
-	if err != nil {
-		t.Fatalf("failed to init db: %v", err)
-	}
-	defer dbConn.Close()
-
-	repo := sqlite.NewRepository(dbConn)
-	auth := NewAuthHandler(authapp.NewService(repo, nil))
-	server := newRouterTestServer(repo, auth, &routerTestShowsService{
-		shows: []appcatalog.Show{
-			{ID: "show-1", Title: "Authorization Test Show"},
+	// Arrange
+	auth := NewAuthHandler(routerAuthService{users: map[string]routerAuthResult{
+		"route-member-token":   {user: domain.CurrentUser{ID: 1, Email: "route-member@example.com", Role: domain.RoleMember}},
+		"route-admin-token":    {user: domain.CurrentUser{ID: 2, Email: "route-admin@example.com", Role: domain.RoleAdmin}},
+		"route-disabled-token": {err: apperrors.ErrForbidden},
+	}})
+	server := NewServer(auth, routerSubRequestService{
+		dashboard: subrequestsapp.Dashboard{
+			Shows: []appcatalog.Show{{ID: "show-1", Title: "Authorization Test Show"}},
+		},
+		detailErr: apperrors.ErrNotFound,
+	}, routerAdminService{
+		users: []adminapp.UserReadModel{
+			{User: &domain.User{ID: 2, Email: "route-admin@example.com", Role: domain.RoleAdmin, IsEnabled: true}},
 		},
 	})
 	r := NewRouter(server, auth, nil)
 
-	ctx := context.Background()
-	member, err := repo.CreateUser(ctx, "route-member@example.com", "member")
-	if err != nil {
-		t.Fatalf("failed to create member user: %v", err)
-	}
-	admin, err := repo.CreateUser(ctx, "route-admin@example.com", "admin")
-	if err != nil {
-		t.Fatalf("failed to create admin user: %v", err)
-	}
-	disabled, err := repo.CreateUser(ctx, "route-disabled@example.com", "member")
-	if err != nil {
-		t.Fatalf("failed to create disabled user: %v", err)
-	}
-	disabledEnabled := false
-	if err := repo.UpdateUser(ctx, disabled.ID, nil, &disabledEnabled); err != nil {
-		t.Fatalf("failed to disable user: %v", err)
-	}
-	expired, err := repo.CreateUser(ctx, "route-expired@example.com", "member")
-	if err != nil {
-		t.Fatalf("failed to create expired-session user: %v", err)
-	}
-
 	sessions := map[string]struct {
-		userID    int
-		rawToken  string
-		expiresAt time.Time
+		rawToken string
 	}{
 		"member": {
-			userID:    member.ID,
-			rawToken:  "route-member-token",
-			expiresAt: time.Now().Add(time.Hour),
+			rawToken: "route-member-token",
 		},
 		"admin": {
-			userID:    admin.ID,
-			rawToken:  "route-admin-token",
-			expiresAt: time.Now().Add(time.Hour),
+			rawToken: "route-admin-token",
 		},
 		"disabled": {
-			userID:    disabled.ID,
-			rawToken:  "route-disabled-token",
-			expiresAt: time.Now().Add(time.Hour),
+			rawToken: "route-disabled-token",
 		},
 		"expired": {
-			userID:    expired.ID,
-			rawToken:  "route-expired-token",
-			expiresAt: time.Now().Add(-time.Hour),
+			rawToken: "route-expired-token",
 		},
-	}
-	for name, session := range sessions {
-		if err := repo.CreateSession(ctx, "route-"+name+"-session", authapp.HashToken(session.rawToken), session.userID, session.expiresAt); err != nil {
-			t.Fatalf("failed to create %s session: %v", name, err)
-		}
 	}
 
 	tests := []struct {
@@ -297,6 +292,7 @@ func TestNewRouter_RouteAuthorization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Act
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			if tt.sessionToken != "" {
 				req.AddCookie(&http.Cookie{Name: "session_id", Value: tt.sessionToken})
@@ -305,6 +301,7 @@ func TestNewRouter_RouteAuthorization(t *testing.T) {
 
 			r.ServeHTTP(rr, req)
 
+			// Assert
 			if rr.Code != tt.wantStatus {
 				t.Fatalf("expected status %d, got %d", tt.wantStatus, rr.Code)
 			}
@@ -319,24 +316,12 @@ func TestNewRouter_RouteAuthorization(t *testing.T) {
 }
 
 func TestNewRouter_RejectsCrossSiteMutations(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
-	if err != nil {
-		t.Fatalf("failed to init db: %v", err)
-	}
-	defer dbConn.Close()
-
-	repo := sqlite.NewRepository(dbConn)
-	auth := NewAuthHandler(authapp.NewService(repo, nil))
-	server := newRouterTestServer(repo, auth, nil)
+	// Arrange
+	auth := NewAuthHandler(routerAuthService{users: map[string]routerAuthResult{
+		"csrf_token_admin": {user: domain.CurrentUser{ID: 1, Email: "csrf_admin@example.com", Role: domain.RoleAdmin}},
+	}})
+	server := NewServer(auth, routerSubRequestService{}, routerAdminService{})
 	r := NewRouter(server, auth, nil)
-
-	admin, err := repo.CreateUser(context.Background(), "csrf_admin@example.com", "admin")
-	if err != nil {
-		t.Fatalf("failed to create admin user: %v", err)
-	}
-	if err := repo.CreateSession(context.Background(), "csrf_sid_admin", authapp.HashToken("csrf_token_admin"), admin.ID, time.Now().Add(time.Hour)); err != nil {
-		t.Fatalf("failed to create admin session: %v", err)
-	}
 
 	tests := []struct {
 		name        string
@@ -392,6 +377,7 @@ func TestNewRouter_RejectsCrossSiteMutations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Act
 			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
 			req.Header.Set("Sec-Fetch-Site", "cross-site")
 			if tt.contentType != "" {
@@ -402,6 +388,7 @@ func TestNewRouter_RejectsCrossSiteMutations(t *testing.T) {
 			rr := httptest.NewRecorder()
 			r.ServeHTTP(rr, req)
 
+			// Assert
 			if rr.Code != http.StatusForbidden {
 				t.Fatalf("expected status %d, got %d", http.StatusForbidden, rr.Code)
 			}
@@ -570,7 +557,7 @@ func TestAuthRateLimiting(t *testing.T) {
 	repo := sqlite.NewRepository(dbConn)
 	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
 	auth := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
-	server := newRouterTestServer(repo, auth, nil)
+	server := newTestServer(repo, auth, nil)
 
 	r := NewRouter(server, auth, nil)
 

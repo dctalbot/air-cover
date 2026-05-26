@@ -66,329 +66,94 @@ func assertIndexesExist(t *testing.T, db *sql.DB, table string, expectedNames ..
 	}
 }
 
-func TestRepository(t *testing.T) {
+type repositoryTestContext struct {
+	ctx  context.Context
+	repo *Repository
+	user *domain.User
+}
+
+func newRepositoryTestContext(t *testing.T) repositoryTestContext {
+	t.Helper()
+
 	dbConn, err := InitDB("file::memory:?cache=shared")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer dbConn.Close()
+	t.Cleanup(func() {
+		_ = dbConn.Close()
+	})
 
 	repo := NewRepository(dbConn)
 	ctx := context.Background()
 
-	if repo.DB() != dbConn {
-		t.Error("expected repo.DB() to return the db connection")
-	}
-
-	// CreateUser
 	u, err := repo.CreateUser(ctx, "test@example.com", "member")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if u.Email != "test@example.com" {
-		t.Fatalf("expected test@example.com, got %v", u.Email)
+
+	return repositoryTestContext{ctx: ctx, repo: repo, user: u}
+}
+
+func TestRepositoryReturnsDBConnection(t *testing.T) {
+	// Arrange
+	dbConn, err := InitDB("file::memory:?cache=shared")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !u.IsEnabled {
+	t.Cleanup(func() {
+		_ = dbConn.Close()
+	})
+	repo := NewRepository(dbConn)
+
+	// Act
+	got := repo.DB()
+
+	// Assert
+	if got != dbConn {
+		t.Error("expected repo.DB() to return the db connection")
+	}
+}
+
+func TestRepositoryUsers(t *testing.T) {
+	// Arrange
+	tc := newRepositoryTestContext(t)
+
+	// Act
+	byEmail, err := tc.repo.GetUserByEmail(tc.ctx, tc.user.Email)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID, err := tc.repo.GetUserByID(tc.ctx, tc.user.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	users, err := tc.repo.ListUsers(tc.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activeUsers, err := tc.repo.ListActiveUsers(tc.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Assert
+	if tc.user.Email != "test@example.com" {
+		t.Fatalf("expected test@example.com, got %v", tc.user.Email)
+	}
+	if !tc.user.IsEnabled {
 		t.Error("expected IsEnabled to be true by default")
 	}
-
-	// GetUserByEmail
-	u2, err := repo.GetUserByEmail(ctx, "test@example.com")
-	if err != nil {
-		t.Fatal(err)
+	if byEmail.ID != tc.user.ID {
+		t.Fatalf("expected id %v, got %v", tc.user.ID, byEmail.ID)
 	}
-	if u.ID != u2.ID {
-		t.Fatalf("expected id %v, got %v", u.ID, u2.ID)
-	}
-
-	_, err = repo.GetUserByEmail(ctx, "notfound@example.com")
-	if err != ErrNotFound {
-		t.Fatalf("expected ErrNotFound, got %v", err)
-	}
-
-	// GetUserByID
-	u3, err := repo.GetUserByID(ctx, u.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if u3.ID != u.ID {
-		t.Fatalf("expected id %v, got %v", u.ID, u3.ID)
-	}
-
-	_, err = repo.GetUserByID(ctx, 99999)
-	if err != ErrNotFound {
-		t.Fatalf("expected ErrNotFound for missing ID, got %v", err)
-	}
-
-	// MagicLink
-	err = repo.CreateMagicLink(ctx, u.ID, "hash123", time.Now().Add(1*time.Hour))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ml, err := repo.UseMagicLink(ctx, "hash123", time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ml.UserID != u.ID {
-		t.Fatalf("expected userid %v, got %v", u.ID, ml.UserID)
-	}
-
-	// Verify it's actually deleted from the DB
-	var count int
-	err = repo.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM magic_links WHERE token_hash = ?", "hash123").Scan(&count)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 0 {
-		t.Errorf("expected magic link to be deleted, but found %d records", count)
-	}
-
-	// Using it again should fail with ErrNotFound
-	_, err = repo.UseMagicLink(ctx, "hash123", time.Now())
-	if err != ErrNotFound {
-		t.Fatalf("expected ErrNotFound using link twice, got %v", err)
-	}
-
-	_, err = repo.UseMagicLink(ctx, "notfound", time.Now())
-	if err != ErrNotFound {
-		t.Fatalf("expected ErrNotFound, got %v", err)
-	}
-
-	// Expired magic link
-	err = repo.CreateMagicLink(ctx, u.ID, "expired-hash", time.Now().Add(-1*time.Hour))
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = repo.UseMagicLink(ctx, "expired-hash", time.Now())
-	if err == nil {
-		t.Fatal("expected error for expired magic link")
-	}
-
-	// Session
-	sessionTokenHash := authapp.HashToken("stoken")
-	err = repo.CreateSession(ctx, "sid", sessionTokenHash, u.ID, time.Now().Add(1*time.Hour))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var rawTokenCount int
-	err = repo.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions WHERE token_hash = ?", "stoken").Scan(&rawTokenCount)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if rawTokenCount != 0 {
-		t.Fatal("raw session token was stored in sessions")
-	}
-
-	s, err := repo.GetSessionByToken(ctx, sessionTokenHash, time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if s.UserID != u.ID {
-		t.Fatalf("expected userid %v, got %v", u.ID, s.UserID)
-	}
-
-	_, err = repo.GetSessionByToken(ctx, authapp.HashToken("notfound"), time.Now())
-	if err != ErrNotFound {
-		t.Fatalf("expected ErrNotFound, got %v", err)
-	}
-
-	// Expired session
-	expiredSessionTokenHash := authapp.HashToken("stoken2")
-	err = repo.CreateSession(ctx, "sid2", expiredSessionTokenHash, u.ID, time.Now().Add(-1*time.Hour))
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = repo.GetSessionByToken(ctx, expiredSessionTokenHash, time.Now())
-	if err == nil {
-		t.Fatal("expected error for expired session")
-	}
-
-	// DeleteSessionsByUserID
-	err = repo.DeleteSessionsByUserID(ctx, u.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = repo.GetSessionByToken(ctx, sessionTokenHash, time.Now())
-	if err != ErrNotFound {
-		t.Fatalf("expected ErrNotFound, got %v", err)
-	}
-
-	// CreateSubRequest
-	sr := &domain.SubRequest{
-		ShowID:         123,
-		PostedByUserID: u.ID,
-		StartTime:      time.Now(),
-		EndTime:        time.Now().Add(1 * time.Hour),
-		Notes:          "test notes",
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
-	}
-	err = repo.CreateSubRequest(ctx, sr)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// ListDashboardSubRequests
-	list, err := repo.ListDashboardSubRequests(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(list) == 0 {
-		t.Fatal("expected at least one sub request")
-	}
-	if list[0].Request.ID == 0 {
-		t.Fatal("expected non-zero id for created sub request")
-	}
-	sr.ID = list[0].Request.ID
-	if list[0].Request.ID != sr.ID {
-		t.Fatalf("expected id %v, got %v", sr.ID, list[0].Request.ID)
-	}
-	if list[0].RequesterEmail != u.Email {
-		t.Fatalf("expected email %v, got %v", u.Email, list[0].RequesterEmail)
-	}
-
-	detail, err := repo.GetSubRequestDetailByID(ctx, sr.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if detail.Request.ID != sr.ID {
-		t.Fatalf("expected detail id %v, got %v", sr.ID, detail.Request.ID)
-	}
-	if detail.RequesterEmail != u.Email {
-		t.Fatalf("expected detail requester email %v, got %v", u.Email, detail.RequesterEmail)
-	}
-
-	// GetSubRequestByID
-	sr2, err := repo.GetSubRequestByID(ctx, sr.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if sr2.ID != sr.ID {
-		t.Fatalf("expected id %v, got %v", sr.ID, sr2.ID)
-	}
-
-	_, err = repo.GetSubRequestByID(ctx, 999)
-	if err != ErrNotFound {
-		t.Fatalf("expected ErrNotFound, got %v", err)
-	}
-	_, err = repo.GetSubRequestDetailByID(ctx, 999)
-	if err != ErrNotFound {
-		t.Fatalf("expected detail ErrNotFound, got %v", err)
-	}
-
-	// DeleteSubRequest
-	err = repo.DeleteSubRequest(ctx, sr.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = repo.GetSubRequestByID(ctx, sr.ID)
-	if err != ErrNotFound {
-		t.Fatalf("expected ErrNotFound after deletion, got %v", err)
-	}
-
-	err = repo.DeleteSubRequest(ctx, 999)
-	if err != ErrNotFound {
-		t.Fatalf("expected ErrNotFound, got %v", err)
-	}
-
-	// TakeSubRequest
-	sr3 := &domain.SubRequest{
-		ShowID:         456,
-		PostedByUserID: u.ID,
-		StartTime:      time.Now(),
-		EndTime:        time.Now().Add(1 * time.Hour),
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
-	}
-	err = repo.CreateSubRequest(ctx, sr3)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	u4, _ := repo.CreateUser(ctx, "taker@example.com", "member")
-	err = repo.TakeSubRequest(ctx, sr3.ID, u4.ID, time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Verify TakerEmail in ListDashboardSubRequests
-	list2, err := repo.ListDashboardSubRequests(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	found := false
-	for _, item := range list2 {
-		if item.Request.ID == sr3.ID {
-			found = true
-			if item.TakerEmail != u4.Email {
-				t.Fatalf("expected taker email %v, got %v", u4.Email, item.TakerEmail)
-			}
-			if item.Request.TakenByUserID == nil || *item.Request.TakenByUserID != u4.ID {
-				t.Fatalf("expected taken_by_user_id %v", u4.ID)
-			}
-		}
-	}
-	if !found {
-		t.Fatal("expected to find the taken sub request")
-	}
-	detailTaken, err := repo.GetSubRequestDetailByID(ctx, sr3.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if detailTaken.TakerEmail != u4.Email {
-		t.Fatalf("expected detail taker email %v, got %v", u4.Email, detailTaken.TakerEmail)
-	}
-
-	err = repo.TakeSubRequest(ctx, 99999, u4.ID, time.Now())
-	if err != ErrNotFound {
-		t.Fatalf("expected ErrNotFound for TakeSubRequest, got %v", err)
-	}
-
-	err = repo.TakeSubRequest(ctx, sr3.ID, u4.ID, time.Now())
-	if err != ErrConflict {
-		t.Fatalf("expected ErrConflict for already taken TakeSubRequest, got %v", err)
-	}
-
-	// UntakeSubRequest
-	err = repo.UntakeSubRequest(ctx, sr3.ID, u3.ID, time.Now())
-	if err != ErrConflict {
-		t.Fatalf("expected ErrConflict for wrong user UntakeSubRequest, got %v", err)
-	}
-
-	err = repo.UntakeSubRequest(ctx, sr3.ID, u4.ID, time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	sr3After, err := repo.GetSubRequestByID(ctx, sr3.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if sr3After.TakenByUserID != nil {
-		t.Fatal("expected TakenByUserID to be nil after untake")
-	}
-
-	err = repo.UntakeSubRequest(ctx, 99999, u4.ID, time.Now())
-	if err != ErrNotFound {
-		t.Fatalf("expected ErrNotFound for UntakeSubRequest, got %v", err)
-	}
-
-	// ListUsers
-	users, err := repo.ListUsers(ctx)
-	if err != nil {
-		t.Fatal(err)
+	if byID.ID != tc.user.ID {
+		t.Fatalf("expected id %v, got %v", tc.user.ID, byID.ID)
 	}
 	if len(users) == 0 {
 		t.Fatal("expected at least one user")
 	}
 	if !users[0].IsEnabled {
 		t.Error("expected users[0].IsEnabled to be true")
-	}
-	activeUsers, err := repo.ListActiveUsers(ctx)
-	if err != nil {
-		t.Fatal(err)
 	}
 	if len(activeUsers) == 0 {
 		t.Fatal("expected active users")
@@ -399,45 +164,341 @@ func TestRepository(t *testing.T) {
 		}
 	}
 
-	// UpdateUser
+	_, err = tc.repo.GetUserByEmail(tc.ctx, "notfound@example.com")
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+	_, err = tc.repo.GetUserByID(tc.ctx, 99999)
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound for missing ID, got %v", err)
+	}
+}
+
+func TestRepositoryUpdatesUsers(t *testing.T) {
+	// Arrange
+	tc := newRepositoryTestContext(t)
 	newRole := "admin"
 	newIsEnabled := false
-	err = repo.UpdateUser(ctx, u.ID, &newRole, &newIsEnabled)
+
+	// Act
+	err := tc.repo.UpdateUser(tc.ctx, tc.user.ID, &newRole, &newIsEnabled)
 	if err != nil {
 		t.Fatal(err)
 	}
-	uUpdated, err := repo.GetUserByID(ctx, u.ID)
+	uUpdated, err := tc.repo.GetUserByID(tc.ctx, tc.user.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
+	activeUsers, err := tc.repo.ListActiveUsers(tc.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Assert
 	if uUpdated.Role != domain.RoleAdmin {
 		t.Fatalf("expected role admin, got %s", uUpdated.Role)
 	}
 	if uUpdated.IsEnabled {
 		t.Error("expected IsEnabled to be false")
 	}
-	activeUsers, err = repo.ListActiveUsers(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
 	for _, activeUser := range activeUsers {
-		if activeUser.ID == u.ID {
+		if activeUser.ID == tc.user.ID {
 			t.Fatal("disabled user should not be returned by ListActiveUsers")
 		}
 	}
 
-	// UpdateUser with nil args
-	err = repo.UpdateUser(ctx, u.ID, nil, nil)
+	err = tc.repo.UpdateUser(tc.ctx, tc.user.ID, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// UpdateUser err not found
-	err = repo.UpdateUser(ctx, 99999, &newRole, nil)
+	err = tc.repo.UpdateUser(tc.ctx, 99999, &newRole, nil)
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestRepositoryMagicLinks(t *testing.T) {
+	// Arrange
+	tc := newRepositoryTestContext(t)
+
+	err := tc.repo.CreateMagicLink(tc.ctx, tc.user.ID, "hash123", time.Now().Add(1*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Act
+	ml, err := tc.repo.UseMagicLink(tc.ctx, "hash123", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Assert
+	if ml.UserID != tc.user.ID {
+		t.Fatalf("expected userid %v, got %v", tc.user.ID, ml.UserID)
+	}
+
+	var count int
+	err = tc.repo.DB().QueryRowContext(tc.ctx, "SELECT COUNT(*) FROM magic_links WHERE token_hash = ?", "hash123").Scan(&count)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("expected magic link to be deleted, but found %d records", count)
+	}
+
+	_, err = tc.repo.UseMagicLink(tc.ctx, "hash123", time.Now())
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound using link twice, got %v", err)
+	}
+
+	_, err = tc.repo.UseMagicLink(tc.ctx, "notfound", time.Now())
 	if err != ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 
+	err = tc.repo.CreateMagicLink(tc.ctx, tc.user.ID, "expired-hash", time.Now().Add(-1*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tc.repo.UseMagicLink(tc.ctx, "expired-hash", time.Now())
+	if err == nil {
+		t.Fatal("expected error for expired magic link")
+	}
+}
+
+func TestRepositorySessions(t *testing.T) {
+	// Arrange
+	tc := newRepositoryTestContext(t)
+	sessionTokenHash := authapp.HashToken("stoken")
+
+	err := tc.repo.CreateSession(tc.ctx, "sid", sessionTokenHash, tc.user.ID, time.Now().Add(1*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Act
+	s, err := tc.repo.GetSessionByToken(tc.ctx, sessionTokenHash, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Assert
+	var rawTokenCount int
+	err = tc.repo.DB().QueryRowContext(tc.ctx, "SELECT COUNT(*) FROM sessions WHERE token_hash = ?", "stoken").Scan(&rawTokenCount)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rawTokenCount != 0 {
+		t.Fatal("raw session token was stored in sessions")
+	}
+	if s.UserID != tc.user.ID {
+		t.Fatalf("expected userid %v, got %v", tc.user.ID, s.UserID)
+	}
+
+	_, err = tc.repo.GetSessionByToken(tc.ctx, authapp.HashToken("notfound"), time.Now())
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+
+	expiredSessionTokenHash := authapp.HashToken("stoken2")
+	err = tc.repo.CreateSession(tc.ctx, "sid2", expiredSessionTokenHash, tc.user.ID, time.Now().Add(-1*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tc.repo.GetSessionByToken(tc.ctx, expiredSessionTokenHash, time.Now())
+	if err == nil {
+		t.Fatal("expected error for expired session")
+	}
+
+	err = tc.repo.DeleteSessionsByUserID(tc.ctx, tc.user.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tc.repo.GetSessionByToken(tc.ctx, sessionTokenHash, time.Now())
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestRepositorySubRequests(t *testing.T) {
+	// Arrange
+	tc := newRepositoryTestContext(t)
+	sr := &domain.SubRequest{
+		ShowID:         123,
+		PostedByUserID: tc.user.ID,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(1 * time.Hour),
+		Notes:          "test notes",
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}
+
+	// Act
+	err := tc.repo.CreateSubRequest(tc.ctx, sr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := tc.repo.ListDashboardSubRequests(tc.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Assert
+	if len(list) == 0 {
+		t.Fatal("expected at least one sub request")
+	}
+	if list[0].Request.ID == 0 {
+		t.Fatal("expected non-zero id for created sub request")
+	}
+	sr.ID = list[0].Request.ID
+	if list[0].Request.ID != sr.ID {
+		t.Fatalf("expected id %v, got %v", sr.ID, list[0].Request.ID)
+	}
+	if list[0].RequesterEmail != tc.user.Email {
+		t.Fatalf("expected email %v, got %v", tc.user.Email, list[0].RequesterEmail)
+	}
+
+	detail, err := tc.repo.GetSubRequestDetailByID(tc.ctx, sr.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail.Request.ID != sr.ID {
+		t.Fatalf("expected detail id %v, got %v", sr.ID, detail.Request.ID)
+	}
+	if detail.RequesterEmail != tc.user.Email {
+		t.Fatalf("expected detail requester email %v, got %v", tc.user.Email, detail.RequesterEmail)
+	}
+
+	sr2, err := tc.repo.GetSubRequestByID(tc.ctx, sr.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sr2.ID != sr.ID {
+		t.Fatalf("expected id %v, got %v", sr.ID, sr2.ID)
+	}
+
+	_, err = tc.repo.GetSubRequestByID(tc.ctx, 999)
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+	_, err = tc.repo.GetSubRequestDetailByID(tc.ctx, 999)
+	if err != ErrNotFound {
+		t.Fatalf("expected detail ErrNotFound, got %v", err)
+	}
+
+	err = tc.repo.DeleteSubRequest(tc.ctx, sr.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = tc.repo.GetSubRequestByID(tc.ctx, sr.ID)
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound after deletion, got %v", err)
+	}
+
+	err = tc.repo.DeleteSubRequest(tc.ctx, 999)
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestRepositorySubRequestTaking(t *testing.T) {
+	// Arrange
+	tc := newRepositoryTestContext(t)
+	sr := &domain.SubRequest{
+		ShowID:         456,
+		PostedByUserID: tc.user.ID,
+		StartTime:      time.Now(),
+		EndTime:        time.Now().Add(1 * time.Hour),
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}
+	err := tc.repo.CreateSubRequest(tc.ctx, sr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	taker, err := tc.repo.CreateUser(tc.ctx, "taker@example.com", "member")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Act
+	err = tc.repo.TakeSubRequest(tc.ctx, sr.ID, taker.ID, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Assert
+	list, err := tc.repo.ListDashboardSubRequests(tc.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, item := range list {
+		if item.Request.ID == sr.ID {
+			found = true
+			if item.TakerEmail != taker.Email {
+				t.Fatalf("expected taker email %v, got %v", taker.Email, item.TakerEmail)
+			}
+			if item.Request.TakenByUserID == nil || *item.Request.TakenByUserID != taker.ID {
+				t.Fatalf("expected taken_by_user_id %v", taker.ID)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("expected to find the taken sub request")
+	}
+
+	detailTaken, err := tc.repo.GetSubRequestDetailByID(tc.ctx, sr.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detailTaken.TakerEmail != taker.Email {
+		t.Fatalf("expected detail taker email %v, got %v", taker.Email, detailTaken.TakerEmail)
+	}
+
+	err = tc.repo.TakeSubRequest(tc.ctx, 99999, taker.ID, time.Now())
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound for TakeSubRequest, got %v", err)
+	}
+
+	err = tc.repo.TakeSubRequest(tc.ctx, sr.ID, taker.ID, time.Now())
+	if err != ErrConflict {
+		t.Fatalf("expected ErrConflict for already taken TakeSubRequest, got %v", err)
+	}
+
+	err = tc.repo.UntakeSubRequest(tc.ctx, sr.ID, tc.user.ID, time.Now())
+	if err != ErrConflict {
+		t.Fatalf("expected ErrConflict for wrong user UntakeSubRequest, got %v", err)
+	}
+
+	err = tc.repo.UntakeSubRequest(tc.ctx, sr.ID, taker.ID, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srAfter, err := tc.repo.GetSubRequestByID(tc.ctx, sr.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if srAfter.TakenByUserID != nil {
+		t.Fatal("expected TakenByUserID to be nil after untake")
+	}
+
+	err = tc.repo.UntakeSubRequest(tc.ctx, 99999, taker.ID, time.Now())
+	if err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound for UntakeSubRequest, got %v", err)
+	}
+}
+
+func TestRepository(t *testing.T) {
+	t.Run("db connection", TestRepositoryReturnsDBConnection)
+	t.Run("users", TestRepositoryUsers)
+	t.Run("user updates", TestRepositoryUpdatesUsers)
+	t.Run("magic links", TestRepositoryMagicLinks)
+	t.Run("sessions", TestRepositorySessions)
+	t.Run("sub requests", TestRepositorySubRequests)
+	t.Run("sub request taking", TestRepositorySubRequestTaking)
 }
 
 func TestRepositoryErrors(t *testing.T) {

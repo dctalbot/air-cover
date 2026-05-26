@@ -169,6 +169,28 @@ func (r *memoryRepository) GetSubRequestByID(ctx context.Context, id int) (*doma
 	return nil, apperrors.ErrNotFound
 }
 
+func (r *memoryRepository) GetSubRequestDetailByID(ctx context.Context, id int) (subrequestsapp.DetailReadModel, error) {
+	request, err := r.GetSubRequestByID(ctx, id)
+	if err != nil {
+		return subrequestsapp.DetailReadModel{}, err
+	}
+	requesterEmail := ""
+	if requester, err := r.GetUserByID(ctx, request.PostedByUserID); err == nil {
+		requesterEmail = requester.Email
+	}
+	takerEmail := ""
+	if request.TakenByUserID != nil {
+		if taker, err := r.GetUserByID(ctx, *request.TakenByUserID); err == nil {
+			takerEmail = taker.Email
+		}
+	}
+	return subrequestsapp.DetailReadModel{
+		Request:        request,
+		RequesterEmail: requesterEmail,
+		TakerEmail:     takerEmail,
+	}, nil
+}
+
 func (r *memoryRepository) DeleteSubRequest(ctx context.Context, id int) error {
 	for i, request := range r.subRequests {
 		if request.ID == id {
@@ -239,6 +261,9 @@ func TestSplitRepositoryContracts(t *testing.T) {
 		}},
 		{name: "subrequest dashboard query", run: func(ctx context.Context, repo Repository) error {
 			return CheckSubRequestDashboardQuery(ctx, repo)
+		}},
+		{name: "subrequest detail query", run: func(ctx context.Context, repo Repository) error {
+			return CheckSubRequestDetailQuery(ctx, repo)
 		}},
 	}
 

@@ -25,6 +25,12 @@ func TestRepositoryContracts(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	t.Run("subrequest detail query", func(t *testing.T) {
+		repo := newContractRepository(t)
+		if err := contracttest.CheckSubRequestDetailQuery(t.Context(), repo); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 func newContractRepository(t *testing.T) *Repository {
