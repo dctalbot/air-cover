@@ -94,9 +94,11 @@ func (m *mockSender) SendSubRequestUntaken(toEmail string, ccEmails []string, me
 }
 
 type fakeAsyncNotifier struct {
-	started bool
-	stopped bool
-	next    subrequestsapp.Notifier
+	started     bool
+	stopped     bool
+	next        subrequestsapp.Notifier
+	stopStarted chan struct{}
+	stopRelease chan struct{}
 }
 
 func (f *fakeAsyncNotifier) SubRequestCreated(ctx context.Context, event subrequestsapp.SubRequestCreatedEvent) error {
@@ -117,6 +119,12 @@ func (f *fakeAsyncNotifier) Start() {
 
 func (f *fakeAsyncNotifier) Stop() {
 	f.stopped = true
+	if f.stopStarted != nil {
+		close(f.stopStarted)
+	}
+	if f.stopRelease != nil {
+		<-f.stopRelease
+	}
 }
 
 type fakeStartupRepo struct {
@@ -739,6 +747,72 @@ func TestRunServer_DependencyFailures(t *testing.T) {
 		}
 		if !service.prefetch {
 			t.Fatal("expected prefetch to run")
+		}
+	})
+
+	t.Run("notifier stop timeout does not block shutdown", func(t *testing.T) {
+		deps := testServerDeps(cfg, &fakeStartupRepo{})
+		deps.shutdownTimeout = time.Nanosecond
+		stopStarted := make(chan struct{})
+		stopRelease := make(chan struct{})
+		deps.newAsyncNotifier = func(notifier subrequestsapp.Notifier) asyncNotifier {
+			return &fakeAsyncNotifier{
+				next:        notifier,
+				stopStarted: stopStarted,
+				stopRelease: stopRelease,
+			}
+		}
+		defer close(stopRelease)
+
+		done := make(chan error, 1)
+		go func() {
+			done <- runServer(&cobra.Command{}, deps)
+		}()
+
+		select {
+		case <-stopStarted:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for notifier stop")
+		}
+
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("runServer blocked on notifier stop")
+		}
+	})
+}
+
+func TestStopNotifierWithTimeout(t *testing.T) {
+	t.Run("nil notifier", func(t *testing.T) {
+		if err := stopNotifierWithTimeout(nil, time.Nanosecond); err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+	})
+
+	t.Run("waits without timeout", func(t *testing.T) {
+		notifier := &fakeAsyncNotifier{stopRelease: make(chan struct{})}
+		close(notifier.stopRelease)
+
+		if err := stopNotifierWithTimeout(notifier, 0); err != nil {
+			t.Fatalf("expected nil error, got %v", err)
+		}
+		if !notifier.stopped {
+			t.Fatal("expected notifier to stop")
+		}
+	})
+
+	t.Run("returns timeout", func(t *testing.T) {
+		stopRelease := make(chan struct{})
+		defer close(stopRelease)
+		notifier := &fakeAsyncNotifier{stopRelease: stopRelease}
+
+		err := stopNotifierWithTimeout(notifier, time.Nanosecond)
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("expected deadline exceeded, got %v", err)
 		}
 	})
 }

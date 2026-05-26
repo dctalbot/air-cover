@@ -180,7 +180,11 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 	}
 	if infra.notifier != nil {
 		infra.notifier.Start()
-		defer infra.notifier.Stop()
+		defer func() {
+			if err := stopNotifierWithTimeout(infra.notifier, deps.shutdownTimeout); err != nil {
+				slog.Warn("Timed out stopping async notifier", "error", err)
+			}
+		}()
 	}
 
 	if err := bootstrapapp.NewService(infra.repositories.startup).EnsureMasterUser(deps.backgroundCtx(), cfg.MasterEmail); err != nil {
@@ -195,6 +199,33 @@ func runServer(cmd *cobra.Command, deps serverDeps) error {
 		return fmt.Errorf("server failed to start: %w", err)
 	}
 	return nil
+}
+
+func stopNotifierWithTimeout(notifier asyncNotifier, timeout time.Duration) error {
+	if notifier == nil {
+		return nil
+	}
+
+	stopped := make(chan struct{})
+	go func() {
+		notifier.Stop()
+		close(stopped)
+	}()
+
+	if timeout <= 0 {
+		<-stopped
+		return nil
+	}
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case <-stopped:
+		return nil
+	case <-timer.C:
+		return context.DeadlineExceeded
+	}
 }
 
 func buildInfrastructure(cfg *config.Config, deps serverDeps) (infrastructure, error) {
