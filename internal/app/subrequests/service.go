@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"air-cover/internal/app/authorization"
 	appcatalog "air-cover/internal/app/catalog"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
@@ -20,22 +21,30 @@ var ErrCatalog = errors.New("show catalog error")
 const maxCreateNotesLength = 1000
 
 type Service struct {
-	repo     Repository
-	catalog  Catalog
-	notifier Notifier
-	nowFunc  func() time.Time
+	repo       Repository
+	catalog    Catalog
+	notifier   Notifier
+	authorizer authorization.Authorizer
+	nowFunc    func() time.Time
 }
 
 func NewService(repo Repository, catalog Catalog) *Service {
 	return &Service{
-		repo:    repo,
-		catalog: catalog,
-		nowFunc: time.Now,
+		repo:       repo,
+		catalog:    catalog,
+		authorizer: authorization.NewParityAuthorizer(),
+		nowFunc:    time.Now,
 	}
 }
 
 func (s *Service) SetNotifier(notifier Notifier) {
 	s.notifier = notifier
+}
+
+func (s *Service) SetAuthorizer(authorizer authorization.Authorizer) {
+	if authorizer != nil {
+		s.authorizer = authorizer
+	}
 }
 
 type Dashboard struct {
@@ -268,8 +277,8 @@ func (s *Service) Delete(ctx context.Context, viewer domain.CurrentUser, id int)
 	if err != nil {
 		return mapRepositoryError(err)
 	}
-	if !sr.CanBeDeletedBy(viewer) {
-		return apperrors.ErrForbidden
+	if err := s.authorize(ctx, viewer, authorization.ActionSubRequestDelete, authorization.SubRequestResource(sr)); err != nil {
+		return err
 	}
 	if err := s.repo.DeleteSubRequest(ctx, id); err != nil {
 		return mapRepositoryError(err)
@@ -289,13 +298,16 @@ func (s *Service) ApplyAction(ctx context.Context, viewer domain.CurrentUser, id
 
 	switch action {
 	case ActionTake:
+		if err := s.authorize(ctx, viewer, authorization.ActionSubRequestTake, authorization.SubRequestResource(sr)); err != nil {
+			return err
+		}
 		if err := s.repo.TakeSubRequest(ctx, id, viewer.ID, s.now()); err != nil {
 			return mapRepositoryError(err)
 		}
 		s.notifySubRequestTaken(ctx, id)
 	case ActionUntake:
-		if !sr.CanBeUntakenBy(viewer) {
-			return apperrors.ErrForbidden
+		if err := s.authorize(ctx, viewer, authorization.ActionSubRequestUntake, authorization.SubRequestResource(sr)); err != nil {
+			return err
 		}
 		var event SubRequestUntakenEvent
 		if s.notifier != nil {
@@ -307,6 +319,10 @@ func (s *Service) ApplyAction(ctx context.Context, viewer domain.CurrentUser, id
 		s.notifySubRequestUntaken(ctx, event)
 	}
 	return nil
+}
+
+func (s *Service) authorize(ctx context.Context, viewer domain.CurrentUser, action authorization.Action, resource authorization.Resource) error {
+	return s.authorizer.Authorize(ctx, authorization.SubjectFromCurrentUser(viewer), action, resource)
 }
 
 func (s *Service) notifySubRequestTaken(ctx context.Context, id int) {

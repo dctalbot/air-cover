@@ -17,14 +17,17 @@ import (
 // Admin dashboard
 // (GET /admin)
 func (s *Server) GetAdmin(w http.ResponseWriter, r *http.Request) {
-	users, err := s.admin.ListUsers(r.Context())
+	viewer := currentUser(r)
+	users, err := s.admin.ListUsers(r.Context(), viewer)
 	if err != nil {
+		if writeAppError(w, r, err) {
+			return
+		}
 		slog.Error("Failed to load users", "error", err)
 		http.Error(w, "Unable to load users", http.StatusInternalServerError)
 		return
 	}
 
-	viewer := currentUser(r)
 	views := presenter.AdminUsers(users, viewer.ID)
 
 	if err := ui.Admin(views, viewer.Email).Render(r.Context(), w); err != nil {
@@ -47,13 +50,17 @@ func (s *Server) PostUsers(w http.ResponseWriter, r *http.Request) {
 		Email: r.FormValue("email"),
 		Role:  r.FormValue("role"),
 	}
-	if err := s.admin.CreateUser(r.Context(), input); err != nil {
+	viewer := currentUser(r)
+	if err := s.admin.CreateUser(r.Context(), viewer, input); err != nil {
 		if errors.Is(err, adminapp.ErrUserAlreadyExists) {
 			http.Redirect(w, r, "/admin", http.StatusSeeOther)
 			return
 		}
 		if errors.Is(err, apperrors.ErrInvalid) {
 			http.Error(w, "Invalid user", http.StatusBadRequest)
+			return
+		}
+		if writeAppError(w, r, err) {
 			return
 		}
 		slog.Error("Failed to create user", "email", strconv.Quote(input.Email), "role", strconv.Quote(input.Role), "error", err)
@@ -97,7 +104,11 @@ func (s *Server) PostUsersId(w http.ResponseWriter, r *http.Request, id int) {
 // Import users from Spinitron
 // (POST /users/import/spinitron)
 func (s *Server) PostUsersImportSpinitron(w http.ResponseWriter, r *http.Request) {
-	if err := s.admin.ImportCatalogUsers(r.Context()); err != nil {
+	viewer := currentUser(r)
+	if err := s.admin.ImportCatalogUsers(r.Context(), viewer); err != nil {
+		if writeAppError(w, r, err) {
+			return
+		}
 		slog.Error("Failed to import users from spinitron", "error", err)
 		http.Error(w, "Failed to import users", http.StatusInternalServerError)
 		return

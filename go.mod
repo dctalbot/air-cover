@@ -3,8 +3,10 @@ module air-cover
 go 1.26.3
 
 require (
+	github.com/Blank-Xu/sql-adapter v1.2.1
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/a-h/templ v0.3.1020
+	github.com/casbin/casbin/v3 v3.10.0
 	github.com/getkin/kin-openapi v0.136.0
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-chi/httprate v0.15.0
@@ -26,6 +28,8 @@ require (
 require (
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
+	github.com/bmatcuk/doublestar/v4 v4.9.1 // indirect
+	github.com/casbin/govaluate v1.10.0 // indirect
 	github.com/coder/websocket v1.8.14 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect

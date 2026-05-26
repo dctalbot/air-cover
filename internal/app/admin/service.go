@@ -7,19 +7,27 @@ import (
 	"sort"
 	"strings"
 
+	"air-cover/internal/app/authorization"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
 )
 
 type Service struct {
-	repo    Repository
-	catalog Catalog
+	repo       Repository
+	catalog    Catalog
+	authorizer authorization.Authorizer
 }
 
 var ErrUserAlreadyExists = errors.New("user already exists")
 
 func NewService(repo Repository, catalog Catalog) *Service {
-	return &Service{repo: repo, catalog: catalog}
+	return &Service{repo: repo, catalog: catalog, authorizer: authorization.NewParityAuthorizer()}
+}
+
+func (s *Service) SetAuthorizer(authorizer authorization.Authorizer) {
+	if authorizer != nil {
+		s.authorizer = authorizer
+	}
 }
 
 type CreateUserInput struct {
@@ -33,7 +41,10 @@ type UpdateUserInput struct {
 	IsEnabled *bool
 }
 
-func (s *Service) ListUsers(ctx context.Context) ([]*domain.User, error) {
+func (s *Service) ListUsers(ctx context.Context, viewer domain.CurrentUser) ([]*domain.User, error) {
+	if err := s.authorize(ctx, viewer, authorization.ActionUserList, authorization.AdminResource()); err != nil {
+		return nil, err
+	}
 	users, err := s.repo.ListUsers(ctx)
 	if err != nil {
 		return nil, err
@@ -42,7 +53,10 @@ func (s *Service) ListUsers(ctx context.Context) ([]*domain.User, error) {
 	return users, nil
 }
 
-func (s *Service) CreateUser(ctx context.Context, input CreateUserInput) error {
+func (s *Service) CreateUser(ctx context.Context, viewer domain.CurrentUser, input CreateUserInput) error {
+	if err := s.authorize(ctx, viewer, authorization.ActionUserCreate, authorization.AdminResource()); err != nil {
+		return err
+	}
 	role := input.Role
 	if role == "" {
 		role = "member"
@@ -64,8 +78,9 @@ func (s *Service) UpdateUser(ctx context.Context, viewer domain.CurrentUser, inp
 	if input.Role != nil && !domain.Role(*input.Role).Valid() {
 		return apperrors.ErrInvalid
 	}
-	if input.IsEnabled != nil && !*input.IsEnabled && !viewer.CanDeactivateUser(input.ID) {
-		return apperrors.ErrForbidden
+	disableTarget := input.IsEnabled != nil && !*input.IsEnabled
+	if err := s.authorize(ctx, viewer, authorization.ActionUserUpdate, authorization.UserResource(input.ID, disableTarget)); err != nil {
+		return err
 	}
 	if err := s.repo.UpdateUser(ctx, input.ID, input.Role, input.IsEnabled); err != nil {
 		if errors.Is(err, apperrors.ErrNotFound) {
@@ -76,7 +91,14 @@ func (s *Service) UpdateUser(ctx context.Context, viewer domain.CurrentUser, inp
 	return nil
 }
 
-func (s *Service) ImportCatalogUsers(ctx context.Context) error {
+func (s *Service) authorize(ctx context.Context, viewer domain.CurrentUser, action authorization.Action, resource authorization.Resource) error {
+	return s.authorizer.Authorize(ctx, authorization.SubjectFromCurrentUser(viewer), action, resource)
+}
+
+func (s *Service) ImportCatalogUsers(ctx context.Context, viewer domain.CurrentUser) error {
+	if err := s.authorize(ctx, viewer, authorization.ActionUserCreate, authorization.AdminResource()); err != nil {
+		return err
+	}
 	if s.catalog == nil {
 		return nil
 	}

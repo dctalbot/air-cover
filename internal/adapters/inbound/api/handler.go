@@ -31,10 +31,10 @@ type subRequestService interface {
 }
 
 type adminService interface {
-	ListUsers(context.Context) ([]*domain.User, error)
-	CreateUser(context.Context, adminapp.CreateUserInput) error
+	ListUsers(context.Context, domain.CurrentUser) ([]*domain.User, error)
+	CreateUser(context.Context, domain.CurrentUser, adminapp.CreateUserInput) error
 	UpdateUser(context.Context, domain.CurrentUser, adminapp.UpdateUserInput) error
-	ImportCatalogUsers(context.Context) error
+	ImportCatalogUsers(context.Context, domain.CurrentUser) error
 }
 
 func NewServer(auth *AuthHandler, subRequests subRequestService, admin adminService) *Server {

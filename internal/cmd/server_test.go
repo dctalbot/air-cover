@@ -15,6 +15,7 @@ import (
 	"air-cover/internal/adapters/outbound/sqlite"
 	adminapp "air-cover/internal/app/admin"
 	authapp "air-cover/internal/app/auth"
+	"air-cover/internal/app/authorization"
 	bootstrapapp "air-cover/internal/app/bootstrap"
 	appcatalog "air-cover/internal/app/catalog"
 	subrequestsapp "air-cover/internal/app/subrequests"
@@ -247,6 +248,9 @@ func testServerDeps(cfg *config.Config, repo bootstrapapp.Repository) serverDeps
 			return nil
 		},
 		backgroundCtx: context.Background,
+		newAuthorizer: func(ctx context.Context, database *sql.DB) (authorization.Authorizer, error) {
+			return authorization.NewParityAuthorizer(), nil
+		},
 		newAuthHandler: func(service *authapp.Service) *api.AuthHandler {
 			return api.NewAuthHandler(service)
 		},
@@ -539,6 +543,18 @@ func TestRunServer_DependencyFailures(t *testing.T) {
 		err := runServer(&cobra.Command{}, deps)
 		if err == nil || !strings.Contains(err.Error(), "failed to initialize database") {
 			t.Fatalf("expected db init error, got %v", err)
+		}
+	})
+
+	t.Run("authorization init error", func(t *testing.T) {
+		deps := testServerDeps(cfg, &fakeStartupRepo{})
+		deps.newAuthorizer = func(ctx context.Context, database *sql.DB) (authorization.Authorizer, error) {
+			return nil, errors.New("authz failed")
+		}
+
+		err := runServer(&cobra.Command{}, deps)
+		if err == nil || !strings.Contains(err.Error(), "failed to initialize authorization") {
+			t.Fatalf("expected authorization init error, got %v", err)
 		}
 	})
 

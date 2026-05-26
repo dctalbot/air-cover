@@ -78,6 +78,9 @@ func TestServer_GetAdmin(t *testing.T) {
 	h := Handler(s)
 
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	ctx := context.WithValue(req.Context(), UserIDKey, 1)
+	ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
+	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 
@@ -127,6 +130,7 @@ func TestServer_GetAdmin_DeactivatedUsersSortedByEmail(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 	ctx := context.WithValue(req.Context(), UserIDKey, 1)
 	ctx = context.WithValue(ctx, UserEmailKey, "admin@example.com")
+	ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -227,6 +231,9 @@ func TestServer_PostUsers(t *testing.T) {
 			form := fmt.Sprintf("email=%s&role=%s", tt.email, tt.role)
 			req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewBufferString(form))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			ctx := context.WithValue(req.Context(), UserIDKey, 1)
+			ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
+			req = req.WithContext(ctx)
 
 			rr := httptest.NewRecorder()
 			h.ServeHTTP(rr, req)
@@ -265,6 +272,9 @@ func TestServer_PostUsers(t *testing.T) {
 		form := "email=error@example.com&role=member"
 		req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewBufferString(form))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		ctx := context.WithValue(req.Context(), UserIDKey, 1)
+		ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
+		req = req.WithContext(ctx)
 
 		rr := httptest.NewRecorder()
 		s.PostUsers(rr, req)
@@ -277,6 +287,9 @@ func TestServer_PostUsers(t *testing.T) {
 	t.Run("form parse error", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewBufferString("invalid%2"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		ctx := context.WithValue(req.Context(), UserIDKey, 1)
+		ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
+		req = req.WithContext(ctx)
 
 		rr := httptest.NewRecorder()
 		s.PostUsers(rr, req)
@@ -392,6 +405,7 @@ func TestServer_PostUsersId(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/users/%d", targetID), bytes.NewBufferString(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			ctx := context.WithValue(req.Context(), UserIDKey, currentID)
+			ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
 			req = req.WithContext(ctx)
 
 			rr := httptest.NewRecorder()

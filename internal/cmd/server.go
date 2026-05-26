@@ -14,11 +14,13 @@ import (
 	"time"
 
 	"air-cover/internal/adapters/inbound/api"
+	adaptercasbin "air-cover/internal/adapters/outbound/authorization/casbin"
 	adapteremail "air-cover/internal/adapters/outbound/email"
 	adapterspinitron "air-cover/internal/adapters/outbound/spinitron"
 	"air-cover/internal/adapters/outbound/sqlite"
 	adminapp "air-cover/internal/app/admin"
 	authapp "air-cover/internal/app/auth"
+	"air-cover/internal/app/authorization"
 	bootstrapapp "air-cover/internal/app/bootstrap"
 	subrequestsapp "air-cover/internal/app/subrequests"
 	"air-cover/internal/platform/config"
@@ -53,6 +55,7 @@ type serverDeps struct {
 	newRouter        func(*api.Server, *api.AuthHandler, *config.Config) chi.Router
 	listenAndServe   func(*http.Server) error
 	backgroundCtx    func() context.Context
+	newAuthorizer    func(context.Context, *sql.DB) (authorization.Authorizer, error)
 	newAuthHandler   func(*authapp.Service) *api.AuthHandler
 	newAPIServer     func(*subrequestsapp.Service, *adminapp.Service, *api.AuthHandler) *api.Server
 	newDBRepository  func(*sql.DB) repositories
@@ -77,6 +80,7 @@ type infrastructure struct {
 	catalog      catalog
 	sender       adapteremail.Sender
 	notifier     asyncNotifier
+	authorizer   authorization.Authorizer
 }
 
 type applicationServices struct {
@@ -112,6 +116,9 @@ func defaultServerDeps() serverDeps {
 		},
 		listenAndServe: listenAndServe,
 		backgroundCtx:  context.Background,
+		newAuthorizer: func(ctx context.Context, database *sql.DB) (authorization.Authorizer, error) {
+			return adaptercasbin.NewAuthorizer(ctx, database)
+		},
 		newAuthHandler: func(service *authapp.Service) *api.AuthHandler {
 			return api.NewAuthHandler(service)
 		},
@@ -198,6 +205,10 @@ func buildInfrastructure(cfg *config.Config, deps serverDeps) (infrastructure, e
 	repo := deps.newDBRepository(database)
 	sender := deps.newSender(cfg.ResendAPIKey, cfg.SendGridAPIKey, cfg.FromEmail)
 	spinitronClient := deps.newSpinitron("", cfg.SpinitronAPIURL)
+	authorizer, err := deps.newAuthorizer(context.Background(), database)
+	if err != nil {
+		return infrastructure{}, fmt.Errorf("failed to initialize authorization: %w", err)
+	}
 	notifier := deps.newAsyncNotifier(&adapteremail.SubRequestNotifier{
 		Users:   repo.activeUsers,
 		Sender:  sender,
@@ -209,16 +220,20 @@ func buildInfrastructure(cfg *config.Config, deps serverDeps) (infrastructure, e
 		catalog:      deps.newCatalog(spinitronClient),
 		sender:       sender,
 		notifier:     notifier,
+		authorizer:   authorizer,
 	}, nil
 }
 
 func buildApplicationServices(infra infrastructure) applicationServices {
 	subRequests := subrequestsapp.NewService(infra.repositories.subRequests, infra.catalog)
 	subRequests.SetNotifier(infra.notifier)
+	subRequests.SetAuthorizer(infra.authorizer)
+	admin := adminapp.NewService(infra.repositories.admin, infra.catalog)
+	admin.SetAuthorizer(infra.authorizer)
 	return applicationServices{
 		auth:        authapp.NewService(infra.repositories.auth, infra.sender),
 		subRequests: subRequests,
-		admin:       adminapp.NewService(infra.repositories.admin, infra.catalog),
+		admin:       admin,
 	}
 }
 

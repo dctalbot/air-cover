@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"air-cover/internal/app/authorization"
 	appcatalog "air-cover/internal/app/catalog"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
@@ -115,6 +116,12 @@ func (f *fakeNotifier) SubRequestUntaken(ctx context.Context, event SubRequestUn
 	f.untakenCalls++
 	f.untakenEvent = event
 	return f.err
+}
+
+type allowAllAuthorizer struct{}
+
+func (allowAllAuthorizer) Authorize(ctx context.Context, subject authorization.Subject, action authorization.Action, resource authorization.Resource) error {
+	return nil
 }
 
 func TestListDashboard(t *testing.T) {
@@ -387,6 +394,22 @@ func TestDelete(t *testing.T) {
 	}
 }
 
+func TestSetAuthorizer(t *testing.T) {
+	repo := &fakeRepository{subRequest: &domain.SubRequest{ID: 1, PostedByUserID: 2}}
+	viewer := domain.CurrentUser{ID: 1, Role: domain.RoleMember}
+	svc := NewService(repo, nil)
+
+	svc.SetAuthorizer(nil)
+	if err := svc.Delete(context.Background(), viewer, 1); !errors.Is(err, apperrors.ErrForbidden) {
+		t.Fatalf("nil SetAuthorizer should keep parity authorizer, got %v", err)
+	}
+
+	svc.SetAuthorizer(allowAllAuthorizer{})
+	if err := svc.Delete(context.Background(), viewer, 1); err != nil {
+		t.Fatalf("custom authorizer error = %v", err)
+	}
+}
+
 func TestApplyAction(t *testing.T) {
 	takerID := 2
 	repo := &fakeRepository{subRequest: &domain.SubRequest{ID: 1, PostedByUserID: 1}}
@@ -417,6 +440,12 @@ func TestApplyAction(t *testing.T) {
 		t.Errorf("untake forbidden error = %v, want forbidden", err)
 	}
 
+	repo.subRequest = &domain.SubRequest{ID: 1, PostedByUserID: takerID}
+	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionTake); !errors.Is(err, apperrors.ErrForbidden) {
+		t.Errorf("self take forbidden error = %v, want forbidden", err)
+	}
+
+	repo.subRequest = &domain.SubRequest{ID: 1, PostedByUserID: 1}
 	repo.takeErr = apperrors.ErrConflict
 	if err := svc.ApplyAction(context.Background(), viewer, 1, ActionTake); !errors.Is(err, apperrors.ErrConflict) {
 		t.Errorf("take conflict error = %v, want conflict", err)

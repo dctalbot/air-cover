@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"air-cover/internal/app/authorization"
 	appcatalog "air-cover/internal/app/catalog"
 	"air-cover/internal/apperrors"
 	"air-cover/internal/domain"
@@ -70,6 +71,12 @@ func (f *fakeCatalog) ListPersonas(ctx context.Context) ([]appcatalog.Persona, e
 	return f.personas, f.err
 }
 
+type allowAllAuthorizer struct{}
+
+func (allowAllAuthorizer) Authorize(ctx context.Context, subject authorization.Subject, action authorization.Action, resource authorization.Resource) error {
+	return nil
+}
+
 func TestListUsersSortsForAdminView(t *testing.T) {
 	created := time.Now()
 	users := []*domain.User{
@@ -81,7 +88,7 @@ func TestListUsersSortsForAdminView(t *testing.T) {
 	}
 	svc := NewService(&fakeRepository{users: users}, nil)
 
-	got, err := svc.ListUsers(context.Background())
+	got, err := svc.ListUsers(context.Background(), domain.CurrentUser{ID: 99, Role: domain.RoleAdmin})
 	if err != nil {
 		t.Fatalf("ListUsers returned error: %v", err)
 	}
@@ -96,7 +103,7 @@ func TestListUsersSortsForAdminView(t *testing.T) {
 func TestListUsersReturnsRepositoryError(t *testing.T) {
 	wantErr := errors.New("list failed")
 	svc := NewService(&fakeRepository{listErr: wantErr}, nil)
-	if _, err := svc.ListUsers(context.Background()); !errors.Is(err, wantErr) {
+	if _, err := svc.ListUsers(context.Background(), domain.CurrentUser{ID: 99, Role: domain.RoleAdmin}); !errors.Is(err, wantErr) {
 		t.Fatalf("ListUsers error = %v, want %v", err, wantErr)
 	}
 }
@@ -104,7 +111,8 @@ func TestListUsersReturnsRepositoryError(t *testing.T) {
 func TestCreateUser(t *testing.T) {
 	repo := &fakeRepository{}
 	svc := NewService(repo, nil)
-	if err := svc.CreateUser(context.Background(), CreateUserInput{Email: "user@example.com"}); err != nil {
+	viewer := domain.CurrentUser{ID: 99, Role: domain.RoleAdmin}
+	if err := svc.CreateUser(context.Background(), viewer, CreateUserInput{Email: "user@example.com"}); err != nil {
 		t.Fatalf("CreateUser returned error: %v", err)
 	}
 	if !repo.createCalled {
@@ -114,10 +122,10 @@ func TestCreateUser(t *testing.T) {
 		t.Errorf("default role = %q, want member", repo.createRole)
 	}
 
-	if err := svc.CreateUser(context.Background(), CreateUserInput{Email: "", Role: "member"}); !errors.Is(err, apperrors.ErrInvalid) {
+	if err := svc.CreateUser(context.Background(), viewer, CreateUserInput{Email: "", Role: "member"}); !errors.Is(err, apperrors.ErrInvalid) {
 		t.Errorf("empty email error = %v, want invalid", err)
 	}
-	if err := svc.CreateUser(context.Background(), CreateUserInput{Email: "user@example.com", Role: "owner"}); !errors.Is(err, apperrors.ErrInvalid) {
+	if err := svc.CreateUser(context.Background(), viewer, CreateUserInput{Email: "user@example.com", Role: "owner"}); !errors.Is(err, apperrors.ErrInvalid) {
 		t.Errorf("invalid role error = %v, want invalid", err)
 	}
 }
@@ -128,7 +136,7 @@ func TestCreateUserAlreadyExists(t *testing.T) {
 	}
 	svc := NewService(repo, nil)
 
-	err := svc.CreateUser(context.Background(), CreateUserInput{Email: "user@example.com"})
+	err := svc.CreateUser(context.Background(), domain.CurrentUser{ID: 99, Role: domain.RoleAdmin}, CreateUserInput{Email: "user@example.com"})
 
 	if !errors.Is(err, ErrUserAlreadyExists) {
 		t.Fatalf("CreateUser error = %v, want ErrUserAlreadyExists", err)
@@ -143,7 +151,7 @@ func TestCreateUserReturnsLookupError(t *testing.T) {
 	repo := &fakeRepository{getByEmailErr: wantErr}
 	svc := NewService(repo, nil)
 
-	err := svc.CreateUser(context.Background(), CreateUserInput{Email: "user@example.com"})
+	err := svc.CreateUser(context.Background(), domain.CurrentUser{ID: 99, Role: domain.RoleAdmin}, CreateUserInput{Email: "user@example.com"})
 
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("CreateUser error = %v, want %v", err, wantErr)
@@ -153,10 +161,43 @@ func TestCreateUserReturnsLookupError(t *testing.T) {
 	}
 }
 
+func TestAdminAuthorization(t *testing.T) {
+	member := domain.CurrentUser{ID: 1, Role: domain.RoleMember}
+	svc := NewService(&fakeRepository{}, nil)
+
+	if _, err := svc.ListUsers(context.Background(), member); !errors.Is(err, apperrors.ErrForbidden) {
+		t.Fatalf("member ListUsers error = %v, want forbidden", err)
+	}
+	if err := svc.CreateUser(context.Background(), member, CreateUserInput{Email: "user@example.com"}); !errors.Is(err, apperrors.ErrForbidden) {
+		t.Fatalf("member CreateUser error = %v, want forbidden", err)
+	}
+	if err := svc.ImportCatalogUsers(context.Background(), member); !errors.Is(err, apperrors.ErrForbidden) {
+		t.Fatalf("member ImportCatalogUsers error = %v, want forbidden", err)
+	}
+	if err := svc.UpdateUser(context.Background(), member, UpdateUserInput{ID: 2}); !errors.Is(err, apperrors.ErrForbidden) {
+		t.Fatalf("member UpdateUser error = %v, want forbidden", err)
+	}
+}
+
+func TestSetAuthorizer(t *testing.T) {
+	svc := NewService(&fakeRepository{}, nil)
+	member := domain.CurrentUser{ID: 1, Role: domain.RoleMember}
+
+	svc.SetAuthorizer(nil)
+	if _, err := svc.ListUsers(context.Background(), member); !errors.Is(err, apperrors.ErrForbidden) {
+		t.Fatalf("nil SetAuthorizer should keep parity authorizer, got %v", err)
+	}
+
+	svc.SetAuthorizer(allowAllAuthorizer{})
+	if _, err := svc.ListUsers(context.Background(), member); err != nil {
+		t.Fatalf("custom authorizer error = %v", err)
+	}
+}
+
 func TestUpdateUser(t *testing.T) {
 	disabled := false
 	role := "admin"
-	viewer := domain.CurrentUser{ID: 1}
+	viewer := domain.CurrentUser{ID: 1, Role: domain.RoleAdmin}
 	repo := &fakeRepository{}
 	svc := NewService(repo, nil)
 
@@ -192,27 +233,28 @@ func TestImportCatalogUsers(t *testing.T) {
 		{Email: " "},
 		{Email: "two@example.com"},
 	}})
-	if err := svc.ImportCatalogUsers(context.Background()); err != nil {
+	if err := svc.ImportCatalogUsers(context.Background(), domain.CurrentUser{ID: 99, Role: domain.RoleAdmin}); err != nil {
 		t.Fatalf("ImportCatalogUsers returned error: %v", err)
 	}
 	if len(repo.importEmails) != 2 {
 		t.Fatalf("imported %d emails, want 2", len(repo.importEmails))
 	}
 
-	if err := NewService(repo, &fakeCatalog{err: errors.New("catalog down")}).ImportCatalogUsers(context.Background()); err != nil {
+	if err := NewService(repo, &fakeCatalog{err: errors.New("catalog down")}).
+		ImportCatalogUsers(context.Background(), domain.CurrentUser{ID: 99, Role: domain.RoleAdmin}); err != nil {
 		t.Errorf("catalog errors should be swallowed, got %v", err)
 	}
-	if err := NewService(repo, nil).ImportCatalogUsers(context.Background()); err != nil {
+	if err := NewService(repo, nil).ImportCatalogUsers(context.Background(), domain.CurrentUser{ID: 99, Role: domain.RoleAdmin}); err != nil {
 		t.Errorf("nil catalog should be ignored, got %v", err)
 	}
 	if err := NewService(repo, &fakeCatalog{personas: []appcatalog.Persona{{Email: " "}}}).
-		ImportCatalogUsers(context.Background()); err != nil {
+		ImportCatalogUsers(context.Background(), domain.CurrentUser{ID: 99, Role: domain.RoleAdmin}); err != nil {
 		t.Errorf("empty import should be ignored, got %v", err)
 	}
 
 	importErr := errors.New("import failed")
 	repo.importErr = importErr
-	if err := svc.ImportCatalogUsers(context.Background()); !errors.Is(err, importErr) {
+	if err := svc.ImportCatalogUsers(context.Background(), domain.CurrentUser{ID: 99, Role: domain.RoleAdmin}); !errors.Is(err, importErr) {
 		t.Errorf("import error = %v, want %v", err, importErr)
 	}
 }

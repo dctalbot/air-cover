@@ -33,6 +33,12 @@ func (m *MockShowsService) ListPersonas(ctx context.Context) ([]appcatalog.Perso
 	return nil, nil
 }
 
+func adminContext(ctx context.Context) context.Context {
+	ctx = context.WithValue(ctx, UserIDKey, 1)
+	ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
+	return ctx
+}
+
 type badShowsService struct{}
 
 func (b *badShowsService) ListShows(ctx context.Context) ([]appcatalog.Show, error) {
@@ -219,11 +225,11 @@ type fakeAdminService struct {
 	importCalled bool
 }
 
-func (f *fakeAdminService) ListUsers(ctx context.Context) ([]*domain.User, error) {
+func (f *fakeAdminService) ListUsers(ctx context.Context, viewer domain.CurrentUser) ([]*domain.User, error) {
 	return f.users, f.err
 }
 
-func (f *fakeAdminService) CreateUser(ctx context.Context, input adminapp.CreateUserInput) error {
+func (f *fakeAdminService) CreateUser(ctx context.Context, viewer domain.CurrentUser, input adminapp.CreateUserInput) error {
 	f.createCalled = true
 	f.createInput = input
 	return f.err
@@ -235,7 +241,7 @@ func (f *fakeAdminService) UpdateUser(ctx context.Context, viewer domain.Current
 	return f.err
 }
 
-func (f *fakeAdminService) ImportCatalogUsers(ctx context.Context) error {
+func (f *fakeAdminService) ImportCatalogUsers(ctx context.Context, viewer domain.CurrentUser) error {
 	f.importCalled = true
 	return f.err
 }
@@ -785,12 +791,26 @@ func TestServer_GetApp_AppError(t *testing.T) {
 func TestServer_GetAdmin_ListUsersError(t *testing.T) {
 	s := newTestServer(&fakeServerRepo{err: errors.New("list users failed")}, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req = req.WithContext(adminContext(req.Context()))
 	rr := httptest.NewRecorder()
 
 	s.GetAdmin(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rr.Code)
+	}
+}
+
+func TestServer_GetAdmin_Forbidden(t *testing.T) {
+	s := newTestServer(&fakeServerRepo{}, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req = req.WithContext(context.WithValue(req.Context(), UserIDKey, 1))
+	rr := httptest.NewRecorder()
+
+	s.GetAdmin(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", rr.Code)
 	}
 }
 
@@ -812,7 +832,9 @@ func TestServer_GetAdmin_RenderErrorWithDisabledUsers(t *testing.T) {
 		},
 	}, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
-	req = req.WithContext(context.WithValue(req.Context(), UserIDKey, 1))
+	ctx := context.WithValue(req.Context(), UserIDKey, 1)
+	ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
+	req = req.WithContext(ctx)
 
 	s.GetAdmin(&errorResponseWriter{}, req)
 }
@@ -941,6 +963,7 @@ func TestServer_PostUsersAndImport_RepositoryErrors(t *testing.T) {
 		s := newTestServer(&fakeServerRepo{createUserErr: errors.New("create failed")}, nil, nil)
 		req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader("email=test@example.com&role=member"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req = req.WithContext(adminContext(req.Context()))
 		rr := httptest.NewRecorder()
 
 		s.PostUsers(rr, req)
@@ -954,12 +977,42 @@ func TestServer_PostUsersAndImport_RepositoryErrors(t *testing.T) {
 		service := &importMockShowsService{fail: false}
 		s := newTestServer(&fakeServerRepo{importErr: errors.New("import failed")}, nil, service)
 		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
+		req = req.WithContext(adminContext(req.Context()))
 		rr := httptest.NewRecorder()
 
 		s.PostUsersImportSpinitron(rr, req)
 
 		if rr.Code != http.StatusInternalServerError {
 			t.Errorf("expected 500, got %d", rr.Code)
+		}
+	})
+}
+
+func TestServer_PostUsersAndImportForbidden(t *testing.T) {
+	t.Run("create user forbidden", func(t *testing.T) {
+		s := newTestServer(&fakeServerRepo{}, nil, nil)
+		req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader("email=test@example.com&role=member"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req = req.WithContext(context.WithValue(req.Context(), UserIDKey, 1))
+		rr := httptest.NewRecorder()
+
+		s.PostUsers(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("expected 403, got %d", rr.Code)
+		}
+	})
+
+	t.Run("import users forbidden", func(t *testing.T) {
+		s := newTestServer(&fakeServerRepo{}, nil, &importMockShowsService{})
+		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
+		req = req.WithContext(context.WithValue(req.Context(), UserIDKey, 1))
+		rr := httptest.NewRecorder()
+
+		s.PostUsersImportSpinitron(rr, req)
+
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("expected 403, got %d", rr.Code)
 		}
 	})
 }
@@ -1885,6 +1938,9 @@ func TestServer_PostUsersImportSpinitron(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		s := newTestServer(repo, nil, &importMockShowsService{fail: false})
 		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
+		ctx := context.WithValue(req.Context(), UserIDKey, 1)
+		ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
+		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 		s.PostUsersImportSpinitron(rr, req)
 
@@ -1901,6 +1957,9 @@ func TestServer_PostUsersImportSpinitron(t *testing.T) {
 	t.Run("spinitron error handled gracefully", func(t *testing.T) {
 		s := newTestServer(repo, nil, &importMockShowsService{fail: true})
 		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
+		ctx := context.WithValue(req.Context(), UserIDKey, 1)
+		ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
+		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 		s.PostUsersImportSpinitron(rr, req)
 
@@ -1914,6 +1973,9 @@ func TestServer_PostUsersImportSpinitron(t *testing.T) {
 		_ = dbConn.Close()
 		s := newTestServer(repo, nil, &importMockShowsService{fail: false})
 		req := httptest.NewRequest(http.MethodPost, "/users/import/spinitron", nil)
+		ctx := context.WithValue(req.Context(), UserIDKey, 1)
+		ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
+		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 		s.PostUsersImportSpinitron(rr, req)
 
@@ -1933,6 +1995,7 @@ func TestServer_GetAdmin_Sorting(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 	ctx := context.WithValue(req.Context(), UserIDKey, 1)
 	ctx = context.WithValue(ctx, UserEmailKey, "a@example.com")
+	ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -1962,6 +2025,7 @@ func TestServer_PostUsersId_Errors(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/users/1", strings.NewReader(`{"is_enabled":false}`))
 		req.Header.Set("Content-Type", "application/json")
 		ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
+		ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 		s.PostUsersId(rr, req, u.ID)
@@ -1975,6 +2039,7 @@ func TestServer_PostUsersId_Errors(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/users/1", strings.NewReader(`{"role":"admin"}`))
 		req.Header.Set("Content-Type", "application/json")
 		ctx := context.WithValue(req.Context(), UserIDKey, 999) // not self
+		ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 		s.PostUsersId(rr, req, u.ID)
@@ -1996,6 +2061,7 @@ func TestServer_PostUsersId_Errors(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/users/"+strconv.Itoa(target.ID), strings.NewReader(formData.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		ctx := context.WithValue(req.Context(), UserIDKey, u.ID)
+		ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 		s.PostUsersId(rr, req, target.ID)
@@ -2017,6 +2083,7 @@ func TestServer_PostUsersId_Errors(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/users/1", strings.NewReader("invalid%2"))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		ctx := context.WithValue(req.Context(), UserIDKey, 999)
+		ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 		s.PostUsersId(rr, req, 1)
@@ -2094,6 +2161,7 @@ func TestServer_GetAdmin_DBError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 	ctx := context.WithValue(req.Context(), UserIDKey, 1)
 	ctx = context.WithValue(ctx, UserEmailKey, "admin@example.com")
+	ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 	s.GetAdmin(rr, req)
@@ -2110,6 +2178,7 @@ func TestServer_GetAdmin_RenderError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 	ctx := context.WithValue(req.Context(), UserIDKey, 1)
 	ctx = context.WithValue(ctx, UserEmailKey, "admin@example.com")
+	ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
 	req = req.WithContext(ctx)
 	ew := &errorResponseWriter{}
 	s.GetAdmin(ew, req)
@@ -2174,6 +2243,7 @@ func TestServer_PostUsersId_NotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/users/99999", strings.NewReader(`{"role":"admin"}`))
 	req.Header.Set("Content-Type", "application/json")
 	ctx := context.WithValue(req.Context(), UserIDKey, 1)
+	ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 	s.PostUsersId(rr, req, 99999)
@@ -2195,6 +2265,9 @@ func TestServer_PostUsers_ExistingUserRedirects(t *testing.T) {
 	req.PostForm = url.Values{
 		"email": {"dup@example.com"},
 	}
+	ctx := context.WithValue(req.Context(), UserIDKey, 1)
+	ctx = context.WithValue(ctx, UserRoleKey, domain.RoleAdmin)
+	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 	s.PostUsers(rr, req)
 	if rr.Code != http.StatusSeeOther {
@@ -2211,6 +2284,7 @@ func TestServer_PostUsers_EmptyEmail(t *testing.T) {
 	req.PostForm = url.Values{
 		"email": {""},
 	}
+	req = req.WithContext(adminContext(req.Context()))
 	rr := httptest.NewRecorder()
 	s.PostUsers(rr, req)
 	if rr.Code != http.StatusBadRequest {
@@ -2225,6 +2299,7 @@ func TestServer_PostUsers_InvalidRole(t *testing.T) {
 		"email": {"test@example.com"},
 		"role":  {"superadmin"},
 	}
+	req = req.WithContext(adminContext(req.Context()))
 	rr := httptest.NewRecorder()
 	s.PostUsers(rr, req)
 	if rr.Code != http.StatusBadRequest {
@@ -2237,6 +2312,7 @@ func TestServer_PostUsers_ParseFormError(t *testing.T) {
 	largeBody := "email=test@example.com&" + strings.Repeat("a", 1024*1024+100)
 	req := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(largeBody))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(adminContext(req.Context()))
 	rr := httptest.NewRecorder()
 	s.PostUsers(rr, req)
 	if rr.Code != http.StatusBadRequest {
@@ -2278,8 +2354,29 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 		req = req.WithContext(ctx)
 		rr := httptest.NewRecorder()
 		s.PatchSubRequestsId(rr, req, sr.ID)
-		if rr.Code != http.StatusConflict {
-			t.Errorf("expected 409, got %d", rr.Code)
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("expected 403, got %d", rr.Code)
+		}
+	})
+
+	t.Run("requester cannot take own request", func(t *testing.T) {
+		own := &domain.SubRequest{
+			ShowID:         1,
+			PostedByUserID: u1.ID,
+			StartTime:      time.Now(),
+			EndTime:        time.Now().Add(time.Hour),
+		}
+		_ = repo.CreateSubRequest(context.Background(), own)
+
+		req := httptest.NewRequest(http.MethodPatch, "/sub-requests/"+strconv.Itoa(own.ID),
+			strings.NewReader(`{"action":"take"}`))
+		ctx := context.WithValue(req.Context(), UserIDKey, u1.ID)
+		ctx = context.WithValue(ctx, UserRoleKey, domain.RoleMember)
+		req = req.WithContext(ctx)
+		rr := httptest.NewRecorder()
+		s.PatchSubRequestsId(rr, req, own.ID)
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("expected 403 for requester taking own request, got %d", rr.Code)
 		}
 	})
 
@@ -2409,8 +2506,8 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 		rr := httptest.NewRecorder()
 		s.PatchSubRequestsId(rr, req, srTaken.ID)
 
-		if rr.Code != http.StatusConflict {
-			t.Errorf("expected 409 for admin taking taken request, got %d", rr.Code)
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("expected 403 for admin taking taken request, got %d", rr.Code)
 		}
 	})
 }
