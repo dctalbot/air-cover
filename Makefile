@@ -2,7 +2,7 @@ GO_VERSION := 1.26.3
 GO := GOTOOLCHAIN=go$(GO_VERSION) go
 include tools.mk
 
-.PHONY: setup start build lint test vuln check generate codecov-html coverage-summary db-reset db-down db-status db-up
+.PHONY: setup start build lint test vuln check generate db-reset db-down db-status db-up
 
 setup:
 	GOBIN="$$(pwd)/bin" $(GO) install $(GOLANGCI_LINT)
@@ -59,7 +59,6 @@ test:
 	@rm coverage.filtered.out
 
 vuln:
-	@GOBIN="$$(pwd)/bin" $(GO) install $(GOVULNCHECK)
 	@output="$$(./bin/govulncheck ./... 2>&1)"; status=$$?; \
 	if [ $$status -ne 0 ] || ! printf '%s\n' "$$output" | grep -q 'No vulnerabilities found.'; then \
 		printf '%s\n' "$$output"; \
@@ -67,12 +66,3 @@ vuln:
 	exit $$status
 
 check: lint test vuln build
-
-coverage-summary: test
-	@echo "Raw coverage:"
-	@$(GO) tool cover -func=coverage.out | grep total:
-	@echo "Filtered coverage (excluding generated OpenAPI and templ output):"
-	@$(GO) tool cover -func=coverage.filtered.out | grep total:
-
-codecov-html:
-	$(GO) tool cover -html=coverage.out
