@@ -13,7 +13,17 @@ build:
 	$(GO) build -o bin/aircover cmd/aircover/main.go
 
 start:
-	@pids="$$(lsof -ti :8080 2>/dev/null)"; if [ -n "$$pids" ]; then kill -TERM $$pids; fi
+	@cleanup() { \
+		pids="$$(lsof -ti :8080 2>/dev/null)"; \
+		if [ -n "$$pids" ]; then \
+			kill -TERM $$pids 2>/dev/null || true; \
+			sleep 1; \
+			pids="$$(lsof -ti :8080 2>/dev/null)"; \
+			if [ -n "$$pids" ]; then kill -KILL $$pids 2>/dev/null || true; fi; \
+		fi; \
+	}; \
+	trap cleanup INT TERM EXIT; \
+	cleanup; \
 	$(GO) run $(AIR) -c .air.toml
 
 generate:
