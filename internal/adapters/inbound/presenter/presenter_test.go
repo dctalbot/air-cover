@@ -10,6 +10,7 @@ import (
 )
 
 func TestSubRequestDashboard(t *testing.T) {
+	t.Parallel()
 	start := time.Date(2026, 5, 23, 15, 4, 0, 0, time.UTC)
 	dashboard := subrequests.Dashboard{
 		Upcoming: []subrequests.DashboardSubRequest{{
@@ -53,6 +54,7 @@ func TestSubRequestDashboard(t *testing.T) {
 }
 
 func TestSubRequestDetail(t *testing.T) {
+	t.Parallel()
 	start := time.Date(2026, 5, 23, 15, 4, 0, 0, time.UTC)
 	takerID := 3
 	view := SubRequestDetail(subrequests.Detail{
@@ -79,6 +81,7 @@ func TestSubRequestDetail(t *testing.T) {
 }
 
 func TestAdminUsers(t *testing.T) {
+	t.Parallel()
 	created := time.Date(2026, 5, 23, 15, 4, 0, 0, time.UTC)
 	views := AdminUsers([]adminapp.UserReadModel{{
 		User: &domain.User{
@@ -102,6 +105,7 @@ func TestAdminUsers(t *testing.T) {
 }
 
 func TestFormatDuration(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		duration time.Duration
 		want     string

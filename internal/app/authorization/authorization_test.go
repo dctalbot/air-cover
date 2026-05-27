@@ -10,6 +10,7 @@ import (
 )
 
 func TestParityAuthorizer(t *testing.T) {
+	t.Parallel()
 	authorizer := NewParityAuthorizer()
 	admin := SubjectFromCurrentUser(domain.CurrentUser{ID: 1, Role: domain.RoleAdmin})
 	member := SubjectFromCurrentUser(domain.CurrentUser{ID: 2, Role: domain.RoleMember})
@@ -37,6 +38,7 @@ func TestParityAuthorizer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := authorizer.Authorize(context.Background(), tt.subject, tt.action, tt.resource)
 			if !errors.Is(err, tt.wantError) {
 				t.Fatalf("Authorize error = %v, want %v", err, tt.wantError)
@@ -46,6 +48,7 @@ func TestParityAuthorizer(t *testing.T) {
 }
 
 func TestSubRequestResourceHandlesNil(t *testing.T) {
+	t.Parallel()
 	resource := SubRequestResource(nil)
 	if resource.Type != ResourceSubRequest || resource.SubRequestOpen {
 		t.Fatalf("unexpected nil subrequest resource: %+v", resource)

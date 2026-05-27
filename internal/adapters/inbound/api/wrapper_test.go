@@ -10,6 +10,7 @@ import (
 )
 
 func TestNewWrapper(t *testing.T) {
+	t.Parallel()
 	server := newTestServer(nil, nil, nil)
 	wrapper := NewWrapper(server)
 
@@ -38,6 +39,7 @@ func TestNewWrapper(t *testing.T) {
 }
 
 func TestNewWrapper_JSONErrorResponse(t *testing.T) {
+	t.Parallel()
 	server := newTestServer(nil, nil, nil)
 	wrapper := NewWrapper(server)
 
@@ -61,6 +63,7 @@ func TestNewWrapper_JSONErrorResponse(t *testing.T) {
 }
 
 func TestWriteAppError(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		err        error
@@ -75,6 +78,7 @@ func TestWriteAppError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			rr := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 
@@ -92,6 +96,7 @@ func TestWriteAppError(t *testing.T) {
 }
 
 func TestWriteAppError_JSONResponse(t *testing.T) {
+	t.Parallel()
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPatch, "/sub-requests/1", nil)
 	req.Header.Set("Content-Type", "application/json")
@@ -111,6 +116,7 @@ func TestWriteAppError_JSONResponse(t *testing.T) {
 }
 
 func TestWriteAppError_UnknownError(t *testing.T) {
+	t.Parallel()
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
@@ -123,6 +129,7 @@ func TestWriteAppError_UnknownError(t *testing.T) {
 }
 
 func TestHeaderContainsMediaType(t *testing.T) {
+	t.Parallel()
 	if !headerContainsMediaType("text/html, application/json; charset=utf-8", "application/json") {
 		t.Fatal("expected media type match with parameters")
 	}

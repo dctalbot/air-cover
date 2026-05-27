@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"air-cover/internal/adapters/outbound/sqlite"
 	adminapp "air-cover/internal/app/admin"
 	authapp "air-cover/internal/app/auth"
 	appcatalog "air-cover/internal/app/catalog"
@@ -551,10 +550,7 @@ func TestNewRouter_SwaggerError(t *testing.T) {
 }
 
 func TestAuthRateLimiting(t *testing.T) {
-	dbConn, _ := sqlite.InitDB("file::memory:?cache=shared")
-	defer dbConn.Close()
-
-	repo := sqlite.NewRepository(dbConn)
+	repo := setupTestDB(t)
 	_, _ = repo.CreateUser(context.Background(), "test@example.com", "member")
 	auth := NewAuthHandler(authapp.NewService(repo, &MockSender{}))
 	server := newTestServer(repo, auth, nil)

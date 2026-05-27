@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"air-cover/internal/adapters/outbound/sqlite"
 	adminapp "air-cover/internal/app/admin"
 	authapp "air-cover/internal/app/auth"
 	appcatalog "air-cover/internal/app/catalog"
@@ -1582,11 +1581,8 @@ func TestHandlerWithMiddleware(t *testing.T) {
 
 // TestServer_GetApp_ListDashboardSubRequestsError covers the dashboard query error path in GetApp.
 func TestServer_GetApp_ListDashboardSubRequestsError(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := sqlite.NewRepository(dbConn)
+	repo := setupTestDB(t)
+	dbConn := repo.DB()
 	dbConn.Close() // Force the dashboard query to fail.
 
 	s := newTestServer(repo, nil, &MockShowsService{})
@@ -1667,11 +1663,8 @@ func (e *errorResponseWriter) WriteHeader(code int) {}
 
 // TestServer_DeleteSubRequestsId_DBError covers the GetSubRequestByID DB error path.
 func TestServer_DeleteSubRequestsId_DBError(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := sqlite.NewRepository(dbConn)
+	repo := setupTestDB(t)
+	dbConn := repo.DB()
 	u, _ := repo.CreateUser(context.Background(), "dberr@example.com", "member")
 	sr := &domain.SubRequest{
 		ShowID:         1,
@@ -1696,11 +1689,8 @@ func TestServer_DeleteSubRequestsId_DBError(t *testing.T) {
 
 // TestServer_PostSubRequests_DBError covers the CreateSubRequest DB error path.
 func TestServer_PostSubRequests_DBError(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := sqlite.NewRepository(dbConn)
+	repo := setupTestDB(t)
+	dbConn := repo.DB()
 	u, _ := repo.CreateUser(context.Background(), "postreqerr@example.com", "member")
 	dbConn.Close() // Force CreateSubRequest to fail
 
@@ -1770,11 +1760,8 @@ func TestServer_PostSubRequests_ParseFormError(t *testing.T) {
 }
 
 func TestServer_DeleteSubRequestsId_DeleteError(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := sqlite.NewRepository(dbConn)
+	repo := setupTestDB(t)
+	dbConn := repo.DB()
 	u, _ := repo.CreateUser(context.Background(), "deleterr@example.com", "member")
 	sr := &domain.SubRequest{
 		ShowID:         1,
@@ -1836,11 +1823,7 @@ func TestServer_PostSubRequests_LargeBody(t *testing.T) {
 }
 
 func TestServer_DeleteSubRequestsId_Unauthorized(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := sqlite.NewRepository(dbConn)
+	repo := setupTestDB(t)
 	u1, _ := repo.CreateUser(context.Background(), "u1@example.com", "member")
 	u2, _ := repo.CreateUser(context.Background(), "u2@example.com", "member")
 
@@ -1865,11 +1848,7 @@ func TestServer_DeleteSubRequestsId_Unauthorized(t *testing.T) {
 }
 
 func TestServer_DeleteSubRequestsId_NotFound(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := sqlite.NewRepository(dbConn)
+	repo := setupTestDB(t)
 	u1, _ := repo.CreateUser(context.Background(), "u1@example.com", "member")
 
 	s := newTestServer(repo, nil, nil)
@@ -1885,11 +1864,7 @@ func TestServer_DeleteSubRequestsId_NotFound(t *testing.T) {
 }
 
 func TestServer_DeleteSubRequestsId_NoUserInContext(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := sqlite.NewRepository(dbConn)
+	repo := setupTestDB(t)
 	u1, _ := repo.CreateUser(context.Background(), "u1@example.com", "member")
 	sr := &domain.SubRequest{
 		ShowID:         1,
@@ -1929,11 +1904,8 @@ func (m *importMockShowsService) ListPersonas(ctx context.Context) ([]appcatalog
 }
 
 func TestServer_PostUsersImportSpinitron(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := sqlite.NewRepository(dbConn)
+	repo := setupTestDB(t)
+	dbConn := repo.DB()
 
 	t.Run("success", func(t *testing.T) {
 		s := newTestServer(repo, nil, &importMockShowsService{fail: false})
@@ -2146,11 +2118,8 @@ func TestAppHandler_AdminCannotTakeOwnRequest(t *testing.T) {
 }
 
 func TestServer_GetAdmin_DBError(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := sqlite.NewRepository(dbConn)
+	repo := setupTestDB(t)
+	dbConn := repo.DB()
 	dbConn.Close() // Force ListUsers to fail
 
 	s := newTestServer(repo, nil, nil)
@@ -2249,11 +2218,7 @@ func TestServer_PostUsersId_NotFound(t *testing.T) {
 }
 
 func TestServer_PostUsers_ExistingUserRedirects(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := sqlite.NewRepository(dbConn)
+	repo := setupTestDB(t)
 	_, _ = repo.CreateUser(context.Background(), "dup@example.com", "member")
 
 	s := newTestServer(repo, nil, nil)
@@ -2509,11 +2474,8 @@ func TestServer_PatchSubRequestsId(t *testing.T) {
 }
 
 func TestServer_PatchSubRequestsId_DBError(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repo := sqlite.NewRepository(dbConn)
+	repo := setupTestDB(t)
+	dbConn := repo.DB()
 	u, _ := repo.CreateUser(context.Background(), "dberr@example.com", "member")
 	sr := &domain.SubRequest{
 		ShowID:         1,

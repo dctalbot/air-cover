@@ -64,6 +64,32 @@ func TestHexagonalTestImportBoundaries(t *testing.T) {
 	}
 }
 
+func TestInboundAdaptersDoNotImportOutboundAdapters(t *testing.T) {
+	err := filepath.WalkDir("adapters/inbound", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+
+		parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imported := range parsed.Imports {
+			importPath := strings.Trim(imported.Path.Value, `"`)
+			if importPath == outboundAdaptersRoot || strings.HasPrefix(importPath, outboundAdaptersRoot+"/") {
+				t.Errorf("%s imports outbound adapter package %s", path, importPath)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk inbound adapters: %v", err)
+	}
+}
+
 func TestDomainTypesDoNotCarrySerializationTags(t *testing.T) {
 	if err := assertNoStructTags(t, "domain", "json:", "form:"); err != nil {
 		t.Fatalf("walk domain: %v", err)

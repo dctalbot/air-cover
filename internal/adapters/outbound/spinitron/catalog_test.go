@@ -48,6 +48,7 @@ func (f *fakePageClient) GetPersonasPage(ctx context.Context, page int) (Persona
 }
 
 func TestCatalog_ListShowsCachesPaginatedResults(t *testing.T) {
+	t.Parallel()
 	next := 2
 	source := &fakePageClient{
 		showPages: []ShowsPage{
@@ -79,6 +80,7 @@ func TestCatalog_ListShowsCachesPaginatedResults(t *testing.T) {
 }
 
 func TestCatalog_ListPersonasCachesEmptyResults(t *testing.T) {
+	t.Parallel()
 	source := &fakePageClient{personaPages: []PersonasPage{{}}}
 	catalog := NewCatalog(source)
 
@@ -100,6 +102,7 @@ func TestCatalog_ListPersonasCachesEmptyResults(t *testing.T) {
 }
 
 func TestCatalog_PrefetchLoadsBothCatalogs(t *testing.T) {
+	t.Parallel()
 	source := &fakePageClient{
 		showPages:    []ShowsPage{{Items: []appcatalog.Show{{ID: "1", Title: "Show"}}}},
 		personaPages: []PersonasPage{{Items: []appcatalog.Persona{{ID: 1, Name: "DJ", Email: "dj@example.com"}}}},
@@ -115,6 +118,7 @@ func TestCatalog_PrefetchLoadsBothCatalogs(t *testing.T) {
 }
 
 func TestCatalog_PrefetchReturnsPersonaError(t *testing.T) {
+	t.Parallel()
 	source := &fakePageClient{showPages: []ShowsPage{{}}, personaErr: errors.New("personas down")}
 	catalog := NewCatalog(source)
 
@@ -124,6 +128,7 @@ func TestCatalog_PrefetchReturnsPersonaError(t *testing.T) {
 }
 
 func TestCatalog_PrefetchReturnsShowError(t *testing.T) {
+	t.Parallel()
 	source := &fakePageClient{showErr: errors.New("shows down")}
 	catalog := NewCatalog(source)
 
@@ -133,6 +138,7 @@ func TestCatalog_PrefetchReturnsShowError(t *testing.T) {
 }
 
 func TestCatalog_ListShowsReturnsSourceError(t *testing.T) {
+	t.Parallel()
 	source := &fakePageClient{err: errors.New("boom")}
 	catalog := NewCatalog(source)
 
@@ -142,6 +148,7 @@ func TestCatalog_ListShowsReturnsSourceError(t *testing.T) {
 }
 
 func TestCatalog_ListPersonasReturnsSourceError(t *testing.T) {
+	t.Parallel()
 	source := &fakePageClient{err: errors.New("boom")}
 	catalog := NewCatalog(source)
 
@@ -151,6 +158,7 @@ func TestCatalog_ListPersonasReturnsSourceError(t *testing.T) {
 }
 
 func TestCatalog_ListShowsValidatesSource(t *testing.T) {
+	t.Parallel()
 	if _, err := (*Catalog)(nil).ListShows(context.Background()); err == nil {
 		t.Fatal("expected nil catalog error")
 	}
@@ -162,6 +170,7 @@ func TestCatalog_ListShowsValidatesSource(t *testing.T) {
 }
 
 func TestCatalog_ListPersonasValidatesSource(t *testing.T) {
+	t.Parallel()
 	catalog := NewCatalog(nil)
 	if _, err := catalog.ListPersonas(context.Background()); err == nil {
 		t.Fatal("expected nil source error")
@@ -169,6 +178,7 @@ func TestCatalog_ListPersonasValidatesSource(t *testing.T) {
 }
 
 func TestCatalog_DefaultClockAndNilShowClone(t *testing.T) {
+	t.Parallel()
 	catalog := NewCatalog(&fakePageClient{})
 	catalog.nowFunc = nil
 	if catalog.now().IsZero() {
@@ -180,6 +190,7 @@ func TestCatalog_DefaultClockAndNilShowClone(t *testing.T) {
 }
 
 func TestCatalog_FetchShowsStopsAtPageLimit(t *testing.T) {
+	t.Parallel()
 	next := 1
 	source := &fakePageClient{showPages: []ShowsPage{{NextPage: &next}}}
 	catalog := NewCatalog(source)
@@ -190,6 +201,7 @@ func TestCatalog_FetchShowsStopsAtPageLimit(t *testing.T) {
 }
 
 func TestCatalog_FetchPersonasStopsAtPageLimit(t *testing.T) {
+	t.Parallel()
 	next := 1
 	source := &fakePageClient{personaPages: []PersonasPage{{NextPage: &next}}}
 	catalog := NewCatalog(source)
@@ -200,6 +212,7 @@ func TestCatalog_FetchPersonasStopsAtPageLimit(t *testing.T) {
 }
 
 func TestCatalog_WithRefreshTimeoutCanBeDisabled(t *testing.T) {
+	t.Parallel()
 	source := &fakePageClient{showPages: []ShowsPage{{Items: []appcatalog.Show{{ID: "1", Title: "Show"}}}}}
 	catalog := NewCatalog(source)
 	catalog.refreshTimeout = 0
@@ -210,6 +223,7 @@ func TestCatalog_WithRefreshTimeoutCanBeDisabled(t *testing.T) {
 }
 
 func TestCatalog_ExpiredShowsReturnStaleAndRefresh(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, time.May, 23, 12, 0, 0, 0, time.UTC)
 	source := &fakePageClient{showPages: []ShowsPage{{Items: []appcatalog.Show{{ID: "1", Title: "Fresh"}}}}}
 	catalog := NewCatalog(source)
@@ -244,6 +258,7 @@ func TestCatalog_ExpiredShowsReturnStaleAndRefresh(t *testing.T) {
 }
 
 func TestCatalog_ExpiredPersonasReturnStaleAndRefresh(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, time.May, 23, 12, 0, 0, 0, time.UTC)
 	source := &fakePageClient{personaPages: []PersonasPage{{Items: []appcatalog.Persona{{ID: 1, Name: "Fresh"}}}}}
 	catalog := NewCatalog(source)

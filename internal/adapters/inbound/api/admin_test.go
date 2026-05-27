@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"air-cover/internal/adapters/outbound/sqlite"
 	authapp "air-cover/internal/app/auth"
 	"air-cover/internal/domain"
 )
@@ -307,7 +306,7 @@ func TestServer_PostUsersId(t *testing.T) {
 		targetIDOffset int    // if target user is non-existent
 		body           string
 		wantStatus     int
-		check          func(t *testing.T, repo *sqlite.Repository, targetID int)
+		check          func(t *testing.T, repo *testRepository, targetID int)
 	}{
 		{
 			name:        "admin deactivates member",
@@ -315,7 +314,7 @@ func TestServer_PostUsersId(t *testing.T) {
 			targetUser:  "member@example.com",
 			body:        `{"is_enabled": false}`,
 			wantStatus:  http.StatusNoContent,
-			check: func(t *testing.T, repo *sqlite.Repository, targetID int) {
+			check: func(t *testing.T, repo *testRepository, targetID int) {
 				user, _ := repo.GetUserByID(context.Background(), targetID)
 				if user.IsEnabled != false {
 					t.Error("expected is_enabled false")
@@ -331,7 +330,7 @@ func TestServer_PostUsersId(t *testing.T) {
 			targetUser:  "member@example.com",
 			body:        `{"role": "admin"}`,
 			wantStatus:  http.StatusNoContent,
-			check: func(t *testing.T, repo *sqlite.Repository, targetID int) {
+			check: func(t *testing.T, repo *testRepository, targetID int) {
 				user, _ := repo.GetUserByID(context.Background(), targetID)
 				if user.Role != domain.RoleAdmin {
 					t.Error("expected role admin")
@@ -354,7 +353,7 @@ func TestServer_PostUsersId(t *testing.T) {
 			targetUser:  "admin@example.com",
 			body:        `{"role": "member"}`,
 			wantStatus:  http.StatusNoContent,
-			check: func(t *testing.T, repo *sqlite.Repository, targetID int) {
+			check: func(t *testing.T, repo *testRepository, targetID int) {
 				user, _ := repo.GetUserByID(context.Background(), targetID)
 				if user.Role != domain.RoleMember {
 					t.Error("expected role member")

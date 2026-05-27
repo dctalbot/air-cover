@@ -3,6 +3,7 @@ package apperrors
 import "testing"
 
 func TestErrors(t *testing.T) {
+	t.Parallel()
 	tests := []error{
 		ErrInvalid,
 		ErrNotFound,

@@ -8,6 +8,7 @@ import (
 )
 
 func TestTrustForwardedHeadersMarksConfiguredProxy(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "[::1]:12345"
 
@@ -24,6 +25,7 @@ func TestTrustForwardedHeadersMarksConfiguredProxy(t *testing.T) {
 }
 
 func TestTrustForwardedHeadersIgnoresUnconfiguredProxy(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "192.0.2.10:12345"
 
@@ -40,6 +42,7 @@ func TestTrustForwardedHeadersIgnoresUnconfiguredProxy(t *testing.T) {
 }
 
 func TestTrustForwardedHeadersIgnoresMalformedRemoteAddr(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "not-an-ip"
 
@@ -56,6 +59,7 @@ func TestTrustForwardedHeadersIgnoresMalformedRemoteAddr(t *testing.T) {
 }
 
 func TestTrustForwardedHeadersWithoutConfiguredProxies(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 
@@ -72,6 +76,7 @@ func TestTrustForwardedHeadersWithoutConfiguredProxies(t *testing.T) {
 }
 
 func TestTrustedForwardedProtoNormalizesFirstHeaderValue(t *testing.T) {
+	t.Parallel()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("X-Forwarded-Proto", " HTTPS, http")

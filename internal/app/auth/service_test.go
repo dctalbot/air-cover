@@ -93,6 +93,7 @@ func (f *fakeSender) SendMagicLink(toEmail, magicLink string) error {
 }
 
 func TestRequestLogin(t *testing.T) {
+	t.Parallel()
 	repo := &fakeRepository{userByEmail: &domain.User{ID: 1, Email: "user@example.com", IsEnabled: true}}
 	sender := &fakeSender{}
 	svc := NewService(repo, sender).WithTokenGenerator(func(n int) (string, error) { return "raw-token", nil })
@@ -113,6 +114,7 @@ func TestRequestLogin(t *testing.T) {
 }
 
 func TestRequestLoginBranches(t *testing.T) {
+	t.Parallel()
 	disabled := NewService(&fakeRepository{userByEmail: &domain.User{IsEnabled: false}}, nil)
 	if result, err := disabled.RequestLogin(context.Background(), LoginInput{}); err != nil || result.Sent {
 		t.Fatalf("disabled login = %+v, %v; want no send and no error", result, err)
@@ -158,6 +160,7 @@ func TestRequestLoginBranches(t *testing.T) {
 }
 
 func TestVerifyMagicLink(t *testing.T) {
+	t.Parallel()
 	repo := &fakeRepository{magicLink: &domain.MagicLink{UserID: 7}}
 	svc := NewService(repo, nil).WithTokenGenerator(sequenceTokens("session-id", "session-token"))
 
@@ -171,6 +174,7 @@ func TestVerifyMagicLink(t *testing.T) {
 }
 
 func TestVerifyMagicLinkErrors(t *testing.T) {
+	t.Parallel()
 	if _, err := NewService(&fakeRepository{err: apperrors.ErrNotFound}, nil).VerifyMagicLink(context.Background(), "raw"); !errors.Is(err, ErrInvalidMagicLink) {
 		t.Fatalf("use link error = %v", err)
 	}
@@ -216,6 +220,7 @@ func TestVerifyMagicLinkErrors(t *testing.T) {
 }
 
 func TestLogoutAndAuthenticateSession(t *testing.T) {
+	t.Parallel()
 	repo := &fakeRepository{
 		session:  &domain.Session{UserID: 5},
 		userByID: &domain.User{ID: 5, Email: "u@example.com", Role: domain.RoleAdmin, IsEnabled: true},
@@ -240,6 +245,7 @@ func TestLogoutAndAuthenticateSession(t *testing.T) {
 }
 
 func TestAuthenticateSessionErrors(t *testing.T) {
+	t.Parallel()
 	wantErr := errors.New("session failed")
 	if _, err := NewService(&fakeRepository{err: wantErr}, nil).AuthenticateSession(context.Background(), "token"); !errors.Is(err, wantErr) {
 		t.Fatalf("session error = %v, want %v", err, wantErr)
@@ -261,6 +267,7 @@ func TestAuthenticateSessionErrors(t *testing.T) {
 }
 
 func TestNowFallback(t *testing.T) {
+	t.Parallel()
 	svc := &Service{}
 	if svc.now().IsZero() {
 		t.Fatal("expected fallback time")

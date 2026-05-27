@@ -6,6 +6,7 @@ import (
 )
 
 func TestRoleValid(t *testing.T) {
+	t.Parallel()
 	if !RoleAdmin.Valid() || !RoleMember.Valid() {
 		t.Fatal("expected known roles to be valid")
 	}
@@ -15,6 +16,7 @@ func TestRoleValid(t *testing.T) {
 }
 
 func TestUserIsAdmin(t *testing.T) {
+	t.Parallel()
 	admin := User{Role: RoleAdmin}
 	member := User{Role: RoleMember}
 	if !admin.IsAdmin() {
@@ -26,6 +28,7 @@ func TestUserIsAdmin(t *testing.T) {
 }
 
 func TestCurrentUserIsAdmin(t *testing.T) {
+	t.Parallel()
 	admin := CurrentUser{Role: RoleAdmin}
 	member := CurrentUser{Role: RoleMember}
 	if !admin.IsAdmin() {
@@ -37,6 +40,7 @@ func TestCurrentUserIsAdmin(t *testing.T) {
 }
 
 func TestSubRequestStatus(t *testing.T) {
+	t.Parallel()
 	request := &SubRequest{}
 
 	if request.GetStatus() != string(SubRequestStatusOpen) {
@@ -57,6 +61,7 @@ func TestSubRequestStatus(t *testing.T) {
 }
 
 func TestSubRequestHasValidTimeRange(t *testing.T) {
+	t.Parallel()
 	start := time.Now()
 	if !(&SubRequest{StartTime: start, EndTime: start.Add(time.Hour)}).HasValidTimeRange() {
 		t.Fatal("expected end after start to be valid")

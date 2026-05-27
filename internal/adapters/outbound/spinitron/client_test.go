@@ -18,6 +18,7 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestNewClient(t *testing.T) {
+	t.Parallel()
 	apiKey := "test-api-key"
 	client := NewClient(apiKey, "https://proxy.example.test/spinitron")
 
@@ -38,6 +39,7 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestNewClient_DefaultBaseURL(t *testing.T) {
+	t.Parallel()
 	client := NewClient("k", "")
 	if client.BaseURL != defaultBaseURL {
 		t.Errorf("expected default base URL %s, got %s", defaultBaseURL, client.BaseURL)
@@ -45,6 +47,7 @@ func TestNewClient_DefaultBaseURL(t *testing.T) {
 }
 
 func TestNewClient_WhitespaceBaseURL(t *testing.T) {
+	t.Parallel()
 	client := NewClient("k", "   ")
 	if client.BaseURL != defaultBaseURL {
 		t.Errorf("expected default base URL for whitespace-only input, got %s", client.BaseURL)
@@ -52,6 +55,7 @@ func TestNewClient_WhitespaceBaseURL(t *testing.T) {
 }
 
 func TestNewClient_TrailingSlash(t *testing.T) {
+	t.Parallel()
 	client := NewClient("k", "https://example.com/api/")
 	if strings.HasSuffix(client.BaseURL, "/") {
 		t.Errorf("expected trailing slash to be trimmed, got %s", client.BaseURL)
@@ -59,6 +63,7 @@ func TestNewClient_TrailingSlash(t *testing.T) {
 }
 
 func TestGetShowsPage(t *testing.T) {
+	t.Parallel()
 	client := NewClient("token-123", "https://proxy.example.test/api")
 	now := time.Date(2026, time.January, 2, 15, 4, 5, 0, time.UTC)
 	client.nowFunc = func() time.Time { return now }
@@ -111,6 +116,7 @@ func TestGetShowsPage(t *testing.T) {
 }
 
 func TestGetShowsPage_PageZeroNormalized(t *testing.T) {
+	t.Parallel()
 	// page < 1 should be normalized to 1
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
@@ -132,6 +138,7 @@ func TestGetShowsPage_PageZeroNormalized(t *testing.T) {
 }
 
 func TestGetShowsPage_NoAPIKey(t *testing.T) {
+	t.Parallel()
 	// No API key → no Authorization header
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
@@ -153,6 +160,7 @@ func TestGetShowsPage_NoAPIKey(t *testing.T) {
 }
 
 func TestGetShowsPage_RequestError(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -166,6 +174,7 @@ func TestGetShowsPage_RequestError(t *testing.T) {
 }
 
 func TestGetShowsPage_LinkHeaderFallback(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -189,6 +198,7 @@ func TestGetShowsPage_LinkHeaderFallback(t *testing.T) {
 }
 
 func TestGetShowsPage_MetaCurrentPageDoesNotImplyNextPage(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -212,6 +222,7 @@ func TestGetShowsPage_MetaCurrentPageDoesNotImplyNextPage(t *testing.T) {
 }
 
 func TestGetShowsPage_MetaNextPage(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -235,6 +246,7 @@ func TestGetShowsPage_MetaNextPage(t *testing.T) {
 }
 
 func TestGetShowsPage_ErrorStatus(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -255,6 +267,7 @@ func TestGetShowsPage_ErrorStatus(t *testing.T) {
 }
 
 func TestGetShowsPage_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -272,6 +285,7 @@ func TestGetShowsPage_InvalidJSON(t *testing.T) {
 }
 
 func TestGetShowsPage_InvalidItemsJSON(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -289,6 +303,7 @@ func TestGetShowsPage_InvalidItemsJSON(t *testing.T) {
 }
 
 func TestGetShowsPage_DataKey(t *testing.T) {
+	t.Parallel()
 	// API using "data" key instead of "items"
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
@@ -310,6 +325,7 @@ func TestGetShowsPage_DataKey(t *testing.T) {
 }
 
 func TestGetShowsPage_MissingItemsKey(t *testing.T) {
+	t.Parallel()
 	// No "items" or "data" key → empty page
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
@@ -331,6 +347,7 @@ func TestGetShowsPage_MissingItemsKey(t *testing.T) {
 }
 
 func TestGetShowsPage_ShowWithNoIDSkipped(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -352,6 +369,7 @@ func TestGetShowsPage_ShowWithNoIDSkipped(t *testing.T) {
 }
 
 func TestGetShowsPage_DisplayNameTitle(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -372,6 +390,7 @@ func TestGetShowsPage_DisplayNameTitle(t *testing.T) {
 }
 
 func TestGetShowsPage_ShowFallbackToID(t *testing.T) {
+	t.Parallel()
 	// No title/name/display_name → fallback to ID string
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
@@ -393,6 +412,7 @@ func TestGetShowsPage_ShowFallbackToID(t *testing.T) {
 }
 
 func TestGetShowsPage_ShowFallbackToUnknown(t *testing.T) {
+	t.Parallel()
 	// No title/name/display_name and no id → "Unknown show"
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
@@ -418,6 +438,7 @@ func TestGetShowsPage_ShowFallbackToUnknown(t *testing.T) {
 }
 
 func TestNormalizeTitle_UnknownShow(t *testing.T) {
+	t.Parallel()
 	// Directly test normalizeTitle with no valid keys and no id
 	item := map[string]interface{}{
 		"id":    nil,
@@ -430,6 +451,7 @@ func TestNormalizeTitle_UnknownShow(t *testing.T) {
 }
 
 func TestNormalizeID_Types(t *testing.T) {
+	t.Parallel()
 	if v := normalizeID("hello"); v != "hello" {
 		t.Errorf("expected 'hello', got %q", v)
 	}
@@ -442,6 +464,7 @@ func TestNormalizeID_Types(t *testing.T) {
 }
 
 func TestGetShowsPage_NextPageAsNumber(t *testing.T) {
+	t.Parallel()
 	// "next_page": 2 at top level
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
@@ -463,6 +486,7 @@ func TestGetShowsPage_NextPageAsNumber(t *testing.T) {
 }
 
 func TestGetShowsPage_NextPageAsString(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -483,6 +507,7 @@ func TestGetShowsPage_NextPageAsString(t *testing.T) {
 }
 
 func TestGetShowsPage_NextPageAsURL(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -503,6 +528,7 @@ func TestGetShowsPage_NextPageAsURL(t *testing.T) {
 }
 
 func TestGetShowsPage_NextPageAsArray(t *testing.T) {
+	t.Parallel()
 	// links key is an array containing a page number
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
@@ -524,6 +550,7 @@ func TestGetShowsPage_NextPageAsArray(t *testing.T) {
 }
 
 func TestGetShowsPage_NextPageNegative(t *testing.T) {
+	t.Parallel()
 	// negative page → no next page
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
@@ -545,6 +572,7 @@ func TestGetShowsPage_NextPageNegative(t *testing.T) {
 }
 
 func TestParseNextPageFromLinkHeader(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		header   string
@@ -560,6 +588,7 @@ func TestParseNextPageFromLinkHeader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := parseNextPageFromLinkHeader(tt.header)
 			if tt.wantPage == nil {
 				if got != nil {
@@ -575,6 +604,7 @@ func TestParseNextPageFromLinkHeader(t *testing.T) {
 }
 
 func TestParsePageString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    string
 		wantPage int
@@ -600,6 +630,7 @@ func TestParsePageString(t *testing.T) {
 }
 
 func TestPageFromGeneric_MapWithNextPageKey(t *testing.T) {
+	t.Parallel()
 	// map with "next_page" key
 	v := map[string]interface{}{
 		"next_page": float64(7),
@@ -611,6 +642,7 @@ func TestPageFromGeneric_MapWithNextPageKey(t *testing.T) {
 }
 
 func TestPageFromGeneric_MapWithHrefKey(t *testing.T) {
+	t.Parallel()
 	v := map[string]interface{}{
 		"href": "https://example.com?page=8",
 	}
@@ -621,6 +653,7 @@ func TestPageFromGeneric_MapWithHrefKey(t *testing.T) {
 }
 
 func TestPageFromGeneric_EmptyString(t *testing.T) {
+	t.Parallel()
 	page := pageFromGeneric("")
 	if page != nil {
 		t.Errorf("expected nil for empty string, got %v", page)
@@ -628,6 +661,7 @@ func TestPageFromGeneric_EmptyString(t *testing.T) {
 }
 
 func TestParseNextPageFromMeta_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	// not-valid json bytes
 	result := parseNextPageFromMeta([]byte("not-json"))
 	if result != nil {
@@ -636,6 +670,7 @@ func TestParseNextPageFromMeta_InvalidJSON(t *testing.T) {
 }
 
 func TestPageFromGeneric_MapWithURLKey(t *testing.T) {
+	t.Parallel()
 	// map with "url" key containing a page number in URL
 	v := map[string]interface{}{
 		"url": "https://example.com/api?page=9",
@@ -647,6 +682,7 @@ func TestPageFromGeneric_MapWithURLKey(t *testing.T) {
 }
 
 func TestPageFromGeneric_MapWithPageKey(t *testing.T) {
+	t.Parallel()
 	// map with "page" key (numeric)
 	v := map[string]interface{}{
 		"page": float64(6),
@@ -658,6 +694,7 @@ func TestPageFromGeneric_MapWithPageKey(t *testing.T) {
 }
 
 func TestPageFromGeneric_MapWithNoUsefulKey(t *testing.T) {
+	t.Parallel()
 	// map with no recognized keys → nil
 	v := map[string]interface{}{
 		"something": "else",
@@ -669,6 +706,7 @@ func TestPageFromGeneric_MapWithNoUsefulKey(t *testing.T) {
 }
 
 func TestParseNextPageValue_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	// json.RawMessage with invalid content
 	result := parseNextPageValue(json.RawMessage(`not-valid-json`))
 	if result != nil {
@@ -677,6 +715,7 @@ func TestParseNextPageValue_InvalidJSON(t *testing.T) {
 }
 
 func TestNormalizeID_JSONNumber(t *testing.T) {
+	t.Parallel()
 	// json.Number type
 	n := json.Number("42")
 	if v := normalizeID(n); v != "42" {
@@ -685,6 +724,7 @@ func TestNormalizeID_JSONNumber(t *testing.T) {
 }
 
 func TestPageFromGeneric_GetRequest_ReadBodyError(t *testing.T) {
+	t.Parallel()
 	// Test the get() method when body reading fails
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
@@ -714,6 +754,7 @@ func (e *errorReader) Close() error {
 }
 
 func TestGetShowsPage_InvalidBaseURL(t *testing.T) {
+	t.Parallel()
 	// An invalid base URL causes url.Parse to fail in get()
 	client := &Client{
 		BaseURL:    "://invalid-url",
@@ -739,6 +780,7 @@ func TestGetShowsPage_RequestCreateError(t *testing.T) {
 }
 
 func TestPageFromGeneric_MapWithNextKey(t *testing.T) {
+	t.Parallel()
 	// map with "next" key that is a string page URL
 	v := map[string]interface{}{
 		"next": "https://example.com/api?page=7",
@@ -750,6 +792,7 @@ func TestPageFromGeneric_MapWithNextKey(t *testing.T) {
 }
 
 func TestPageFromGeneric_MapWithNextKeyThatIsNil(t *testing.T) {
+	t.Parallel()
 	// map with "next" key that returns nil → falls through to other keys
 	v := map[string]interface{}{
 		"next":      nil,
@@ -766,6 +809,7 @@ func intPtr(i int) *int {
 }
 
 func TestParsePageString_InvalidURL(t *testing.T) {
+	t.Parallel()
 	// url.Parse error (usually requires non-ASCII or control chars)
 	_, ok := parsePageString("https://example.com/%%")
 	if ok {
@@ -774,6 +818,7 @@ func TestParsePageString_InvalidURL(t *testing.T) {
 }
 
 func TestParsePageString_NoPageParam(t *testing.T) {
+	t.Parallel()
 	_, ok := parsePageString("https://example.com/api?notpage=1")
 	if ok {
 		t.Error("expected ok=false for no page param")
@@ -781,6 +826,7 @@ func TestParsePageString_NoPageParam(t *testing.T) {
 }
 
 func TestParsePageString_InvalidPageParam(t *testing.T) {
+	t.Parallel()
 	_, ok := parsePageString("https://example.com/api?page=abc")
 	if ok {
 		t.Error("expected ok=false for invalid page param")
@@ -788,6 +834,7 @@ func TestParsePageString_InvalidPageParam(t *testing.T) {
 }
 
 func TestParsePageString_ControlChar(t *testing.T) {
+	t.Parallel()
 	_, ok := parsePageString("http://example.com/\x01")
 	if ok {
 		t.Error("expected ok=false for control char in URL")
@@ -795,6 +842,7 @@ func TestParsePageString_ControlChar(t *testing.T) {
 }
 
 func TestGetPersonasPage(t *testing.T) {
+	t.Parallel()
 	client := NewClient("token-123", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -839,6 +887,7 @@ func TestGetPersonasPage(t *testing.T) {
 }
 
 func TestGetPersonasPage_RequestError(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -852,6 +901,7 @@ func TestGetPersonasPage_RequestError(t *testing.T) {
 }
 
 func TestGetPersonasPage_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -869,6 +919,7 @@ func TestGetPersonasPage_InvalidJSON(t *testing.T) {
 }
 
 func TestGetPersonasPage_MissingItemsKey(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -889,6 +940,7 @@ func TestGetPersonasPage_MissingItemsKey(t *testing.T) {
 }
 
 func TestGetPersonasPage_InvalidItemsJSON(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -906,6 +958,7 @@ func TestGetPersonasPage_InvalidItemsJSON(t *testing.T) {
 }
 
 func TestGetPersonasPage_DataKey(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -926,6 +979,7 @@ func TestGetPersonasPage_DataKey(t *testing.T) {
 }
 
 func TestGetPersonasPage_PersonaWithInvalidID(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -946,6 +1000,7 @@ func TestGetPersonasPage_PersonaWithInvalidID(t *testing.T) {
 }
 
 func TestGetPersonasPage_PageZeroNormalized(t *testing.T) {
+	t.Parallel()
 	client := NewClient("", "https://proxy.example.test/api")
 	client.HTTPClient = &http.Client{
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {

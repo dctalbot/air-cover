@@ -18,6 +18,7 @@ import (
 )
 
 func TestConsoleSender(t *testing.T) {
+	t.Parallel()
 	s := &ConsoleSender{}
 	if err := s.SendMagicLink("test@example.com", "http://example.com/verify?token=abc"); err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -34,6 +35,7 @@ func TestConsoleSender(t *testing.T) {
 }
 
 func TestResendSender_Success(t *testing.T) {
+	t.Parallel()
 	emails := &fakeResendEmails{}
 	s := &ResendSender{FromEmail: "noreply@example.com", Emails: emails}
 
@@ -71,6 +73,7 @@ func TestResendSender_Success(t *testing.T) {
 }
 
 func TestResendSender_Error(t *testing.T) {
+	t.Parallel()
 	s := &ResendSender{
 		FromEmail: "noreply@example.com",
 		Emails:    &fakeResendEmails{err: errors.New("resend down")},
@@ -82,6 +85,7 @@ func TestResendSender_Error(t *testing.T) {
 }
 
 func TestResendSender_SubRequestCreated(t *testing.T) {
+	t.Parallel()
 	emails := &fakeResendEmails{}
 	s := &ResendSender{FromEmail: "noreply@example.com", Emails: emails}
 
@@ -113,6 +117,7 @@ func TestResendSender_SubRequestCreated(t *testing.T) {
 }
 
 func TestResendSender_SubRequestCreatedError(t *testing.T) {
+	t.Parallel()
 	s := &ResendSender{
 		FromEmail: "noreply@example.com",
 		Emails:    &fakeResendEmails{err: errors.New("resend down")},
@@ -123,6 +128,7 @@ func TestResendSender_SubRequestCreatedError(t *testing.T) {
 }
 
 func TestResendSender_SubRequestCreatedNoRecipients(t *testing.T) {
+	t.Parallel()
 	emails := &fakeResendEmails{}
 	s := &ResendSender{FromEmail: "noreply@example.com", Emails: emails}
 	if err := s.SendSubRequestCreated(nil, testSubRequestMessage()); err != nil {
@@ -134,6 +140,7 @@ func TestResendSender_SubRequestCreatedNoRecipients(t *testing.T) {
 }
 
 func TestResendSender_SubRequestTaken(t *testing.T) {
+	t.Parallel()
 	emails := &fakeResendEmails{}
 	s := &ResendSender{FromEmail: "noreply@example.com", Emails: emails}
 
@@ -161,6 +168,7 @@ func TestResendSender_SubRequestTaken(t *testing.T) {
 }
 
 func TestResendSender_SubRequestTakenError(t *testing.T) {
+	t.Parallel()
 	s := &ResendSender{
 		FromEmail: "noreply@example.com",
 		Emails:    &fakeResendEmails{err: errors.New("resend down")},
@@ -171,6 +179,7 @@ func TestResendSender_SubRequestTakenError(t *testing.T) {
 }
 
 func TestResendSender_SubRequestTakenNoRequester(t *testing.T) {
+	t.Parallel()
 	emails := &fakeResendEmails{}
 	s := &ResendSender{FromEmail: "noreply@example.com", Emails: emails}
 	if err := s.SendSubRequestTaken("", []string{"taker@example.com"}, testSubRequestTakenMessage()); err != nil {
@@ -182,6 +191,7 @@ func TestResendSender_SubRequestTakenNoRequester(t *testing.T) {
 }
 
 func TestResendSender_SubRequestUntaken(t *testing.T) {
+	t.Parallel()
 	emails := &fakeResendEmails{}
 	s := &ResendSender{FromEmail: "noreply@example.com", Emails: emails}
 
@@ -209,6 +219,7 @@ func TestResendSender_SubRequestUntaken(t *testing.T) {
 }
 
 func TestResendSender_SubRequestUntakenError(t *testing.T) {
+	t.Parallel()
 	s := &ResendSender{
 		FromEmail: "noreply@example.com",
 		Emails:    &fakeResendEmails{err: errors.New("resend down")},
@@ -219,6 +230,7 @@ func TestResendSender_SubRequestUntakenError(t *testing.T) {
 }
 
 func TestResendSender_SubRequestUntakenNoRequester(t *testing.T) {
+	t.Parallel()
 	emails := &fakeResendEmails{}
 	s := &ResendSender{FromEmail: "noreply@example.com", Emails: emails}
 	if err := s.SendSubRequestUntaken("", []string{"untaker@example.com"}, testSubRequestUntakenMessage()); err != nil {
@@ -230,6 +242,7 @@ func TestResendSender_SubRequestUntakenNoRequester(t *testing.T) {
 }
 
 func TestSendGridSender_Success(t *testing.T) {
+	t.Parallel()
 	var payload sendGridPayload
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer test-key" {
@@ -274,6 +287,7 @@ func TestSendGridSender_Success(t *testing.T) {
 }
 
 func TestSendGridSender_SubRequestCreated(t *testing.T) {
+	t.Parallel()
 	var payload sendGridPayload
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -316,6 +330,7 @@ func TestSendGridSender_SubRequestCreated(t *testing.T) {
 }
 
 func TestSendGridSender_SubRequestTaken(t *testing.T) {
+	t.Parallel()
 	var payload sendGridPayload
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -357,6 +372,7 @@ func TestSendGridSender_SubRequestTaken(t *testing.T) {
 }
 
 func TestSendGridSender_SubRequestTakenNoCC(t *testing.T) {
+	t.Parallel()
 	var payload sendGridPayload
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -386,6 +402,7 @@ func TestSendGridSender_SubRequestTakenNoCC(t *testing.T) {
 }
 
 func TestSendGridSender_SubRequestUntaken(t *testing.T) {
+	t.Parallel()
 	var payload sendGridPayload
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -427,6 +444,7 @@ func TestSendGridSender_SubRequestUntaken(t *testing.T) {
 }
 
 func TestSendGridSender_SubRequestUntakenNoCC(t *testing.T) {
+	t.Parallel()
 	var payload sendGridPayload
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -456,6 +474,7 @@ func TestSendGridSender_SubRequestUntakenNoCC(t *testing.T) {
 }
 
 func TestSendGridSender_SubRequestUntakenError(t *testing.T) {
+	t.Parallel()
 	s := &SendGridSender{
 		APIKey: "test-key",
 		HTTPClient: &http.Client{
@@ -468,6 +487,7 @@ func TestSendGridSender_SubRequestUntakenError(t *testing.T) {
 }
 
 func TestSendGridSender_SubRequestUntakenHTTPError(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -486,6 +506,7 @@ func TestSendGridSender_SubRequestUntakenHTTPError(t *testing.T) {
 }
 
 func TestSendGridSender_SubRequestUntakenNoRequester(t *testing.T) {
+	t.Parallel()
 	s := &SendGridSender{APIKey: "test-key", HTTPClient: &http.Client{}}
 	if err := s.SendSubRequestUntaken("", []string{"untaker@example.com"}, testSubRequestUntakenMessage()); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -493,6 +514,7 @@ func TestSendGridSender_SubRequestUntakenNoRequester(t *testing.T) {
 }
 
 func TestSendGridSender_SubRequestTakenError(t *testing.T) {
+	t.Parallel()
 	s := &SendGridSender{
 		APIKey: "test-key",
 		HTTPClient: &http.Client{
@@ -505,6 +527,7 @@ func TestSendGridSender_SubRequestTakenError(t *testing.T) {
 }
 
 func TestSendGridSender_SubRequestTakenHTTPError(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -523,6 +546,7 @@ func TestSendGridSender_SubRequestTakenHTTPError(t *testing.T) {
 }
 
 func TestSendGridSender_SubRequestTakenNoRequester(t *testing.T) {
+	t.Parallel()
 	s := &SendGridSender{APIKey: "test-key", HTTPClient: &http.Client{}}
 	if err := s.SendSubRequestTaken("", []string{"taker@example.com"}, testSubRequestTakenMessage()); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -530,6 +554,7 @@ func TestSendGridSender_SubRequestTakenNoRequester(t *testing.T) {
 }
 
 func TestSendGridSender_SubRequestCreatedError(t *testing.T) {
+	t.Parallel()
 	s := &SendGridSender{
 		APIKey: "test-key",
 		HTTPClient: &http.Client{
@@ -542,6 +567,7 @@ func TestSendGridSender_SubRequestCreatedError(t *testing.T) {
 }
 
 func TestSendGridSender_SubRequestCreatedHTTPError(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -560,6 +586,7 @@ func TestSendGridSender_SubRequestCreatedHTTPError(t *testing.T) {
 }
 
 func TestSendGridSender_SubRequestCreatedNoRecipients(t *testing.T) {
+	t.Parallel()
 	s := &SendGridSender{APIKey: "test-key", HTTPClient: &http.Client{}}
 	if err := s.SendSubRequestCreated(nil, testSubRequestMessage()); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -567,6 +594,7 @@ func TestSendGridSender_SubRequestCreatedNoRecipients(t *testing.T) {
 }
 
 func TestSendGridSender_HTTPError(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -585,6 +613,7 @@ func TestSendGridSender_HTTPError(t *testing.T) {
 }
 
 func TestNewSender(t *testing.T) {
+	t.Parallel()
 	s := NewSender("resend-key", "sendgrid-key", "noreply@example.com")
 	resendSender, ok := s.(*ResendSender)
 	if !ok {
@@ -641,6 +670,7 @@ func (t *proxyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestSendGridSender_NetworkError(t *testing.T) {
+	t.Parallel()
 	s := &SendGridSender{
 		APIKey: "test-key",
 		HTTPClient: &http.Client{
@@ -816,6 +846,7 @@ func TestSendGridSender_SubRequestUntakenMarshalAndRequestErrors(t *testing.T) {
 }
 
 func TestSubRequestNotifier(t *testing.T) {
+	t.Parallel()
 	users := &fakeActiveUsers{users: []*domain.User{
 		{Email: "one@example.com", IsEnabled: true},
 		{Email: "two@example.com", IsEnabled: true},
@@ -848,6 +879,7 @@ func TestSubRequestNotifier(t *testing.T) {
 }
 
 func TestSubRequestNotifierSubRequestTaken(t *testing.T) {
+	t.Parallel()
 	sender := &fakeSubRequestSender{}
 	notifier := &SubRequestNotifier{
 		Sender:  sender,
@@ -879,6 +911,7 @@ func TestSubRequestNotifierSubRequestTaken(t *testing.T) {
 }
 
 func TestSubRequestNotifierSubRequestTakenNoRequester(t *testing.T) {
+	t.Parallel()
 	sender := &fakeSubRequestSender{}
 	notifier := &SubRequestNotifier{Sender: sender}
 	if err := notifier.SubRequestTaken(context.Background(), subrequestsapp.SubRequestTakenEvent{
@@ -893,6 +926,7 @@ func TestSubRequestNotifierSubRequestTakenNoRequester(t *testing.T) {
 }
 
 func TestSubRequestNotifierSubRequestUntaken(t *testing.T) {
+	t.Parallel()
 	sender := &fakeSubRequestSender{}
 	notifier := &SubRequestNotifier{
 		Sender:  sender,
@@ -924,6 +958,7 @@ func TestSubRequestNotifierSubRequestUntaken(t *testing.T) {
 }
 
 func TestSubRequestNotifierSubRequestUntakenNoRequester(t *testing.T) {
+	t.Parallel()
 	sender := &fakeSubRequestSender{}
 	notifier := &SubRequestNotifier{Sender: sender}
 	if err := notifier.SubRequestUntaken(context.Background(), subrequestsapp.SubRequestUntakenEvent{
@@ -938,6 +973,7 @@ func TestSubRequestNotifierSubRequestUntakenNoRequester(t *testing.T) {
 }
 
 func TestSubRequestNotifierSubRequestUntakenLogsSendError(t *testing.T) {
+	t.Parallel()
 	notifier := &SubRequestNotifier{
 		Sender: &fakeSubRequestSender{untakenErr: errors.New("send failed")},
 	}
@@ -950,6 +986,7 @@ func TestSubRequestNotifierSubRequestUntakenLogsSendError(t *testing.T) {
 }
 
 func TestSubRequestNotifierSubRequestTakenLogsSendError(t *testing.T) {
+	t.Parallel()
 	notifier := &SubRequestNotifier{
 		Sender: &fakeSubRequestSender{takenErr: errors.New("send failed")},
 	}
@@ -962,6 +999,7 @@ func TestSubRequestNotifierSubRequestTakenLogsSendError(t *testing.T) {
 }
 
 func TestSubRequestNotifierRelativeDetailURL(t *testing.T) {
+	t.Parallel()
 	sender := &fakeSubRequestSender{}
 	notifier := &SubRequestNotifier{
 		Users:  &fakeActiveUsers{users: []*domain.User{{Email: "one@example.com", IsEnabled: true}}},
@@ -979,6 +1017,7 @@ func TestSubRequestNotifierRelativeDetailURL(t *testing.T) {
 }
 
 func TestSubRequestNotifierNoRecipients(t *testing.T) {
+	t.Parallel()
 	sender := &fakeSubRequestSender{}
 	notifier := &SubRequestNotifier{
 		Users:  &fakeActiveUsers{},
@@ -995,6 +1034,7 @@ func TestSubRequestNotifierNoRecipients(t *testing.T) {
 }
 
 func TestSubRequestNotifierLogsSendError(t *testing.T) {
+	t.Parallel()
 	notifier := &SubRequestNotifier{
 		Users:  &fakeActiveUsers{users: []*domain.User{{Email: "one@example.com", IsEnabled: true}}},
 		Sender: &fakeSubRequestSender{err: errors.New("send failed")},
@@ -1007,6 +1047,7 @@ func TestSubRequestNotifierLogsSendError(t *testing.T) {
 }
 
 func TestSubRequestNotifierConfigurationErrors(t *testing.T) {
+	t.Parallel()
 	notifier := &SubRequestNotifier{}
 	if err := notifier.SubRequestCreated(context.Background(), subrequestsapp.SubRequestCreatedEvent{}); err == nil {
 		t.Fatal("expected missing user lister error")
@@ -1034,6 +1075,7 @@ func TestSubRequestNotifierConfigurationErrors(t *testing.T) {
 }
 
 func TestAsyncNotifier(t *testing.T) {
+	t.Parallel()
 	next := &fakeNotifier{done: make(chan struct{}, 1)}
 	notifier := NewAsyncNotifier(next, 1)
 	notifier.Start()
@@ -1054,6 +1096,7 @@ func TestAsyncNotifier(t *testing.T) {
 }
 
 func TestAsyncNotifierSubRequestTaken(t *testing.T) {
+	t.Parallel()
 	next := &fakeNotifier{done: make(chan struct{}, 1)}
 	notifier := NewAsyncNotifier(next, 1)
 	notifier.Start()
@@ -1074,6 +1117,7 @@ func TestAsyncNotifierSubRequestTaken(t *testing.T) {
 }
 
 func TestAsyncNotifierSubRequestUntaken(t *testing.T) {
+	t.Parallel()
 	next := &fakeNotifier{done: make(chan struct{}, 1)}
 	notifier := NewAsyncNotifier(next, 1)
 	notifier.Start()
@@ -1094,6 +1138,7 @@ func TestAsyncNotifierSubRequestUntaken(t *testing.T) {
 }
 
 func TestAsyncNotifierDefaultBufferAndErrors(t *testing.T) {
+	t.Parallel()
 	next := &fakeNotifier{err: errors.New("send failed"), done: make(chan struct{}, 1)}
 	notifier := NewAsyncNotifier(next, 0)
 	if cap(notifier.jobs) != defaultAsyncNotifierBuffer {
@@ -1117,6 +1162,7 @@ func TestAsyncNotifierDefaultBufferAndErrors(t *testing.T) {
 }
 
 func TestAsyncNotifierWithoutNext(t *testing.T) {
+	t.Parallel()
 	notifier := NewAsyncNotifier(nil, 1)
 	notifier.Start()
 	if err := notifier.SubRequestCreated(context.Background(), subrequestsapp.SubRequestCreatedEvent{}); err != nil {
@@ -1134,6 +1180,7 @@ func TestAsyncNotifierWithoutNext(t *testing.T) {
 }
 
 func TestAsyncNotifierQueueFull(t *testing.T) {
+	t.Parallel()
 	notifier := NewAsyncNotifier(&fakeNotifier{}, 1)
 	event := subrequestsapp.SubRequestCreatedEvent{Request: &domain.SubRequest{ID: 42}}
 	if err := notifier.SubRequestCreated(context.Background(), event); err != nil {
@@ -1146,6 +1193,7 @@ func TestAsyncNotifierQueueFull(t *testing.T) {
 }
 
 func TestAsyncNotifierSubRequestTakenQueueFull(t *testing.T) {
+	t.Parallel()
 	notifier := NewAsyncNotifier(&fakeNotifier{}, 1)
 	event := subrequestsapp.SubRequestTakenEvent{Request: &domain.SubRequest{ID: 42}}
 	if err := notifier.SubRequestTaken(context.Background(), event); err != nil {
@@ -1158,6 +1206,7 @@ func TestAsyncNotifierSubRequestTakenQueueFull(t *testing.T) {
 }
 
 func TestAsyncNotifierSubRequestUntakenQueueFull(t *testing.T) {
+	t.Parallel()
 	notifier := NewAsyncNotifier(&fakeNotifier{}, 1)
 	event := subrequestsapp.SubRequestUntakenEvent{Request: &domain.SubRequest{ID: 42}}
 	if err := notifier.SubRequestUntaken(context.Background(), event); err != nil {
@@ -1170,6 +1219,7 @@ func TestAsyncNotifierSubRequestUntakenQueueFull(t *testing.T) {
 }
 
 func TestAsyncNotificationHelpers(t *testing.T) {
+	t.Parallel()
 	notifier := &AsyncNotifier{}
 	if err := notifier.process(asyncNotification{kind: asyncNotificationKind("unknown")}); err != nil {
 		t.Fatalf("expected unknown notification kind to no-op, got %v", err)
@@ -1190,6 +1240,7 @@ func TestAsyncNotificationHelpers(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			if got := tt.job.subRequestID(); got != tt.want {
 				t.Fatalf("subRequestID() = %d, want %d", got, tt.want)
 			}
@@ -1198,6 +1249,7 @@ func TestAsyncNotificationHelpers(t *testing.T) {
 }
 
 func TestAsyncNotifierNil(t *testing.T) {
+	t.Parallel()
 	if err := (*AsyncNotifier)(nil).SubRequestCreated(context.Background(), subrequestsapp.SubRequestCreatedEvent{}); err != nil {
 		t.Fatalf("expected nil notifier no-op, got %v", err)
 	}

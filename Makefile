@@ -1,5 +1,6 @@
 GO_VERSION := 1.26.3
 GO := GOTOOLCHAIN=go$(GO_VERSION) go
+GO_TEST_FLAGS ?= -count=1
 include tools.mk
 
 .PHONY: setup start build lint test vuln check generate db-reset db-down db-status db-up
@@ -43,7 +44,7 @@ lint:
 # 	@uvx --from skills-ref agentskills validate ./.agents/skills/verify-changes
 
 test:
-	@$(GO) test -count=1 -coverprofile=coverage.out ./...
+	@$(GO) test $(GO_TEST_FLAGS) -coverprofile=coverage.out ./...
 	@{ IFS= read -r mode; printf '%s\n' "$$mode"; LC_ALL=C sort; } < coverage.out > coverage.sorted.out
 	@mv coverage.sorted.out coverage.out
 	@touch coverage.filtered.out

@@ -93,6 +93,7 @@ func (a actionAuthorizer) Authorize(ctx context.Context, subject authorization.S
 }
 
 func TestListUsersSortsForAdminView(t *testing.T) {
+	t.Parallel()
 	created := time.Now()
 	users := []*domain.User{
 		{ID: 1, Email: "z@example.com", Role: domain.RoleMember, IsEnabled: false, CreatedAt: created},
@@ -116,6 +117,7 @@ func TestListUsersSortsForAdminView(t *testing.T) {
 }
 
 func TestListUsersUsesAuthorizerCapabilities(t *testing.T) {
+	t.Parallel()
 	users := []*domain.User{
 		{ID: 1, Email: "self@example.com", Role: domain.RoleAdmin, IsEnabled: true},
 		{ID: 2, Email: "other@example.com", Role: domain.RoleMember, IsEnabled: true},
@@ -150,6 +152,7 @@ func TestListUsersUsesAuthorizerCapabilities(t *testing.T) {
 }
 
 func TestListUsersReturnsRepositoryError(t *testing.T) {
+	t.Parallel()
 	wantErr := errors.New("list failed")
 	svc := NewService(&fakeRepository{listErr: wantErr}, nil)
 	if _, err := svc.ListUsers(context.Background(), domain.CurrentUser{ID: 99, Role: domain.RoleAdmin}); !errors.Is(err, wantErr) {
@@ -168,6 +171,7 @@ func TestListUsersReturnsRepositoryError(t *testing.T) {
 }
 
 func TestCreateUser(t *testing.T) {
+	t.Parallel()
 	repo := &fakeRepository{}
 	svc := NewService(repo, nil)
 	viewer := domain.CurrentUser{ID: 99, Role: domain.RoleAdmin}
@@ -190,6 +194,7 @@ func TestCreateUser(t *testing.T) {
 }
 
 func TestCreateUserAlreadyExists(t *testing.T) {
+	t.Parallel()
 	repo := &fakeRepository{
 		userByEmail: &domain.User{ID: 1, Email: "user@example.com", Role: domain.RoleMember, IsEnabled: true},
 	}
@@ -206,6 +211,7 @@ func TestCreateUserAlreadyExists(t *testing.T) {
 }
 
 func TestCreateUserReturnsLookupError(t *testing.T) {
+	t.Parallel()
 	wantErr := errors.New("lookup failed")
 	repo := &fakeRepository{getByEmailErr: wantErr}
 	svc := NewService(repo, nil)
@@ -221,6 +227,7 @@ func TestCreateUserReturnsLookupError(t *testing.T) {
 }
 
 func TestAdminAuthorization(t *testing.T) {
+	t.Parallel()
 	member := domain.CurrentUser{ID: 1, Role: domain.RoleMember}
 	svc := NewService(&fakeRepository{}, nil)
 
@@ -239,6 +246,7 @@ func TestAdminAuthorization(t *testing.T) {
 }
 
 func TestSetAuthorizer(t *testing.T) {
+	t.Parallel()
 	svc := NewService(&fakeRepository{}, nil)
 	member := domain.CurrentUser{ID: 1, Role: domain.RoleMember}
 
@@ -254,6 +262,7 @@ func TestSetAuthorizer(t *testing.T) {
 }
 
 func TestUpdateUser(t *testing.T) {
+	t.Parallel()
 	disabled := false
 	role := "admin"
 	viewer := domain.CurrentUser{ID: 1, Role: domain.RoleAdmin}
@@ -291,6 +300,7 @@ func TestUpdateUser(t *testing.T) {
 }
 
 func TestImportCatalogUsers(t *testing.T) {
+	t.Parallel()
 	repo := &fakeRepository{}
 	svc := NewService(repo, &fakeCatalog{personas: []appcatalog.Persona{
 		{Email: "one@example.com"},

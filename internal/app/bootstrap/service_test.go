@@ -35,6 +35,7 @@ func (f *fakeRepository) CreateUser(ctx context.Context, email string, role stri
 }
 
 func TestEnsureMasterUser(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		email      string
@@ -74,6 +75,7 @@ func TestEnsureMasterUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := NewService(tt.repo).EnsureMasterUser(context.Background(), tt.email)
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {

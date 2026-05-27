@@ -9,11 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"air-cover/internal/adapters/outbound/sqlite"
-	adminapp "air-cover/internal/app/admin"
 	authapp "air-cover/internal/app/auth"
 	appcatalog "air-cover/internal/app/catalog"
-	subrequestsapp "air-cover/internal/app/subrequests"
 )
 
 type errorWriter struct{}
@@ -27,11 +24,6 @@ func (w *errorWriter) Write(b []byte) (int, error) {
 }
 
 func (w *errorWriter) WriteHeader(statusCode int) {}
-
-type pageHandlerTestCatalog interface {
-	adminapp.Catalog
-	subrequestsapp.Catalog
-}
 
 type pageHandlerShowsService struct {
 	shows []appcatalog.Show
@@ -49,16 +41,6 @@ func (f *pageHandlerShowsService) ListPersonas(ctx context.Context) ([]appcatalo
 	return nil, f.err
 }
 
-func newPageHandlerTestServer(repo *sqlite.Repository, authHandler *AuthHandler, catalog pageHandlerTestCatalog) *Server {
-	var subRequests *subrequestsapp.Service
-	var admin *adminapp.Service
-	if repo != nil {
-		subRequests = subrequestsapp.NewService(repo, catalog)
-		admin = adminapp.NewService(repo, catalog)
-	}
-	return NewServer(authHandler, subRequests, admin)
-}
-
 func TestHealthHandler(t *testing.T) {
 	server := NewServer(nil, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -74,15 +56,7 @@ func TestHealthHandler(t *testing.T) {
 }
 
 func TestIndexHandler(t *testing.T) {
-	dbConn, err := sqlite.InitDB("file::memory:?cache=shared")
-	if err != nil {
-		t.Fatalf("failed to init test db: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = dbConn.Close()
-	})
-
-	repo := sqlite.NewRepository(dbConn)
+	repo := setupTestDB(t)
 	ctx := context.Background()
 	user, err := repo.CreateUser(ctx, "test@example.com", "member")
 	if err != nil {
@@ -94,7 +68,7 @@ func TestIndexHandler(t *testing.T) {
 	}
 
 	auth := NewAuthHandler(authapp.NewService(repo, nil))
-	server := newPageHandlerTestServer(repo, auth, nil)
+	server := newTestServer(repo, auth, nil)
 
 	handler := server.Get
 
@@ -162,9 +136,8 @@ func TestAppHandler(t *testing.T) {
 			{ID: "1", Title: "Apple Show"},
 		},
 	}
-	dbConn, _ := sqlite.InitDB("file::memory:?cache=shared")
-	repo := sqlite.NewRepository(dbConn)
-	server := newPageHandlerTestServer(repo, nil, service)
+	repo := setupTestDB(t)
+	server := newTestServer(repo, nil, service)
 	handler := server.GetApp
 
 	tests := []struct {
@@ -224,9 +197,8 @@ func TestAppHandler(t *testing.T) {
 
 func TestAppHandler_UpstreamError(t *testing.T) {
 	service := &pageHandlerShowsService{err: errors.New("boom")}
-	dbConn, _ := sqlite.InitDB("file::memory:?cache=shared")
-	repo := sqlite.NewRepository(dbConn)
-	server := newPageHandlerTestServer(repo, nil, service)
+	repo := setupTestDB(t)
+	server := newTestServer(repo, nil, service)
 	handler := server.GetApp
 
 	req := httptest.NewRequest(http.MethodGet, "/app", nil)
