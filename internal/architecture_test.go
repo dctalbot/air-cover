@@ -65,7 +65,17 @@ func TestHexagonalTestImportBoundaries(t *testing.T) {
 }
 
 func TestInboundAdaptersDoNotImportOutboundAdapters(t *testing.T) {
-	err := filepath.WalkDir("adapters/inbound", func(path string, entry fs.DirEntry, err error) error {
+	assertFilesDoNotImport(t, "adapters/inbound", outboundAdaptersRoot, "outbound adapter")
+}
+
+func TestOutboundAdaptersDoNotImportInboundAdapters(t *testing.T) {
+	assertFilesDoNotImport(t, "adapters/outbound", inboundAdaptersRoot, "inbound adapter")
+}
+
+func assertFilesDoNotImport(t *testing.T, root string, forbiddenPrefix string, forbiddenName string) {
+	t.Helper()
+
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -79,14 +89,14 @@ func TestInboundAdaptersDoNotImportOutboundAdapters(t *testing.T) {
 		}
 		for _, imported := range parsed.Imports {
 			importPath := strings.Trim(imported.Path.Value, `"`)
-			if importPath == outboundAdaptersRoot || strings.HasPrefix(importPath, outboundAdaptersRoot+"/") {
-				t.Errorf("%s imports outbound adapter package %s", path, importPath)
+			if importPath == forbiddenPrefix || strings.HasPrefix(importPath, forbiddenPrefix+"/") {
+				t.Errorf("%s imports %s package %s", path, forbiddenName, importPath)
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("walk inbound adapters: %v", err)
+		t.Fatalf("walk %s: %v", root, err)
 	}
 }
 
