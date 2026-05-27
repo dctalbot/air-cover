@@ -35,7 +35,6 @@ db-status:
 	$(GO) run cmd/aircover/main.go migrate status
 
 lint:
-	@GOBIN="$$(pwd)/bin" $(GO) install $(GOLANGCI_LINT)
 	@./bin/golangci-lint config verify
 	@$(GO) mod tidy
 	@$(GO) vet ./...
